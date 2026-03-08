@@ -6,7 +6,7 @@ jenkins:
       allowsSignup: false
       users:
         - id: admin
-          password: 9615
+          password: admin
   authorizationStrategy:
     loggedInUsersCanDoAnything:
       allowAnonymousRead: false
