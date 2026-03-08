@@ -247,7 +247,7 @@ make frontend
 ### 3. common (공통 인프라)
 
 **common/config**
-- KafkaConsumerConfig, KafkaProducerConfig, AvroConfig
+- Kafka 관련 설정(Producer, Error, Topic)은 `common-kafka` 모듈로 분리됨
 
 **common/outbox**
 - OutboxEvent: 발행할 이벤트 데이터
@@ -368,7 +368,7 @@ graph TB
 | 항목 | 기본값 | 설정처 |
 |------|--------|--------|
 | Outbox 폴링 주기 | 500ms | application.yml |
-| Kafka Consumer Group | playground-group | application.yml |
+| Kafka Consumer Group | playground | kafka-defaults.yml |
 | Avro Schema Registry | http://localhost:28081 | application.yml |
 | SSE 타임아웃 | 1시간 | SseEmitterRegistry |
 | Webhook 타임아웃 | 5분 | WebhookTimeoutChecker.TIMEOUT_MINUTES |

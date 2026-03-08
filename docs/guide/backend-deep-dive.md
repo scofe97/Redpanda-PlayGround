@@ -20,7 +20,7 @@ erDiagram
         bigserial id PK
         varchar name
         text description
-        varchar status "DRAFT|DEPLOYING|DEPLOYED|FAILED"
+        varchar status "DRAFT|READY|DEPLOYING|DEPLOYED|FAILED"
         timestamp created_at
         timestamp updated_at
     }
@@ -83,7 +83,7 @@ erDiagram
         varchar name
         varchar url
         varchar username
-        varchar credential "AES-GCM encrypted"
+        varchar credential "Base64 encoded (평문 저장)"
         boolean active
         timestamp created_at
         timestamp updated_at
@@ -111,7 +111,7 @@ erDiagram
 
 **processed_event**: 멱등성 보장 테이블이다. `(correlation_id, event_type)` 복합 PK로 동일 이벤트의 중복 처리를 차단한다. 같은 `correlation_id`라도 다른 `event_type`은 별도 레코드로 허용된다.
 
-**support_tool**: 외부 도구(Jenkins, GitLab, Nexus, Registry) 연결 정보를 런타임에 관리한다. `application.yml`에 하드코딩하지 않고 DB에서 관리하기 때문에, 앱 재시작 없이 도구를 추가/수정할 수 있다. `credential` 필드는 AES/GCM/NoPadding으로 암호화되어 저장되며, `CredentialEncryptor`가 환경변수(`CREDENTIAL_SECRET_KEY`)에서 키를 읽어 암복호화를 수행한다.
+**support_tool**: 외부 도구(Jenkins, GitLab, Nexus, Registry) 연결 정보를 런타임에 관리한다. `application.yml`에 하드코딩하지 않고 DB에서 관리하기 때문에, 앱 재시작 없이 도구를 추가/수정할 수 있다. `credential` 필드는 평문으로 저장된다. `ToolRegistry.decodeCredential()`이 값을 그대로 반환하며, API 응답 시에는 `hasCredential` boolean으로 마스킹한다.
 
 **connector_config**: 동적으로 생성된 Redpanda Connect 스트림의 설정을 영속화한다. Connect Streams API로 등록한 스트림은 컨테이너 재시작 시 소멸하므로, 변수 치환이 완료된 YAML을 이 테이블에 저장하고 앱 기동 시 복원한다. `support_tool`과 1:N 관계이며 `ON DELETE CASCADE`로 도구 삭제 시 자동 정리된다. 상세: `docs/patterns/10-dynamic-connector-management.md`
 
@@ -619,10 +619,10 @@ sequenceDiagram
 
 ```sql
 -- 여러 인스턴스가 동시에 실행되어도 안전
-SELECT * FROM outbox
-WHERE published = false
+SELECT * FROM outbox_event
+WHERE status = 'PENDING'
 FOR UPDATE SKIP LOCKED
-LIMIT 100
+LIMIT 50
 ```
 
 - FOR UPDATE: 선택된 행에 배타 잠금
@@ -702,4 +702,4 @@ PipelineEngine → Kafka(PipelineExecutionCompletedEvent) → PipelineSseConsume
 
 - PostgreSQL 연결 확인
 - Redpanda 브로커 상태 확인 (Redpanda Console)
-- Consumer Group 상태 확인: playground-group의 lag
+- Consumer Group 상태 확인: playground의 lag
