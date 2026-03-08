@@ -1,0 +1,19 @@
+# Production: 외부 Redpanda 클러스터 (K8s NodePort)
+# java-redpanda-demo 연결 설정 기반
+spring:
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:10.255.17.176:31092}
+    properties:
+      schema.registry.url: ${SCHEMA_REGISTRY_URL:http://10.255.17.176:30081}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+      acks: all
+      retries: 3
+    consumer:
+      group-id: playground
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
+      properties:
+        specific.avro.reader: true

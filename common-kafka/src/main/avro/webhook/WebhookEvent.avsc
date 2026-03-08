@@ -1,0 +1,10 @@
+{
+  "type": "record",
+  "name": "WebhookEvent",
+  "namespace": "com.study.playground.avro.webhook",
+  "fields": [
+    {"name": "webhookSource", "type": "string"},
+    {"name": "payload", "type": "string"},
+    {"name": "headers", "type": {"type": "map", "values": "string"}}
+  ]
+}

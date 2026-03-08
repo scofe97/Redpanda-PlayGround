@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.study.playground.pipeline.mapper.PipelineStepMapper">
+
+    <insert id="insertBatch">
+        INSERT INTO pipeline_step (execution_id, step_order, step_type, step_name, status)
+        VALUES
+        <foreach collection="steps" item="s" separator=",">
+            (#{executionId}, #{s.stepOrder}, #{s.stepType}, #{s.stepName}, 'PENDING')
+        </foreach>
+    </insert>
+
+    <select id="findByExecutionId" resultType="com.study.playground.pipeline.domain.PipelineStep">
+        SELECT id, execution_id, step_order, step_type, step_name, status, log, started_at, completed_at
+        FROM pipeline_step
+        WHERE execution_id = #{executionId}
+        ORDER BY step_order
+    </select>
+
+    <update id="updateStatus">
+        UPDATE pipeline_step
+        SET status = #{status},
+            log = #{log},
+            started_at = CASE
+                WHEN #{status} = 'RUNNING' AND started_at IS NULL THEN NOW()
+                ELSE started_at
+            END,
+            completed_at = #{completedAt}
+        WHERE id = #{id}
+    </update>
+
+    <select id="findByExecutionIdAndStepOrder" resultType="com.study.playground.pipeline.domain.PipelineStep">
+        SELECT id, execution_id, step_order, step_type, step_name, status, log, started_at, completed_at
+        FROM pipeline_step
+        WHERE execution_id = #{executionId} AND step_order = #{stepOrder}
+    </select>
+
+    <select id="findWaitingWebhookStepsOlderThan" resultType="com.study.playground.pipeline.domain.PipelineStep">
+        SELECT id, execution_id, step_order, step_type, step_name, status, log, started_at, completed_at
+        FROM pipeline_step
+        WHERE status = 'WAITING_WEBHOOK'
+          AND started_at &lt; NOW() - INTERVAL '1 minute' * #{minutes}
+    </select>
+
+    <update id="updateStatusIfCurrent">
+        UPDATE pipeline_step
+        SET status = #{newStatus},
+            log = #{log},
+            completed_at = #{completedAt}
+        WHERE id = #{id}
+          AND status = #{expectedStatus}
+    </update>
+
+</mapper>

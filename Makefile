@@ -24,7 +24,7 @@ infra-logs: ## 인프라 로그 확인 (실시간)
 # === Backend ===
 
 backend: ## Spring Boot 백엔드 실행
-	./gradlew bootRun
+	./gradlew :app:bootRun
 
 build: ## 백엔드 빌드 (테스트 제외)
 	./gradlew clean build -x test

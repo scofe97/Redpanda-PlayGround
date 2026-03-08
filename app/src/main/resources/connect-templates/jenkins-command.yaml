@@ -1,0 +1,35 @@
+input:
+  kafka_franz:
+    seed_brokers:
+      - redpanda:9092
+    topics:
+      - playground.pipeline.commands
+    consumer_group: connect-jenkins-${TOOL_ID}-command
+    start_from_oldest: false
+
+pipeline:
+  processors:
+    - mapping: |
+        let event_type = @eventType.string()
+        let target_tool = @targetToolId.string()
+        root = if $event_type != "JENKINS_BUILD_COMMAND" || $target_tool != "${TOOL_ID}" {
+          deleted()
+        } else { this }
+    - mapping: |
+        let job = this.jobName
+        let query = this.params.key_values().map_each(kv -> "%s=%s".format(kv.key, kv.value)).join("&")
+        meta jenkins_path = "/job/%s/buildWithParameters?%s".format($job, $query)
+        root = ""
+
+output:
+  http_client:
+    url: "${TOOL_URL}${! meta(\"jenkins_path\") }"
+    verb: POST
+    headers:
+      Content-Type: application/x-www-form-urlencoded
+    basic_auth:
+      enabled: true
+      username: "${TOOL_USERNAME}"
+      password: "${TOOL_CREDENTIAL}"
+    retries: 3
+    retry_period: "5s"

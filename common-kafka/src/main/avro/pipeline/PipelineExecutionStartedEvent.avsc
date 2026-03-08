@@ -1,0 +1,10 @@
+{
+  "type": "record",
+  "name": "PipelineExecutionStartedEvent",
+  "namespace": "com.study.playground.avro.pipeline",
+  "fields": [
+    {"name": "executionId", "type": "string"},
+    {"name": "ticketId", "type": "long"},
+    {"name": "steps", "type": {"type": "array", "items": "string"}}
+  ]
+}

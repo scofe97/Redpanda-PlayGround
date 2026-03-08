@@ -1,0 +1,21 @@
+input:
+  http_server:
+    path: /webhook/${TOOL_TYPE}-${TOOL_ID}
+    allowed_verbs:
+      - POST
+
+pipeline:
+  processors:
+    - mapping: |
+        root.webhookSource = "${TOOL_TYPE}"
+        root.toolId = ${TOOL_ID}
+        root.payload = content().string()
+        root.headers = @
+        root.receivedAt = now()
+
+output:
+  kafka_franz:
+    seed_brokers:
+      - redpanda:9092
+    topic: playground.webhook.inbound
+    key: ${! json("webhookSource") }

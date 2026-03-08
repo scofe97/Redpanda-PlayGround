@@ -1,0 +1,31 @@
+# Kafka 공통 설정 (common-kafka 모듈)
+# 기본: 로컬 docker-compose (localhost:29092)
+spring:
+  kafka:
+    bootstrap-servers: localhost:29092
+    properties:
+      schema.registry.url: http://localhost:28081
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+      acks: all
+      retries: 3
+    consumer:
+      group-id: playground
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
+      properties:
+        specific.avro.reader: true
+
+springwolf:
+  enabled: true
+  docket:
+    base-package: ${SPRINGWOLF_BASE_PACKAGE:com.study.playground}
+    info:
+      title: ${SPRINGWOLF_TITLE:${spring.application.name:application}}
+      version: ${SPRINGWOLF_VERSION:local}
+    servers:
+      redpanda:
+        protocol: kafka
+        host: ${spring.kafka.bootstrap-servers:localhost:29092}

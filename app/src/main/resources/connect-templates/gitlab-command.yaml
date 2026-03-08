@@ -1,0 +1,26 @@
+input:
+  kafka_franz:
+    seed_brokers:
+      - redpanda:9092
+    topics:
+      - playground.pipeline.commands
+    consumer_group: connect-gitlab-${TOOL_ID}-command
+    start_from_oldest: false
+
+pipeline:
+  processors:
+    - mapping: |
+        let event_type = @eventType.string()
+        let target_tool = @targetToolId.string()
+        root = if $event_type != "GITLAB_PIPELINE_COMMAND" || $target_tool != "${TOOL_ID}" {
+          deleted()
+        } else { this }
+
+output:
+  http_client:
+    url: "${TOOL_URL}/api/v4/projects/${! this.projectId }/pipeline"
+    verb: POST
+    headers:
+      Content-Type: application/json
+      Private-Token: "${TOOL_CREDENTIAL}"
+    retries: 3
