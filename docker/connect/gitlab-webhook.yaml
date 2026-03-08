@@ -1,0 +1,21 @@
+input:
+  http_server:
+    address: 0.0.0.0:4196
+    path: /webhook/gitlab
+    allowed_verbs:
+      - POST
+
+pipeline:
+  processors:
+    - mapping: |
+        root.webhookSource = "GITLAB"
+        root.payload = content().string()
+        root.headers = @
+        root.receivedAt = now()
+
+output:
+  kafka_franz:
+    seed_brokers:
+      - redpanda:9092
+    topic: playground.webhook.inbound
+    key: ${! json("webhookSource") }

@@ -1,0 +1,13 @@
+{
+  "type": "record",
+  "name": "AuditEvent",
+  "namespace": "com.study.playground.avro.audit",
+  "fields": [
+    {"name": "metadata", "type": "com.study.playground.avro.common.EventMetadata"},
+    {"name": "actor", "type": "string"},
+    {"name": "action", "type": "string"},
+    {"name": "resourceType", "type": "string"},
+    {"name": "resourceId", "type": "string"},
+    {"name": "details", "type": ["null", "string"], "default": null}
+  ]
+}

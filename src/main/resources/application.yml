@@ -1,0 +1,66 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: redpanda-playground
+  datasource:
+    url: jdbc:postgresql://localhost:25432/playground
+    username: playground
+    password: playground
+    driver-class-name: org.postgresql.Driver
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+  kafka:
+    bootstrap-servers: localhost:29092
+    properties:
+      schema.registry.url: http://localhost:28081
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+      acks: all
+      retries: 3
+    consumer:
+      group-id: playground
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
+      properties:
+        specific.avro.reader: true
+
+mybatis:
+  mapper-locations: classpath:mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+  type-aliases-package: com.study.playground.ticket.domain,com.study.playground.pipeline.domain,com.study.playground.common,com.study.playground.supporttool.domain
+  type-handlers-package: com.study.playground.common.mybatis
+
+springwolf:
+  enabled: true
+  docket:
+    info:
+      title: Redpanda Playground AsyncAPI
+      version: 1.0.0
+      description: 배포 파이프라인 이벤트 명세 (Ticket → Pipeline → Webhook)
+    servers:
+      redpanda:
+        protocol: kafka
+        host: ${spring.kafka.bootstrap-servers}
+    base-package: com.study.playground
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.study.playground: DEBUG
+    org.apache.kafka: WARN
+    org.mybatis: DEBUG

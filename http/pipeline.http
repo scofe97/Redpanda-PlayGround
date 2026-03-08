@@ -1,0 +1,16 @@
+### 파이프라인 시작 (202 Accepted)
+POST http://localhost:8080/api/tickets/1/pipeline/start
+Accept: application/json
+
+### 파이프라인 최신 상태 조회
+GET http://localhost:8080/api/tickets/1/pipeline
+Accept: application/json
+
+### 파이프라인 실행 이력 조회
+GET http://localhost:8080/api/tickets/1/pipeline/history
+Accept: application/json
+
+### SSE 스트림 연결 (브라우저 또는 curl로 테스트)
+# curl -N http://localhost:8080/api/tickets/1/pipeline/events
+GET http://localhost:8080/api/tickets/1/pipeline/events
+Accept: text/event-stream

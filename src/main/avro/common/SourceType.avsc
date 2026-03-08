@@ -1,0 +1,6 @@
+{
+  "type": "enum",
+  "name": "SourceType",
+  "namespace": "com.study.playground.avro.common",
+  "symbols": ["GIT", "NEXUS", "HARBOR"]
+}

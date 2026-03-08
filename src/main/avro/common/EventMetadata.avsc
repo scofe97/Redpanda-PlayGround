@@ -1,0 +1,12 @@
+{
+  "type": "record",
+  "name": "EventMetadata",
+  "namespace": "com.study.playground.avro.common",
+  "fields": [
+    {"name": "eventId", "type": "string", "doc": "CloudEvents ce-id: 이벤트 고유 식별자 (UUID)"},
+    {"name": "correlationId", "type": "string"},
+    {"name": "eventType", "type": "string"},
+    {"name": "timestamp", "type": {"type": "long", "logicalType": "timestamp-millis"}},
+    {"name": "source", "type": "string"}
+  ]
+}

@@ -1,0 +1,8 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #0052cc;
+  --color-background-light: #f5f7f8;
+  --color-background-dark: #0f1723;
+  --font-family-display: "Inter", "Pretendard", system-ui, sans-serif;
+}

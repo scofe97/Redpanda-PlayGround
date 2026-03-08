@@ -1,0 +1,318 @@
+# Jenkins Webhook 발송 전략
+
+## 목표
+
+Jenkins 빌드가 완료되면 그 결과(성공/실패, 소요시간, 빌드 번호 등)를 Redpanda Connect로 전달하여,
+Spring 애플리케이션이 파이프라인 상태를 이어서 처리(Break-and-Resume)할 수 있게 한다.
+
+핵심 요구사항은 3가지다:
+1. **빌드 완료 감지**: 모든 Jenkins 잡의 완료를 빠짐없이 감지
+2. **결과 전달**: 실제 빌드 결과(SUCCESS/FAILURE)와 메타데이터를 정확히 전송
+3. **비간섭**: 고객이 커스텀한 파이프라인 스크립트에 영향을 주지 않을 것
+
+---
+
+## 방법 비교
+
+Jenkins에서 외부 시스템으로 webhook을 보내는 방법은 4가지가 있다.
+
+### 1. 빌드 스크립트 내 curl (현재 PoC)
+
+빌드 셸 스크립트 마지막에 `curl`로 직접 HTTP POST를 보낸다.
+
+```bash
+# Jenkinsfile 또는 Shell Script
+curl -s -X POST "http://connect:4197/webhook/jenkins" \
+  -H "Content-Type: application/json" \
+  -d '{"result": "SUCCESS", "duration": 4000, ...}'
+```
+
+### 2. Jenkinsfile post 블록
+
+Declarative Pipeline의 `post` 섹션에서 Groovy로 HTTP 호출한다.
+
+```groovy
+pipeline {
+    stages { ... }
+    post {
+        always {
+            script {
+                def conn = new URL("http://connect:4197/webhook/jenkins").openConnection()
+                conn.requestMethod = "POST"
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.doOutput = true
+                conn.outputStream.write("""{"result":"${currentBuild.result}"}""".bytes)
+                conn.responseCode
+            }
+        }
+    }
+}
+```
+
+### 3. HTTP Request Plugin
+
+Jenkins 플러그인을 설치하여 Post-build Action에서 UI로 설정한다.
+
+```groovy
+post {
+    always {
+        httpRequest url: 'http://connect:4197/webhook/jenkins',
+            httpMode: 'POST',
+            contentType: 'APPLICATION_JSON',
+            requestBody: '{"result": "${currentBuild.result}"}'
+    }
+}
+```
+
+### 4. RunListener Groovy Init Script (실무 검토안)
+
+`init.groovy.d/`에 전역 리스너를 등록하여, 모든 잡의 빌드 완료를 자동 감지한다.
+
+```groovy
+class WebhookListener extends RunListener<Run> {
+    void onFinalized(Run run) {
+        def payload = [job_name: run.parent.fullDisplayName,
+                       status: run.result?.toString(),
+                       build_number: run.number]
+        Thread.start { /* HTTP POST */ }
+    }
+}
+```
+
+---
+
+## 장단점
+
+| 방법 | 장점 | 단점 |
+|------|------|------|
+| **curl (스크립트)** | 플러그인 불필요, 구현 간단 | 모든 잡 스크립트에 삽입 필요, 고객 커스텀 시 누락 위험, 동기 블로킹 |
+| **Jenkinsfile post** | 파이프라인 코드로 관리 가능, 실제 result/duration 사용 | 잡마다 작성 필요, Freestyle 잡은 미지원 |
+| **HTTP Request Plugin** | UI 설정 가능, 재시도 옵션 | 플러그인 설치/관리 필요, 잡마다 설정 필요 |
+| **RunListener (전역)** | 전체 잡 자동 적용, 고객 파이프라인 비간섭, 비동기 | Jenkins 재시작 시 재등록, Groovy 보안 설정 필요 |
+
+---
+
+## 실무 사례 — TPS에서 전역 리스너를 검토하는 이유
+
+TPS는 CI/CD 플랫폼으로, 고객이 Jenkins 파이프라인을 직접 커스텀한다.
+이 환경에서 방법 1~3은 모두 **잡 스크립트에 webhook 코드를 삽입**해야 하므로,
+고객이 파이프라인을 수정하면 webhook이 누락되거나 깨질 수 있다.
+
+```
+문제 시나리오:
+1. TPS가 Jenkinsfile에 post { httpRequest ... } 삽입
+2. 고객이 파이프라인을 커스텀하면서 post 블록 수정/삭제
+3. 빌드는 되지만 webhook이 안 나감
+4. TPS 파이프라인 상태가 WAITING_WEBHOOK에서 멈춤 (타임아웃까지 대기)
+```
+
+전역 RunListener는 Jenkins 코어 API(`hudson.model.listeners.RunListener`)를 사용하므로
+개별 잡의 스크립트와 완전히 독립적이다. 고객이 파이프라인을 어떻게 수정하든
+빌드가 끝나면 `onFinalized()`가 호출된다.
+
+```
+해결:
+1. init.groovy.d/에 RunListener 등록 (Jenkins 시작 시 자동 로드)
+2. 고객이 파이프라인을 자유롭게 커스텀
+3. 빌드 완료 → RunListener가 자동 감지 → webhook 전송
+4. 고객 스크립트와 webhook 로직이 완전 분리
+```
+
+실제 TPS 검토안 코드: `tps_manifest/docs/redpanda-connect/jenkins/scripts/webhook-init-script.groovy`
+
+주요 설계 포인트:
+- **K8s 내부 DNS 사용**: `redpanda-connect.trb-oss.svc.cluster.local` — 외부 노출 없이 클러스터 내부 통신
+- **`onFinalized` 시점**: `onCompleted`보다 늦게 호출되어 빌드 데이터가 완전히 확정된 상태
+- **비동기 전송**: `Thread.start`로 webhook 전송이 Jenkins 컨트롤러를 블로킹하지 않음
+- **중복 방지**: 등록 전 기존 리스너를 제거하여 Jenkins 재시작 시 중복 등록 방지
+
+---
+
+## 흐름
+
+### PoC (현재)
+
+```
+[Jenkins 빌드 스크립트]
+  sleep 2 (시뮬레이션)
+  curl → Connect HTTP (동기, 하드코딩 결과)
+    → Kafka (playground.webhook.inbound)
+      → Spring WebhookEventConsumer
+        → JenkinsWebhookHandler
+          → PipelineEngine.resumeAfterWebhook()
+```
+
+### 실무 (전역 리스너 적용 시)
+
+```
+[Jenkins 잡 실행]
+  고객 커스텀 파이프라인 (실제 빌드/테스트/배포)
+  빌드 완료
+    ↓
+[RunListener.onFinalized()] ← Jenkins 코어가 자동 호출
+  Thread.start {
+    HTTP POST → Connect (비동기, 실제 결과)
+  }
+    → Kafka (playground.webhook.inbound)
+      → Spring WebhookEventConsumer
+        → JenkinsWebhookHandler
+          → PipelineEngine.resumeAfterWebhook()
+```
+
+차이는 **트리거 지점**이다. PoC는 빌드 스크립트가 직접 쏘고,
+실무는 Jenkins 코어가 빌드 완료를 감지하여 리스너를 호출한다.
+Connect 이후의 흐름(Kafka → Spring)은 동일하다.
+
+---
+
+## RunListener에서 전달 가능한 값
+
+`RunListener.onFinalized(Run run)`에서 `run` 객체를 통해 접근 가능한 데이터다.
+
+### 기본 빌드 정보
+
+| 필드 | API | 타입 | 설명 |
+|------|-----|------|------|
+| 잡 이름 | `run.parent.fullDisplayName` | String | 폴더 경로 포함 전체 이름 (예: `folder/my-pipeline`) |
+| 잡 URL명 | `run.parent.fullName` | String | URL에 사용되는 이름 |
+| 빌드 번호 | `run.number` | int | 이 잡의 순차 빌드 번호 |
+| 빌드 결과 | `run.result?.toString()` | String | `SUCCESS`, `FAILURE`, `UNSTABLE`, `ABORTED`, `NOT_BUILT` |
+| 빌드 URL | `run.absoluteUrl` | String | `http://jenkins:8080/job/my-pipeline/42/` |
+
+### 시간 정보
+
+| 필드 | API | 타입 | 설명 |
+|------|-----|------|------|
+| 시작 시각 | `run.startTimeInMillis` | long | epoch millis |
+| 소요 시간 | `run.duration` | long | 밀리초 단위 실제 빌드 시간 |
+| 대기 시간 | `run.getTimeInMillis()` | long | 큐 진입부터 시작까지 대기 시간 |
+| 타임스탬프 | `run.getTimestamp()` | Calendar | 빌드 시작 Calendar 객체 |
+
+### 파이프라인 파라미터 (커스텀 값)
+
+빌드 시 전달한 파라미터를 읽을 수 있다. TPS에서 `EXECUTION_ID`, `STEP_ORDER`를 파라미터로 넘기면
+리스너에서 꺼내 webhook 페이로드에 포함할 수 있다.
+
+```groovy
+// 파라미터 접근
+def params = run.getAction(hudson.model.ParametersAction.class)
+if (params) {
+    params.parameters.each { p ->
+        // p.name, p.value
+    }
+}
+
+// 특정 파라미터 직접 접근
+def executionId = params?.getParameter("EXECUTION_ID")?.value
+def stepOrder = params?.getParameter("STEP_ORDER")?.value
+```
+
+| 필드 | API | 설명 |
+|------|-----|------|
+| 모든 파라미터 | `run.getAction(ParametersAction)` | 빌드 시 전달된 Key-Value 목록 |
+| 특정 파라미터 | `.getParameter("KEY")?.value` | 이름으로 단건 조회 |
+| 환경변수 | `run.getEnvironment(listener)` | 빌드 환경변수 전체 (PATH 등 포함) |
+
+### 빌드 원인 (누가/무엇이 트리거했는가)
+
+| 필드 | API | 설명 |
+|------|-----|------|
+| 트리거 원인 | `run.getCauses()` | `UserIdCause`, `TimerTriggerCause`, `RemoteCause` 등 |
+| 트리거 사용자 | `cause.userId` (UserIdCause) | 수동 실행한 사용자 ID |
+| SCM 변경 | `run.getChangeSets()` | Git 커밋 목록 (커밋 해시, 작성자, 메시지) |
+
+### 실무 페이로드 예시
+
+위 API를 조합하면 다음과 같은 페이로드를 구성할 수 있다:
+
+```groovy
+def params = run.getAction(hudson.model.ParametersAction.class)
+def payload = [
+    // 기본 빌드 정보
+    source:       "jenkins-global-hook",
+    job_name:     run.parent.fullDisplayName,
+    build_number: run.number,
+    status:       run.result?.toString() ?: "UNKNOWN",
+    build_url:    run.absoluteUrl,
+
+    // 시간 정보
+    start_time:   new Date(run.startTimeInMillis).format("yyyy-MM-dd'T'HH:mm:ss.SSSZ"),
+    duration_ms:  run.duration,
+
+    // TPS 커스텀 파라미터 (파이프라인 실행 추적)
+    execution_id: params?.getParameter("EXECUTION_ID")?.value,
+    step_order:   params?.getParameter("STEP_ORDER")?.value,
+
+    // 트리거 정보
+    trigger:      run.getCauses().collect { it.shortDescription }.join(", ")
+]
+```
+
+---
+
+## 주의점
+
+### 1. onCompleted vs onFinalized — 시점 차이
+
+| 콜백 | 시점 | result 확정 | 로그 완료 |
+|------|------|:-----------:|:---------:|
+| `onCompleted` | 빌드 로직 종료 직후 | O | X (후처리 중) |
+| `onFinalized` | 모든 후처리 완료 후 | O | O |
+
+**`onFinalized`를 써야 한다.** `onCompleted` 시점에는 빌드 로그가 아직 닫히지 않았거나
+post-build action이 실행 중일 수 있다. `onFinalized`는 Jenkins가 빌드를 완전히 마감한 후 호출된다.
+
+### 2. 비동기 전송 필수
+
+`onFinalized`는 Jenkins 컨트롤러 스레드에서 호출된다.
+여기서 동기 HTTP 호출을 하면 Connect 응답이 느릴 때 Jenkins 전체가 블로킹될 수 있다.
+반드시 `Thread.start { ... }`로 비동기 처리해야 한다.
+
+### 3. run.result가 null일 수 있다
+
+빌드가 비정상 종료되면(Jenkins 재시작, kill 등) `run.result`가 null이다.
+반드시 `run.result?.toString() ?: "UNKNOWN"`으로 null-safe 처리해야 한다.
+
+### 4. Groovy 보안 샌드박스
+
+Jenkins의 Script Security 플러그인이 활성화되어 있으면 `init.groovy.d/`의 스크립트도
+제한될 수 있다. `init.groovy.d/`는 SYSTEM 권한으로 실행되므로 보통 문제없지만,
+Jenkins 업그레이드 시 보안 정책 변경을 확인해야 한다.
+
+### 5. 중복 등록 방지
+
+Jenkins가 재시작되면 `init.groovy.d/` 스크립트가 다시 실행된다.
+기존 리스너를 제거하지 않으면 같은 리스너가 중복 등록되어 webhook이 2번 전송된다.
+
+```groovy
+// 반드시 등록 전 기존 제거
+def listeners = ExtensionList.lookup(RunListener.class)
+listeners.removeAll(listeners.findAll { it.class.name.contains("Redpanda") })
+listeners.add(new RedpandaStableListener())
+```
+
+### 6. Connect 장애 시 webhook 유실
+
+현재 구조에서는 Connect가 다운되면 webhook이 유실된다. 대응 방안:
+
+| 방안 | 설명 |
+|------|------|
+| **재시도** | HTTP 실패 시 3회 재시도 + exponential backoff |
+| **로컬 큐** | 실패한 페이로드를 Jenkins 파일시스템에 저장, 주기적 재전송 |
+| **타임아웃 감지** | Spring에서 WAITING_WEBHOOK 타임아웃 시 Jenkins API로 빌드 결과 직접 조회 |
+
+### 7. 파이프라인 파라미터 의존성
+
+`EXECUTION_ID`와 `STEP_ORDER`를 파라미터로 받아야 webhook 페이로드에 포함할 수 있다.
+TPS가 Jenkins 잡을 트리거할 때 이 파라미터를 반드시 전달해야 하며,
+잡이 파라미터 없이 실행되면 리스너가 null을 보내게 된다.
+리스너에서 해당 파라미터가 없는 잡은 webhook을 보내지 않도록 필터링하는 것이 안전하다.
+
+```groovy
+// TPS 파이프라인만 필터링
+def executionId = params?.getParameter("EXECUTION_ID")?.value
+if (executionId == null) {
+    // TPS 관리 잡이 아님 — webhook 스킵
+    return
+}
+```

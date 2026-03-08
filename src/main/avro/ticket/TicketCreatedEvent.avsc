@@ -1,0 +1,11 @@
+{
+  "type": "record",
+  "name": "TicketCreatedEvent",
+  "namespace": "com.study.playground.avro.ticket",
+  "fields": [
+    {"name": "metadata", "type": "com.study.playground.avro.common.EventMetadata"},
+    {"name": "ticketId", "type": "long"},
+    {"name": "name", "type": "string"},
+    {"name": "sourceTypes", "type": {"type": "array", "items": "com.study.playground.avro.common.SourceType"}}
+  ]
+}

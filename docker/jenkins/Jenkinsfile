@@ -1,0 +1,116 @@
+/**
+ * ============================================================
+ *  Redpanda Playground - 테스트 파이프라인
+ * ============================================================
+ *  이 파이프라인은 학습/PoC 용도의 시뮬레이션 빌드입니다.
+ *  실제 소스 빌드가 아닌, 이벤트 기반 아키텍처 패턴
+ *  (Outbox, Break-and-Resume, SAGA 보상)을 검증합니다.
+ *
+ *  - 웹훅 콜백: 빌드 완료 시 Redpanda Connect로 결과 전송
+ *  - 파라미터: EXECUTION_ID, STEP_ORDER (파이프라인 엔진이 전달)
+ * ============================================================
+ */
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'EXECUTION_ID', defaultValue: '', description: '파이프라인 실행 ID (Spring에서 자동 전달)')
+        string(name: 'STEP_ORDER', defaultValue: '1', description: '현재 스텝 순서 (Spring에서 자동 전달)')
+    }
+
+    environment {
+        CONNECT_WEBHOOK_URL = 'http://connect:4197/webhook/jenkins'
+    }
+
+    stages {
+        stage('Init') {
+            steps {
+                echo '============================================'
+                echo '  [TEST PIPELINE] Redpanda Playground Build'
+                echo '============================================'
+                echo "Execution ID : ${params.EXECUTION_ID}"
+                echo "Step Order   : ${params.STEP_ORDER}"
+                echo "Build Number : ${env.BUILD_NUMBER}"
+                echo "Workspace    : ${env.WORKSPACE}"
+                echo '--------------------------------------------'
+            }
+        }
+
+        stage('Git Clone') {
+            steps {
+                echo '[STEP 1/4] Git Clone - 소스 코드 체크아웃 시뮬레이션'
+                echo '  > 실제 환경: git checkout + branch 전환'
+                echo '  > 테스트: 2초 대기로 시뮬레이션'
+                sleep 2
+                echo '  > Git Clone 완료'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                echo '[STEP 2/4] Build - 프로젝트 빌드 시뮬레이션'
+                echo '  > 실제 환경: gradlew build / mvn package'
+                echo '  > 테스트: 3초 대기로 시뮬레이션'
+                sleep 3
+                echo '  > Build 완료 (42 classes compiled)'
+            }
+        }
+
+        stage('Test') {
+            steps {
+                echo '[STEP 3/4] Test - 단위/통합 테스트 시뮬레이션'
+                echo '  > 실제 환경: gradlew test + 리포트 생성'
+                echo '  > 테스트: 2초 대기로 시뮬레이션'
+                sleep 2
+                echo '  > Test 완료 (15 tests passed, 0 failed)'
+            }
+        }
+
+        stage('Package') {
+            steps {
+                echo '[STEP 4/4] Package - 아티팩트 패키징 시뮬레이션'
+                echo '  > 실제 환경: Docker image build + push'
+                echo '  > 테스트: 1초 대기로 시뮬레이션'
+                sleep 1
+                echo '  > Package 완료 (playground-app:latest)'
+            }
+        }
+    }
+
+    post {
+        success {
+            echo '[WEBHOOK] 빌드 성공 → Connect로 결과 전송'
+            sh """
+                curl -s -X POST ${CONNECT_WEBHOOK_URL} \
+                  -H 'Content-Type: application/json' \
+                  -d '{
+                    "executionId": "${params.EXECUTION_ID}",
+                    "stepOrder": ${params.STEP_ORDER},
+                    "result": "SUCCESS",
+                    "buildNumber": ${env.BUILD_NUMBER},
+                    "buildLog": "Jenkins build #${env.BUILD_NUMBER} completed successfully (clone→build→test→package)"
+                  }' || echo 'Webhook delivery failed (Connect may be unavailable)'
+            """
+        }
+        failure {
+            echo '[WEBHOOK] 빌드 실패 → Connect로 결과 전송'
+            sh """
+                curl -s -X POST ${CONNECT_WEBHOOK_URL} \
+                  -H 'Content-Type: application/json' \
+                  -d '{
+                    "executionId": "${params.EXECUTION_ID}",
+                    "stepOrder": ${params.STEP_ORDER},
+                    "result": "FAILURE",
+                    "buildNumber": ${env.BUILD_NUMBER},
+                    "buildLog": "Jenkins build #${env.BUILD_NUMBER} failed"
+                  }' || echo 'Webhook delivery failed (Connect may be unavailable)'
+            """
+        }
+        always {
+            echo '============================================'
+            echo '  [TEST PIPELINE] 빌드 종료'
+            echo "  결과: ${currentBuild.currentResult}"
+            echo '============================================'
+        }
+    }
+}

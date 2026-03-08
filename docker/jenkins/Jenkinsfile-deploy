@@ -1,0 +1,115 @@
+/**
+ * ============================================================
+ *  Redpanda Playground - 테스트 배포 파이프라인
+ * ============================================================
+ *  이 파이프라인은 학습/PoC 용도의 배포 시뮬레이션입니다.
+ *  실제 서버 배포가 아닌, Break-and-Resume 패턴과
+ *  SAGA 보상 트랜잭션 흐름을 검증합니다.
+ *
+ *  - 웹훅 콜백: 배포 완료 시 Redpanda Connect로 결과 전송
+ *  - 파라미터: EXECUTION_ID, STEP_ORDER (파이프라인 엔진이 전달)
+ * ============================================================
+ */
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'EXECUTION_ID', defaultValue: '', description: '파이프라인 실행 ID (Spring에서 자동 전달)')
+        string(name: 'STEP_ORDER', defaultValue: '1', description: '현재 스텝 순서 (Spring에서 자동 전달)')
+    }
+
+    environment {
+        CONNECT_WEBHOOK_URL = 'http://connect:4197/webhook/jenkins'
+    }
+
+    stages {
+        stage('Init') {
+            steps {
+                echo '============================================'
+                echo '  [TEST PIPELINE] Redpanda Playground Deploy'
+                echo '============================================'
+                echo "Execution ID : ${params.EXECUTION_ID}"
+                echo "Step Order   : ${params.STEP_ORDER}"
+                echo "Build Number : ${env.BUILD_NUMBER}"
+                echo '--------------------------------------------'
+            }
+        }
+
+        stage('Pre-Deploy Check') {
+            steps {
+                echo '[STEP 1/4] Pre-Deploy Check - 배포 전 상태 확인 시뮬레이션'
+                echo '  > 실제 환경: 타겟 서버 헬스체크 + 디스크/메모리 확인'
+                echo '  > 테스트: 1초 대기로 시뮬레이션'
+                sleep 1
+                echo '  > Pre-Deploy Check 완료 (target server healthy)'
+            }
+        }
+
+        stage('Stop Service') {
+            steps {
+                echo '[STEP 2/4] Stop Service - 기존 서비스 중지 시뮬레이션'
+                echo '  > 실제 환경: systemctl stop / docker stop + graceful shutdown'
+                echo '  > 테스트: 2초 대기로 시뮬레이션'
+                sleep 2
+                echo '  > Stop Service 완료 (graceful shutdown in 2s)'
+            }
+        }
+
+        stage('Deploy Artifact') {
+            steps {
+                echo '[STEP 3/4] Deploy Artifact - 아티팩트 배포 시뮬레이션'
+                echo '  > 실제 환경: SCP/Docker pull + 설정 파일 교체 + 권한 설정'
+                echo '  > 테스트: 3초 대기로 시뮬레이션'
+                sleep 3
+                echo '  > Deploy Artifact 완료 (playground-app:latest deployed)'
+            }
+        }
+
+        stage('Start & Verify') {
+            steps {
+                echo '[STEP 4/4] Start & Verify - 서비스 시작 및 검증 시뮬레이션'
+                echo '  > 실제 환경: systemctl start + health check 폴링 + smoke test'
+                echo '  > 테스트: 2초 대기로 시뮬레이션'
+                sleep 2
+                echo '  > Start & Verify 완료 (health check passed, HTTP 200)'
+            }
+        }
+    }
+
+    post {
+        success {
+            echo '[WEBHOOK] 배포 성공 → Connect로 결과 전송'
+            sh """
+                curl -s -X POST ${CONNECT_WEBHOOK_URL} \
+                  -H 'Content-Type: application/json' \
+                  -d '{
+                    "executionId": "${params.EXECUTION_ID}",
+                    "stepOrder": ${params.STEP_ORDER},
+                    "result": "SUCCESS",
+                    "buildNumber": ${env.BUILD_NUMBER},
+                    "buildLog": "Jenkins deploy #${env.BUILD_NUMBER} completed successfully (check→stop→deploy→verify)"
+                  }' || echo 'Webhook delivery failed (Connect may be unavailable)'
+            """
+        }
+        failure {
+            echo '[WEBHOOK] 배포 실패 → Connect로 결과 전송'
+            sh """
+                curl -s -X POST ${CONNECT_WEBHOOK_URL} \
+                  -H 'Content-Type: application/json' \
+                  -d '{
+                    "executionId": "${params.EXECUTION_ID}",
+                    "stepOrder": ${params.STEP_ORDER},
+                    "result": "FAILURE",
+                    "buildNumber": ${env.BUILD_NUMBER},
+                    "buildLog": "Jenkins deploy #${env.BUILD_NUMBER} failed"
+                  }' || echo 'Webhook delivery failed (Connect may be unavailable)'
+            """
+        }
+        always {
+            echo '============================================'
+            echo '  [TEST PIPELINE] 배포 종료'
+            echo "  결과: ${currentBuild.currentResult}"
+            echo '============================================'
+        }
+    }
+}

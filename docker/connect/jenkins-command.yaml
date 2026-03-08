@@ -1,0 +1,38 @@
+input:
+  kafka_franz:
+    seed_brokers:
+      - redpanda:9092
+    topics:
+      - playground.pipeline.commands
+    consumer_group: connect-jenkins-command-v3
+    start_from_oldest: false
+
+pipeline:
+  processors:
+    - mapping: |
+        # eventType 헤더로 Jenkins 커맨드만 필터링
+        let event_type = @eventType.string()
+        root = if $event_type != "JENKINS_BUILD_COMMAND" { deleted() } else { this }
+    - mapping: |
+        # jobName + params → Jenkins REST URL 조합
+        let job = this.jobName
+        let query = this.params.key_values().map_each(kv -> "%s=%s".format(kv.key, kv.value)).join("&")
+        meta jenkins_path = "/job/%s/buildWithParameters?%s".format($job, $query)
+        meta execution_id = this.executionId
+        meta step_order = this.stepOrder.string()
+        root = ""
+
+output:
+  http_client:
+    url: "http://jenkins:8080${! meta(\"jenkins_path\") }"
+    verb: POST
+    headers:
+      Content-Type: application/x-www-form-urlencoded
+    basic_auth:
+      enabled: true
+      username: admin
+      password: "${JENKINS_TOKEN}"
+    max_in_flight: 1
+    retries: 3
+    retry_period: "5s"
+    max_retry_backoff: "30s"

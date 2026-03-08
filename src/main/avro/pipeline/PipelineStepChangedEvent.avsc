@@ -1,0 +1,14 @@
+{
+  "type": "record",
+  "name": "PipelineStepChangedEvent",
+  "namespace": "com.study.playground.avro.pipeline",
+  "fields": [
+    {"name": "metadata", "type": "com.study.playground.avro.common.EventMetadata"},
+    {"name": "executionId", "type": "string"},
+    {"name": "ticketId", "type": "long"},
+    {"name": "stepName", "type": "string"},
+    {"name": "stepType", "type": "string"},
+    {"name": "status", "type": "string"},
+    {"name": "log", "type": ["null", "string"], "default": null}
+  ]
+}
