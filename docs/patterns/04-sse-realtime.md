@@ -59,7 +59,7 @@ public void consume(PipelineEvent event) {
 }
 ```
 
-Kafka Consumer는 멀티스레드로 동작하므로 `SseEmitterRegistry`는 `ConcurrentHashMap`으로 구현한다. `emitter.send()`가 `IOException`을 던지면 클라이언트 연결이 끊긴 것이므로 즉시 등록을 해제한다.
+Kafka Consumer는 멀티스레드로 동작하므로 `SseEmitterRegistry`는 `ConcurrentHashMap`으로 구현한다. `emitter.send()`가 `IOException`을 던지면 클라이언트 연결이 끊긴 것이므로 즉시 등록을 해제한다. `IllegalStateException`도 catch해야 한다 — emitter가 이미 완료/타임아웃된 상태에서 `send()`를 호출하면 이 예외가 발생하며, 마찬가지로 등록을 해제한다.
 
 ### React `usePipelineEvents` 훅
 
@@ -138,9 +138,10 @@ emitter.onError(e -> sseService.remove(id));
 emitter.send(SseEmitter.event().reconnectTime(5000));
 ```
 
-파이프라인 완료 후에는 클라이언트가 더 이상 재연결하지 않도록 완료 이벤트를 전송하고 emitter를 종료한다.
+파이프라인 완료 후에는 클라이언트가 더 이상 재연결하지 않도록 완료 이벤트를 전송하고 emitter를 종료한다. `complete()` 호출 전에 반드시 Registry에서 먼저 제거해야 한다. Registry에서 제거해도 emitter 객체 자체는 유효하다 — 제거는 다른 스레드가 이 emitter에 새 메시지를 보내는 것을 방지할 뿐이다. 순서가 반대면 `onCompletion` 콜백과 다른 스레드의 `send()` 사이에 경쟁 조건이 생길 수 있다.
 
 ```java
+sseService.remove(ticketId);  // 먼저 Registry에서 제거 (다른 스레드의 send 방지)
 emitter.send(SseEmitter.event().name("done").data("pipeline-complete"));
 emitter.complete();
 ```

@@ -63,7 +63,7 @@ for (int i = failedStepOrder - 2; i >= 0; i--) {
 
     try {
         executor.compensate(execution, step);  // 부작용 되돌리기
-        stepMapper.updateStatus(step.getId(), StepStatus.SKIPPED.name(), "Compensated after saga rollback", ...);
+        stepMapper.updateStatus(step.getId(), StepStatus.COMPENSATED.name(), "Compensated after saga rollback", ...);
     } catch (Exception ce) {
         // 보상 실패 → COMPENSATION_FAILED 상태 기록, 계속 진행 (수동 개입 필요)
         stepMapper.updateStatus(step.getId(), StepStatus.FAILED.name(), "COMPENSATION_FAILED: " + ce.getMessage(), ...);
@@ -107,7 +107,7 @@ sequenceDiagram
 
     Note over SagaCompensator: 역순 순회: i = failedStepOrder-2 = 0
     SagaCompensator->>SagaCompensator: Step 1 compensate()
-    SagaCompensator->>Kafka: publishStepChanged(STEP_1, SKIPPED)
+    SagaCompensator->>Kafka: publishStepChanged(STEP_1, COMPENSATED)
 
     PipelineEngine->>Kafka: publishExecutionCompleted(FAILED)
 ```
@@ -136,6 +136,8 @@ sequenceDiagram
 
 **보상 자체가 실패할 수 있다.** `SagaCompensator`는 보상 실패 시 `COMPENSATION_FAILED`를 기록하고 다음 스텝 보상을 계속 시도한다. 이 상태가 남아 있으면 운영자가 직접 확인하고 처리해야 한다. 자동 재시도를 넣으면 idempotent한 보상 구현이 전제되어야 한다.
 
-**최종 일관성(Eventual Consistency).** 보상이 완료되는 순간까지 시스템은 부분적으로 적용된 상태다. DB의 `pipeline_step` 테이블에는 `SUCCESS`와 `SKIPPED`(보상 완료), `FAILED`(보상 실패) 상태가 혼재할 수 있다.
+**최종 일관성(Eventual Consistency).** 보상이 완료되는 순간까지 시스템은 부분적으로 적용된 상태다. DB의 `pipeline_step` 테이블에는 `SUCCESS`와 `COMPENSATED`(보상 완료), `FAILED`(보상 실패) 상태가 혼재할 수 있다.
+
+**WebhookTimeoutChecker도 SAGA 보상을 트리거한다.** 웹훅이 5분 내에 도착하지 않아 `WebhookTimeoutChecker`가 스텝을 FAILED로 전환하면, 단순히 실패 표시만 하는 것이 아니라 `SagaCompensator.compensate()`를 호출해 이전 완료 스텝들을 역순 보상한다. 타임아웃 실패도 일반 실패와 동일한 보상 경로를 탄다.
 
 **격리 수준이 없다.** 2PC와 달리 SAGA는 ACID의 I(Isolation)를 보장하지 않는다. Step 1이 완료된 직후 다른 프로세스가 그 결과를 읽을 수 있고, 이후 보상이 실행되면 이미 읽어간 데이터와 불일치가 발생한다. 이를 방지하려면 Semantic Lock이나 Pessimistic View 같은 SAGA 대응 격리 패턴을 별도로 적용해야 한다.

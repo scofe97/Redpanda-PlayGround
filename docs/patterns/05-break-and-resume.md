@@ -56,7 +56,7 @@ curl 요청은 Redpanda Connect의 HTTP 입력 엔드포인트로 전달된다. 
 ```
 1. ticketId로 WAITING_WEBHOOK 상태의 스텝을 조회
 2. Jenkins 결과(SUCCESS/FAILURE)를 스텝 상태로 변환
-3. 스텝 상태를 DONE 또는 FAILED로 업데이트
+3. 스텝 상태를 SUCCESS 또는 FAILED로 업데이트
 4. 다음 스텝이 있으면 PipelineEngine.resume(ticketId) 호출
 ```
 
@@ -66,7 +66,7 @@ curl 요청은 Redpanda Connect의 HTTP 입력 엔드포인트로 전달된다. 
 
 webhook이 도착하지 않는 상황은 반드시 처리해야 한다. Jenkins 서버가 다운되거나 네트워크 오류로 curl이 실패하면 파이프라인은 영원히 WAITING_WEBHOOK 상태에 머문다.
 
-`WebhookTimeoutChecker`는 스케줄러로 동작한다. 1분마다 DB를 조회해 `waitingSince` 시각이 5분을 초과한 WAITING_WEBHOOK 스텝을 찾고, 해당 스텝과 파이프라인 전체를 FAILED 상태로 전환한다. SSE로 클라이언트에게 타임아웃 실패 이벤트가 전송되고 스트림이 종료된다.
+`WebhookTimeoutChecker`는 스케줄러로 동작한다. 1분마다 DB를 조회해 `waitingSince` 시각이 5분을 초과한 WAITING_WEBHOOK 스텝을 찾고, 해당 스텝을 FAILED 상태로 전환한 뒤 `SagaCompensator.compensate()`를 호출해 이전 완료 스텝들을 역순 보상한다. 이후 파이프라인 전체를 FAILED로 전환하고, SSE로 클라이언트에게 타임아웃 실패 이벤트가 전송되며 스트림이 종료된다.
 
 ---
 
@@ -87,13 +87,13 @@ flowchart TD
     I --> J["WebhookHandler\n토픽 consume"]
 
     J --> K{"Jenkins 결과?"}
-    K -- "SUCCESS" --> L["스텝 → DONE\nPipelineEngine.resume()"]
+    K -- "SUCCESS" --> L["스텝 → SUCCESS\nPipelineEngine.resume()"]
     K -- "FAILURE" --> M["스텝 → FAILED\n파이프라인 중단"]
     L --> N["다음 스텝 실행\n또는 파이프라인 완료"]
 
     subgraph Timeout["타임아웃 감시 (별도 스케줄러)"]
         T["WebhookTimeoutChecker\n1분 주기 실행"] --> U{"waitingSince\n> 5분?"}
-        U -- "예" --> V["스텝 → FAILED\n파이프라인 중단\nSSE 알림"]
+        U -- "예" --> V["스텝 → FAILED\nSAGA 보상 실행\n파이프라인 중단\nSSE 알림"]
         U -- "아니오" --> W["다음 주기까지 대기"]
     end
 
@@ -123,7 +123,9 @@ flowchart TD
 
 **빌드 시간이 5분을 초과하는 경우.** 정상적인 긴 빌드도 타임아웃 대상이 될 수 있다. 이를 방지하려면 `WebhookTimeoutChecker`의 임계값을 빌드 유형별로 다르게 설정하거나, 스텝 생성 시 예상 빌드 시간을 기반으로 개별 타임아웃 기한을 DB에 저장해야 한다.
 
-타임아웃으로 FAILED 처리된 이후 webhook이 늦게 도착하는 경우도 있다. 이때 `WebhookHandler`는 이미 FAILED 상태가 된 스텝을 조회하고 처리를 건너뛴다. 상태 확인은 멱등성 보호의 핵심 게이트다.
+타임아웃으로 FAILED 처리된 이후 webhook이 늦게 도착하는 경우도 있다. 이때 `resumeAfterWebhook()`의 CAS(`updateStatusIfCurrent`)가 WAITING_WEBHOOK 상태가 아닌 것을 감지하고 처리를 건너뛴다. CAS 실패 시 로그를 남기고 조용히 반환하므로 중복 보상이 발생하지 않는다.
+
+`resumeAfterWebhook()`의 실행 시간 계산도 정확하다. `Duration.between(execution.getStartedAt(), now)`로 파이프라인 전체 실행 시간을 계산해 완료 이벤트(`PipelineExecutionCompletedEvent.durationMs`)에 포함한다. 성공/실패 모두에 적용된다.
 
 ---
 

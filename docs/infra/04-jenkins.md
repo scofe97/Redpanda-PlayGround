@@ -1,6 +1,173 @@
-# Jenkins Webhook 발송 전략
+# Jenkins 설정 및 Webhook 발송 전략
 
-## 목표
+이 문서는 Jenkins 환경 구성(Part 1)과 빌드 완료 후 webhook 발송 전략(Part 2)을 다룬다.
+
+---
+
+# Part 1 — Jenkins 설정
+
+## 1. Jenkins 컨테이너 구성
+
+### Dockerfile
+
+```dockerfile
+FROM jenkins/jenkins:lts-jdk17
+
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
+ENV JAVA_OPTS="-Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8 -Djenkins.install.runSetupWizard=false"
+
+RUN jenkins-plugin-cli --plugins \
+    configuration-as-code \
+    workflow-job workflow-cps workflow-basic-steps \
+    workflow-durable-task-step workflow-step-api workflow-aggregator \
+    pipeline-model-definition pipeline-stage-step pipeline-input-step
+```
+
+핵심 설정:
+- **UTF-8 로케일**: `LANG=C.UTF-8` + `LC_ALL=C.UTF-8` — 한글 깨짐 방지
+- **JVM 인코딩**: `JAVA_OPTS`에 `-Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8`
+- **셋업 위자드 스킵**: `-Djenkins.install.runSetupWizard=false` — CasC로 자동 설정하므로 위자드 불필요
+- **CasC 플러그인**: `configuration-as-code` — `casc.yaml`로 Jenkins 설정을 코드로 관리
+
+### docker-compose.infra.yml
+
+```yaml
+jenkins:
+  build:
+    context: ./jenkins
+    dockerfile: Dockerfile
+  environment:
+    JAVA_OPTS: -Xmx1g -Xms512m -Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8
+    CASC_JENKINS_CONFIG: /var/jenkins_home/casc.yaml
+  volumes:
+    - jenkins-data:/var/jenkins_home
+    - ./jenkins/casc.yaml:/var/jenkins_home/casc.yaml:ro
+    - ./jenkins/disable-csrf.groovy:/var/jenkins_home/init.groovy.d/disable-csrf.groovy:ro
+```
+
+**주의**: docker-compose의 `JAVA_OPTS`가 Dockerfile의 `ENV JAVA_OPTS`를 **덮어쓴다.** 따라서 UTF-8 설정은 양쪽 모두에 명시해야 한다.
+
+### CasC (Configuration as Code)
+
+```yaml
+# casc.yaml
+jenkins:
+  securityRealm:
+    local:
+      users:
+        - id: admin
+          password: admin
+```
+
+CasC가 동작하려면 `configuration-as-code` 플러그인이 **Dockerfile에서 사전 설치**되어야 한다. 플러그인 없이 `casc.yaml`을 마운트해도 무시된다.
+
+---
+
+## 2. Job 등록 방식
+
+`setup-jenkins.sh` 스크립트가 Jenkins XML API로 2개 Pipeline Job을 생성한다:
+
+| Job | 역할 | 스텝 |
+|-----|------|------|
+| `playground-build` | 빌드 시뮬레이션 | Checkout → Build → Test |
+| `playground-deploy` | 배포 시뮬레이션 | Pre-Deploy → Stop → Deploy → Verify |
+
+각 Job은 `post.always` 블록에서 `playground-connect:4197/webhook/jenkins`로 결과를 콜백한다. 이것이 Break-and-Resume 패턴의 핵심이다.
+
+```bash
+# Job 등록 명령
+make setup-jenkins
+# 또는
+JENKINS_PASS=admin bash docker/scripts/setup-jenkins.sh
+```
+
+---
+
+## 3. 해결한 이슈
+
+### 3-1. 한글 깨짐 (mojibake)
+
+**증상**: Jenkins 웹 UI에서 Pipeline 스크립트의 한글이 `?` 또는 깨진 문자로 표시됨.
+
+**원인**: Jenkins JVM의 기본 charset이 UTF-8이 아님. 컨테이너 로케일도 미설정.
+
+**해결**:
+1. Dockerfile에 `LANG=C.UTF-8`, `LC_ALL=C.UTF-8` 추가
+2. `JAVA_OPTS`에 `-Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8` 추가
+3. docker-compose의 `JAVA_OPTS`에도 동일 설정 추가 (덮어쓰기 방지)
+
+**확인**: 소스 파일(Jenkinsfile, Jenkinsfile-deploy)은 정상 UTF-8이었다. 파일 인코딩이 아닌 JVM/컨테이너 인코딩이 문제였다.
+
+### 3-2. CasC 미적용 (비밀번호 변경 불가)
+
+**증상**: `casc.yaml`에서 비밀번호를 변경해도 적용되지 않음. 초기 관리자 비밀번호(`initialAdminPassword`)가 계속 사용됨.
+
+**원인**: `configuration-as-code` 플러그인이 Dockerfile에 없었다.
+
+**해결**:
+1. Dockerfile의 `jenkins-plugin-cli`에 `configuration-as-code` 추가
+2. 셋업 위자드 스킵 (`-Djenkins.install.runSetupWizard=false`)
+3. 기존 Jenkins 볼륨 삭제 후 재생성 (이전 설정이 볼륨에 남아있으므로)
+
+```bash
+# 볼륨 초기화가 필요한 경우
+docker compose -f docker-compose.infra.yml stop jenkins
+docker compose -f docker-compose.infra.yml rm -f jenkins
+docker volume rm docker_jenkins-data
+docker compose -f docker-compose.infra.yml up -d --build jenkins
+```
+
+### 3-3. Groovy init script Permission denied
+
+**증상**: Dockerfile의 `COPY ... /usr/share/jenkins/ref/init.groovy.d/`로 복사한 Groovy 스크립트가 `Permission denied`로 실행 안 됨.
+
+**원인**: Jenkins ref 메커니즘은 `jenkins_home`에 이미 파일이 있으면 덮어쓰지 않는다. 볼륨이 이미 존재하면 ref 복사가 실패한다.
+
+**해결**: Groovy init script 대신 **CasC**로 비밀번호를 설정한다. init script가 필요한 경우 docker-compose에서 bind mount로 직접 연결한다:
+
+```yaml
+volumes:
+  - ./jenkins/my-init.groovy:/var/jenkins_home/init.groovy.d/my-init.groovy:ro
+```
+
+---
+
+## 4. 접속 정보
+
+| 항목 | 값 |
+|------|---|
+| URL | http://localhost:29080 |
+| 사용자 | admin |
+| 비밀번호 | admin |
+| API Token | `docker/.env`의 `JENKINS_TOKEN` |
+
+---
+
+## 5. 운영 명령어
+
+```bash
+# Jenkins 시작 (빌드 포함)
+make infra-all
+
+# Job 등록/갱신
+make setup-jenkins
+
+# Jenkins 로그 확인
+docker logs -f playground-jenkins
+
+# Jenkins 볼륨 초기화 (설정 리셋 필요 시)
+docker compose -f docker-compose.infra.yml stop jenkins
+docker compose -f docker-compose.infra.yml rm -f jenkins
+docker volume rm docker_jenkins-data
+docker compose -f docker-compose.infra.yml up -d --build jenkins
+```
+
+---
+
+# Part 2 — Webhook 발송 전략
+
+## 1. 목표
 
 Jenkins 빌드가 완료되면 그 결과(성공/실패, 소요시간, 빌드 번호 등)를 Redpanda Connect로 전달하여,
 Spring 애플리케이션이 파이프라인 상태를 이어서 처리(Break-and-Resume)할 수 있게 한다.
@@ -12,11 +179,11 @@ Spring 애플리케이션이 파이프라인 상태를 이어서 처리(Break-an
 
 ---
 
-## 방법 비교
+## 2. 방법 비교
 
 Jenkins에서 외부 시스템으로 webhook을 보내는 방법은 4가지가 있다.
 
-### 1. 빌드 스크립트 내 curl (현재 PoC)
+### 2-1. 빌드 스크립트 내 curl (현재 PoC)
 
 빌드 셸 스크립트 마지막에 `curl`로 직접 HTTP POST를 보낸다.
 
@@ -27,7 +194,7 @@ curl -s -X POST "http://connect:4197/webhook/jenkins" \
   -d '{"result": "SUCCESS", "duration": 4000, ...}'
 ```
 
-### 2. Jenkinsfile post 블록
+### 2-2. Jenkinsfile post 블록
 
 Declarative Pipeline의 `post` 섹션에서 Groovy로 HTTP 호출한다.
 
@@ -49,7 +216,7 @@ pipeline {
 }
 ```
 
-### 3. HTTP Request Plugin
+### 2-3. HTTP Request Plugin
 
 Jenkins 플러그인을 설치하여 Post-build Action에서 UI로 설정한다.
 
@@ -64,7 +231,7 @@ post {
 }
 ```
 
-### 4. RunListener Groovy Init Script (실무 검토안)
+### 2-4. RunListener Groovy Init Script (실무 검토안)
 
 `init.groovy.d/`에 전역 리스너를 등록하여, 모든 잡의 빌드 완료를 자동 감지한다.
 
@@ -81,7 +248,7 @@ class WebhookListener extends RunListener<Run> {
 
 ---
 
-## 장단점
+## 3. 장단점
 
 | 방법 | 장점 | 단점 |
 |------|------|------|
@@ -92,7 +259,7 @@ class WebhookListener extends RunListener<Run> {
 
 ---
 
-## 실무 사례 — TPS에서 전역 리스너를 검토하는 이유
+## 4. 실무 사례 — TPS에서 전역 리스너를 검토하는 이유
 
 TPS는 CI/CD 플랫폼으로, 고객이 Jenkins 파이프라인을 직접 커스텀한다.
 이 환경에서 방법 1~3은 모두 **잡 스크립트에 webhook 코드를 삽입**해야 하므로,
@@ -128,7 +295,7 @@ TPS는 CI/CD 플랫폼으로, 고객이 Jenkins 파이프라인을 직접 커스
 
 ---
 
-## 흐름
+## 5. 흐름
 
 ### PoC (현재)
 
@@ -165,7 +332,7 @@ Connect 이후의 흐름(Kafka → Spring)은 동일하다.
 
 ---
 
-## RunListener에서 전달 가능한 값
+## 6. RunListener에서 전달 가능한 값
 
 `RunListener.onFinalized(Run run)`에서 `run` 객체를 통해 접근 가능한 데이터다.
 
@@ -250,9 +417,9 @@ def payload = [
 
 ---
 
-## 주의점
+## 7. 주의점
 
-### 1. onCompleted vs onFinalized — 시점 차이
+### 7-1. onCompleted vs onFinalized — 시점 차이
 
 | 콜백 | 시점 | result 확정 | 로그 완료 |
 |------|------|:-----------:|:---------:|
@@ -262,24 +429,24 @@ def payload = [
 **`onFinalized`를 써야 한다.** `onCompleted` 시점에는 빌드 로그가 아직 닫히지 않았거나
 post-build action이 실행 중일 수 있다. `onFinalized`는 Jenkins가 빌드를 완전히 마감한 후 호출된다.
 
-### 2. 비동기 전송 필수
+### 7-2. 비동기 전송 필수
 
 `onFinalized`는 Jenkins 컨트롤러 스레드에서 호출된다.
 여기서 동기 HTTP 호출을 하면 Connect 응답이 느릴 때 Jenkins 전체가 블로킹될 수 있다.
 반드시 `Thread.start { ... }`로 비동기 처리해야 한다.
 
-### 3. run.result가 null일 수 있다
+### 7-3. run.result가 null일 수 있다
 
 빌드가 비정상 종료되면(Jenkins 재시작, kill 등) `run.result`가 null이다.
 반드시 `run.result?.toString() ?: "UNKNOWN"`으로 null-safe 처리해야 한다.
 
-### 4. Groovy 보안 샌드박스
+### 7-4. Groovy 보안 샌드박스
 
 Jenkins의 Script Security 플러그인이 활성화되어 있으면 `init.groovy.d/`의 스크립트도
 제한될 수 있다. `init.groovy.d/`는 SYSTEM 권한으로 실행되므로 보통 문제없지만,
 Jenkins 업그레이드 시 보안 정책 변경을 확인해야 한다.
 
-### 5. 중복 등록 방지
+### 7-5. 중복 등록 방지
 
 Jenkins가 재시작되면 `init.groovy.d/` 스크립트가 다시 실행된다.
 기존 리스너를 제거하지 않으면 같은 리스너가 중복 등록되어 webhook이 2번 전송된다.
@@ -291,7 +458,7 @@ listeners.removeAll(listeners.findAll { it.class.name.contains("Redpanda") })
 listeners.add(new RedpandaStableListener())
 ```
 
-### 6. Connect 장애 시 webhook 유실
+### 7-6. Connect 장애 시 webhook 유실
 
 현재 구조에서는 Connect가 다운되면 webhook이 유실된다. 대응 방안:
 
@@ -301,7 +468,7 @@ listeners.add(new RedpandaStableListener())
 | **로컬 큐** | 실패한 페이로드를 Jenkins 파일시스템에 저장, 주기적 재전송 |
 | **타임아웃 감지** | Spring에서 WAITING_WEBHOOK 타임아웃 시 Jenkins API로 빌드 결과 직접 조회 |
 
-### 7. 파이프라인 파라미터 의존성
+### 7-7. 파이프라인 파라미터 의존성
 
 `EXECUTION_ID`와 `STEP_ORDER`를 파라미터로 받아야 webhook 페이로드에 포함할 수 있다.
 TPS가 Jenkins 잡을 트리거할 때 이 파라미터를 반드시 전달해야 하며,

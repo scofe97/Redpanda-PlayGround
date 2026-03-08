@@ -243,18 +243,6 @@ Grafana 대시보드는 [Redpanda 공식 대시보드](https://grafana.com/grafa
 
 ---
 
-## 6. 이 프로젝트에서 배울 수 있는 Redpanda 활용 패턴
-
-| 패턴 | 이 프로젝트의 적용 | 실무 확장 |
-|------|-------------------|----------|
-| **Schema Registry 내장 활용** | Avro 스키마를 Schema Registry에 등록하지 않고 ByteArray로 직접 관리 | 프로덕션에서는 자동 serde + 호환성 검증을 활용하는 것이 안전하다 |
-| **Redpanda Connect 브릿지** | Jenkins HTTP → Kafka 토픽 변환 | 외부 시스템(Slack, GitHub 등)의 webhook을 Kafka로 통합할 때 동일 패턴 |
-| **Console로 이벤트 추적** | 데모 시 토픽 메시지 실시간 확인 | 장애 시 메시지 내용/순서 확인, 컨슈머 래그 모니터링 |
-| **rpk로 운영** | `rpk topic list`, `rpk group describe` | 토픽 설정 변경, 오프셋 리셋, 파티션 재배분 |
-| **단일 바이너리 경량 인프라** | Docker Compose 1개 컨테이너로 Kafka+SR 대체 | CI/CD 파이프라인에서 통합 테스트 인프라로 활용 (Testcontainers와 조합) |
-
----
-
 ## 참조
 
 - [Redpanda 공식 문서](https://docs.redpanda.com)
@@ -263,4 +251,4 @@ Grafana 대시보드는 [Redpanda 공식 대시보드](https://grafana.com/grafa
 - 프로젝트 내 관련 문서:
   - [docs/patterns/06-redpanda-connect.md](../patterns/06-redpanda-connect.md) — Connect 브릿지 패턴
   - [docs/patterns/07-topic-message-design.md](../patterns/07-topic-message-design.md) — 토픽/스키마 설계
-  - [docs/infra/01-connect-streams.md](01-connect-streams.md) — Connect Streams 모드
+  - [docs/infra/03-connect-streams.md](03-connect-streams.md) — Connect Streams 모드

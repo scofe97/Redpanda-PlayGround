@@ -112,6 +112,27 @@ public StepResult execute(DeployStep step) {
 
 ---
 
+## 5. 보안 및 설정
+
+### SSRF 방지 — AdapterInputValidator
+
+모든 Real 어댑터(Jenkins, Nexus, Registry, GitLab)는 외부 입력을 URL 경로에 포함하기 전에 `AdapterInputValidator`로 검증한다. 두 가지 검증을 수행한다.
+
+- `validatePathParam(value, paramName)`: 화이트리스트 정규식(`^[a-zA-Z0-9_./-]+$`)으로 허용 문자만 통과시키고, `../` 같은 경로 순회를 차단한다.
+- `validateBaseUrl(url)`: 다운로드 URL이 허용된 호스트에서 온 것인지 확인한다.
+
+URL 조립에는 문자열 연결 대신 `UriComponentsBuilder.pathSegment()`를 사용해 자동 인코딩을 보장한다.
+
+### @Profile("mock") — Fallback 분리
+
+Mock 스텝 구현체(`MockCloneStep`, `MockBuildStep` 등)에 `@Profile("mock")`을 추가해 프로덕션 환경에서 Mock 빈이 로드되지 않도록 했다. 개발/데모 환경에서만 `spring.profiles.active=mock`을 설정해 Fallback을 활성화한다.
+
+### RestTemplate 타임아웃
+
+모든 어댑터가 사용하는 `RestTemplate`에 connectTimeout(3초)과 readTimeout(10초)을 설정했다. 외부 시스템 장애 시 스레드가 무한 대기하는 것을 방지한다.
+
+---
+
 ## 관련 패턴
 
 - `03-transactional-outbox.md` — 단계 결과를 Outbox를 통해 발행하는 방법

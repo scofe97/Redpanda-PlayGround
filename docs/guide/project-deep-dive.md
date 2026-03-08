@@ -32,7 +32,7 @@ TPS(CI/CD 플랫폼)에서 사용하는 이벤트 기반 아키텍처 패턴을 
 
 ## 2. 시스템 아키텍처
 
-> 상세: [docs/architecture/01-architecture.md](../architecture/01-architecture.md)
+> 패키지 구조, 컴포넌트 관계, 설정 항목은 이 문서의 하단 섹션에서 다룬다.
 
 ### 전체 구성도
 
@@ -49,9 +49,9 @@ TPS(CI/CD 플랫폼)에서 사용하는 이벤트 기반 아키텍처 패턴을 
   ├── SSE Stream ───────────── PipelineSseConsumer → SseEmitterRegistry
   │
   [Redpanda :29092]             [PostgreSQL :25432]
-  │  6개 토픽                     7개 테이블
+  │  6개 토픽                     8개 테이블
   │
-  [Redpanda Connect :4195/4197]
+  [Redpanda Connect :24195/4197]
   │  HTTP↔Kafka 브릿지
   │
   [Jenkins :29080] [GitLab :29180] [Nexus :28881] [Registry :25050]
@@ -184,3 +184,195 @@ make frontend
 - SAGA 보상이 역순으로 실행되는 과정을 SSE로 실시간 관찰
 
 > 상세: [docs/demo/01-demo-script.md](../demo/01-demo-script.md)
+
+---
+
+## 9. 패키지 구조
+
+### 1. ticket (배포 티켓 도메인)
+
+**ticket/domain**
+- Ticket: 배포 대상 정의 (이름, 설명, 상태)
+- TicketSource: 배포 소스 (GIT, NEXUS, HARBOR)
+- TicketStatus: DRAFT, READY, DEPLOYING, DEPLOYED, FAILED
+
+**ticket/mapper**
+- TicketMapper: MyBatis SQL 매핑 (insert/select/update/delete)
+- TicketSourceMapper: 소스 CRUD
+
+**ticket/service**
+- TicketCommandService: 티켓 생성/수정/삭제 (Outbox 발행)
+- TicketQueryService: 목록/상세 조회
+
+**ticket/api**
+- TicketController: REST API (GET/POST/PUT/DELETE)
+
+**ticket/dto**
+- TicketCreateRequest/Response, TicketUpdateRequest/Response, TicketListResponse
+
+### 2. pipeline (배포 파이프라인 도메인)
+
+**pipeline/domain**
+- Pipeline: 티켓 기반 자동 생성되는 실행 단위
+- PipelineStep: 단계별 작업 (BUILD, PUSH, DEPLOY, HEALTH_CHECK)
+- PipelineStatus: PENDING, RUNNING, SUCCESS, FAILED
+- StepEvent: 단계별 상태 변화 이벤트
+
+**pipeline/mapper**
+- PipelineMapper: 파이프라인 CRUD
+- PipelineStepMapper: 단계 조회/수정
+
+**pipeline/service**
+- PipelineCommandService: 파이프라인 시작 (202 Accepted 응답)
+- PipelineQueryService: 상태/이력/이벤트 조회
+- PipelineEventConsumer: `playground.ticket.events` 구독하여 파이프라인 자동 생성
+
+**pipeline/engine**
+- PipelineEngine: 상태 머신으로 단계 실행 및 이벤트 발행
+- StepExecutor: 각 단계별 실행 로직 (Jenkins 연동 또는 Mock 폴백)
+
+**pipeline/event**
+- PipelineStartedEvent, StepStartedEvent, StepCompletedEvent, PipelineCompletedEvent
+
+**pipeline/sse**
+- PipelineSseController: GET /api/tickets/{id}/pipeline/events (Server-Sent Events)
+- SseEmitterRegistry: 클라이언트별 이벤트 스트림 관리 및 SSE 브로드캐스트
+
+**pipeline/api**
+- PipelineController: pipeline 관련 REST API
+
+**pipeline/dto**
+- PipelineStartRequest/Response, PipelineStatusResponse, StepEventResponse
+
+### 3. common (공통 인프라)
+
+**common/config**
+- KafkaConsumerConfig, KafkaProducerConfig, AvroConfig
+
+**common/outbox**
+- OutboxEvent: 발행할 이벤트 데이터
+- OutboxMapper: 폴링용 SQL (FOR UPDATE SKIP LOCKED)
+- OutboxPoller: 주기적 폴링 (500ms) 및 발행
+- OutboxPublisher: Kafka 발행
+
+**common/idempotency**
+- IdempotentEventRecord: (correlationId, eventType) 복합 키로 중복 감지
+- IdempotencyMapper: 조회 및 기록
+- IdempotencyFilter: 메서드 인터셉터
+
+**common/dto**
+- ApiResponse<T>: 표준 응답
+- ErrorResponse: 오류 응답
+
+**common/exception**
+- BusinessException: 비즈니스 예외
+- InvalidStateException: 상태 오류
+
+### 4. common-kafka (Kafka 공통 모듈)
+
+Kafka 관련 직렬화/역직렬화, CloudEvents 헤더, Schema Registry 연동 등 공통 인프라를 별도 모듈로 분리한다.
+
+### 5. webhook
+
+HTTP 수신은 Redpanda Connect가 담당하고(`docker/connect/jenkins-webhook.yaml`), Spring 애플리케이션은 Kafka Consumer로만 처리한다.
+
+**webhook**
+- WebhookEventConsumer: `playground.webhook.inbound` 토픽 구독, key 기반 소스별 라우팅
+
+**webhook/handler**
+- JenkinsWebhookHandler: Jenkins webhook 파싱, 멱등성 체크, PipelineEngine.resumeAfterWebhook() 호출
+
+**webhook/dto**
+- JenkinsWebhookPayload: Jenkins Job 완료 콜백 페이로드 (executionId, stepOrder, result, duration 등)
+
+### 6. audit
+
+**audit/event**
+- AuditEvent: 감사 로그 이벤트
+- AuditEventListener: 모든 도메인 이벤트 구독하여 `playground.audit.events` 발행
+
+### 7. adapter (외부 시스템 어댑터)
+
+Jenkins, GitLab, Nexus, Registry 등 외부 시스템과의 통신을 추상화한다. 각 어댑터는 인터페이스를 구현하여 교체 가능하다.
+
+### 8. supporttool (도구 관리)
+
+외부 도구(Jenkins, GitLab, Nexus, Registry) 연결 정보를 런타임에 관리한다. `application.yml`에 하드코딩하지 않고 DB에서 관리하기 때문에, 앱 재시작 없이 도구를 추가/수정할 수 있다.
+
+---
+
+## 10. 컴포넌트 다이어그램
+
+```mermaid
+graph TB
+    subgraph Backend["Spring Boot"]
+        subgraph Ticket["Ticket 도메인"]
+            TD["domain"]
+            TM["mapper"]
+            TS["service"]
+            TA["api"]
+        end
+
+        subgraph Pipeline["Pipeline 도메인"]
+            PD["domain"]
+            PM["mapper"]
+            PS["service"]
+            PE["engine"]
+            PSE["sse"]
+            PA["api"]
+        end
+
+        subgraph Common["Common"]
+            Config["config"]
+            Outbox["outbox"]
+            Idempotency["idempotency"]
+            DTO["dto"]
+        end
+
+        subgraph Other["Webhook & Audit & Adapter"]
+            WH["webhook"]
+            AU["audit"]
+            AD["adapter"]
+            ST["supporttool"]
+        end
+
+        Outbox -->|발행| Kafka["Redpanda<br/>Kafka"]
+        PS -->|구독| Kafka
+        PE -->|이벤트 발행| PSE
+        PSE -->|SSE 브로드캐스트| Client["Frontend"]
+    end
+
+    subgraph Persistence["Data"]
+        DB["PostgreSQL"]
+    end
+
+    Outbox -->|query| DB
+    PM -->|query| DB
+    TM -->|query| DB
+
+    style Backend fill:#f0f0f0,stroke:#666,color:#333
+    style Ticket fill:#f0f0f0,stroke:#666,color:#333
+    style Pipeline fill:#f0f0f0,stroke:#666,color:#333
+    style Common fill:#f0f0f0,stroke:#666,color:#333
+    style Other fill:#f0f0f0,stroke:#666,color:#333
+    style Kafka fill:#f0f0f0,stroke:#666,color:#333
+    style DB fill:#f0f0f0,stroke:#666,color:#333
+    style Persistence fill:#f0f0f0,stroke:#666,color:#333
+    style Client fill:#f0f0f0,stroke:#666,color:#333
+```
+
+---
+
+## 11. 설정 가능한 항목
+
+| 항목 | 기본값 | 설정처 |
+|------|--------|--------|
+| Outbox 폴링 주기 | 500ms | application.yml |
+| Kafka Consumer Group | playground-group | application.yml |
+| Avro Schema Registry | http://localhost:28081 | application.yml |
+| SSE 타임아웃 | 1시간 | SseEmitterRegistry |
+| Webhook 타임아웃 | 5분 | WebhookTimeoutChecker.TIMEOUT_MINUTES |
+| 타임아웃 체크 주기 | 30초 | WebhookTimeoutChecker @Scheduled fixedDelay |
+| Docker 네트워크 | playground-net | docker-compose.yml, docker-compose.infra.yml |
+| Connect webhook 엔드포인트 | :4197/webhook/jenkins | jenkins-webhook.yaml |
+| Connect jenkins-command | kafka → http://jenkins:8080 | jenkins-command.yaml |

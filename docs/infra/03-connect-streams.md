@@ -52,46 +52,39 @@ docker/connect/
 
 docker-compose에서 `streams /etc/connect/*.yaml`로 기동하면 3개 스트림이 자동 로드된다.
 
-### CQRS 패턴 매핑
+### YAML 파이프라인 예시 — jenkins-webhook.yaml
 
+```yaml
+input:
+  http_server:
+    address: 0.0.0.0:4197
+    path: /webhook/jenkins
+    allowed_verbs:
+      - POST
+
+pipeline:
+  processors:
+    - mapping: |
+        root.webhookSource = "JENKINS"
+        root.payload = content().string()
+        root.headers = @
+        root.receivedAt = now()
+
+output:
+  kafka_franz:
+    seed_brokers:
+      - redpanda:9092
+    topic: playground.webhook.inbound
+    key: ${! json("webhookSource") }
 ```
-Command: App → Kafka → Connect → Jenkins REST   (jenkins-command)
-Query:   App → REST → Jenkins                    (JenkinsAdapter, 직접 호출)
-Event:   Jenkins → Connect → Kafka → App         (jenkins-webhook)
-```
 
-Query는 동기식 직접 호출을 유지한다. isAvailable(), getBuildInfo() 등 즉시 응답이 필요한 조회는 Kafka를 경유할 이유가 없기 때문이다.
+Jenkins 빌드 완료 → HTTP POST → Connect가 메타데이터(source, timestamp)를 추가 → Kafka 토픽으로 발행하는 흐름이다.
 
----
+### CQRS 패턴 및 동적 커넥터 관리
 
-## 웹 UI에서 커넥터 등록 시나리오
+Connect 파이프라인의 CQRS 매핑(Command/Query/Event 분리)은 [patterns/06-redpanda-connect.md](../patterns/06-redpanda-connect.md)에서 상세히 다룬다.
 
-향후 Jenkins 외 다른 외부 시스템(GitLab CI, Nexus, ArgoCD 등)을 동적으로 등록/관리하는 구조를 설계할 수 있다.
-
-### 흐름
-
-```
-React UI → "커넥터 관리" 페이지
-  → POST /api/connectors  (Spring Boot)
-    → POST /streams/{id}  (Connect Streams API)
-      → 새 Kafka → External 파이프라인 등록
-```
-
-1. **템플릿 제공**: Jenkins, GitLab, Nexus 등 커넥터 유형별 YAML 템플릿
-2. **사용자 입력**: URL, 인증 정보, 토픽명 등 최소 설정만 입력
-3. **YAML 생성**: Spring Boot가 템플릿 + 사용자 입력으로 YAML 조합
-4. **등록**: Connect Streams REST API(`POST /streams/{id}`)로 등록
-5. **상태 조회**: `GET /streams`로 활성 스트림 목록 표시
-
-### 영속화 전략
-
-REST API로 등록한 스트림은 휘발성이므로, Spring Boot 측에서 설정을 DB에 저장하고 애플리케이션 기동 시 Connect에 재등록하는 방식이 필요하다.
-
-```
-기동 시: DB에서 커넥터 설정 조회 → Connect /streams API로 일괄 등록
-런타임: UI에서 변경 → DB 업데이트 + Connect PUT /streams/{id}
-삭제:   UI에서 삭제 → DB 삭제 + Connect DELETE /streams/{id}
-```
+웹 UI를 통한 커넥터 동적 등록/관리 시나리오는 [patterns/10-dynamic-connector-management.md](../patterns/10-dynamic-connector-management.md)를 참조한다.
 
 ---
 
