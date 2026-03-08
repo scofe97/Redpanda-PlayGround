@@ -34,7 +34,4 @@ export const sourceApi = {
     api.get<GitLabBranch[]>(`/sources/git/repos/${repoId}/branches`),
   searchNexusArtifacts: (groupId: string, artifactId: string) =>
     api.get<NexusAsset[]>('/sources/nexus/artifacts', { groupId, artifactId }),
-  getRegistryImages: () => api.get<string[]>('/sources/registry/images'),
-  getRegistryTags: (repo: string) =>
-    api.get<string[]>(`/sources/registry/images/${repo}/tags`),
 };

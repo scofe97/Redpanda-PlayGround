@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import type { TicketSource } from '../api/ticketApi';
-import { useGitRepos, useGitBranches, useNexusArtifacts, useRegistryImages, useRegistryTags } from '../hooks/useSources';
+import { useGitRepos, useGitBranches, useNexusArtifacts } from '../hooks/useSources';
 
-const SOURCE_TYPES = ['GIT', 'NEXUS', 'HARBOR'] as const;
+const SOURCE_TYPES = ['GIT', 'NEXUS'] as const;
 
 const sourceIcons: Record<string, string> = {
   GIT: 'code',
   NEXUS: 'package_2',
-  HARBOR: 'dock',
 };
 
 interface SourceSelectorProps {
@@ -66,9 +65,6 @@ export default function SourceSelector({ sources, onChange }: SourceSelectorProp
               <NexusSourceFields source={source} onUpdate={(fields) => updateSource('NEXUS', fields)} />
             )}
 
-            {source.sourceType === 'HARBOR' && (
-              <HarborSourceFields source={source} onUpdate={(fields) => updateSource('HARBOR', fields)} />
-            )}
           </div>
         ))}
       </div>
@@ -87,7 +83,7 @@ function GitSourceFields({
   source: TicketSource;
   onUpdate: (fields: Partial<TicketSource>) => void;
 }) {
-  const { data: repos, isLoading: reposLoading } = useGitRepos();
+  const { data: repos, isLoading: reposLoading, isError: reposError } = useGitRepos();
   const [selectedProjectId, setSelectedProjectId] = useState<number>(0);
   const { data: branches, isLoading: branchesLoading } = useGitBranches(selectedProjectId);
 
@@ -112,7 +108,9 @@ function GitSourceFields({
           onChange={(e) => handleProjectSelect(Number(e.target.value))}
           className={inputClass}
         >
-          <option value={0}>{reposLoading ? '로딩 중...' : '프로젝트 선택'}</option>
+          <option value={0}>
+            {reposLoading ? '로딩 중...' : reposError ? '⚠ GitLab 연결 실패 — 서버 상태 확인 필요' : '프로젝트 선택'}
+          </option>
           {repos?.map((r) => (
             <option key={r.id} value={r.id}>
               {r.name_with_namespace}
@@ -223,65 +221,3 @@ function NexusSourceFields({
   );
 }
 
-function HarborSourceFields({
-  source,
-  onUpdate,
-}: {
-  source: TicketSource;
-  onUpdate: (fields: Partial<TicketSource>) => void;
-}) {
-  const { data: images, isLoading: imagesLoading } = useRegistryImages();
-  const [selectedRepo, setSelectedRepo] = useState('');
-  const { data: tags, isLoading: tagsLoading } = useRegistryTags(selectedRepo);
-
-  const handleRepoSelect = (repo: string) => {
-    setSelectedRepo(repo);
-    onUpdate({ imageName: '' });
-  };
-
-  const handleTagSelect = (tag: string) => {
-    onUpdate({ imageName: `${selectedRepo}:${tag}` });
-  };
-
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <label className="block">
-        <span className={labelClass}>Image</span>
-        <select
-          value={selectedRepo}
-          onChange={(e) => handleRepoSelect(e.target.value)}
-          className={inputClass}
-        >
-          <option value="">{imagesLoading ? '로딩 중...' : '이미지 선택'}</option>
-          {images?.map((img) => (
-            <option key={img} value={img}>
-              {img}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="block">
-        <span className={labelClass}>Tag</span>
-        <select
-          value={source.imageName?.split(':')[1] || ''}
-          onChange={(e) => handleTagSelect(e.target.value)}
-          disabled={!selectedRepo}
-          className={`${inputClass} disabled:opacity-50`}
-        >
-          <option value="">{tagsLoading ? '로딩 중...' : '태그 선택'}</option>
-          {tags?.map((tag) => (
-            <option key={tag} value={tag}>
-              {tag}
-            </option>
-          ))}
-        </select>
-      </label>
-      {source.imageName && (
-        <div className="md:col-span-2 flex items-center gap-2 bg-slate-50 dark:bg-slate-800/50 px-3 py-2 rounded-lg">
-          <span className="material-symbols-outlined text-sm text-primary">check_circle</span>
-          <span className="text-sm font-medium">{source.imageName}</span>
-        </div>
-      )}
-    </div>
-  );
-}

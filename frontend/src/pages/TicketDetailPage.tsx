@@ -49,11 +49,22 @@ export default function TicketDetailPage() {
   }
 
   if (ticketError) {
+    const isNotFound = 'status' in ticketError && (ticketError as any).status === 404;
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-lg font-bold">Failed to load ticket</h2>
-          <p className="text-red-600 mt-2 text-sm">{ticketError.message}</p>
+          {isNotFound ? (
+            <>
+              <span className="material-symbols-outlined text-5xl text-slate-300 mb-3">search_off</span>
+              <h2 className="text-lg font-bold text-slate-700">티켓을 찾을 수 없습니다</h2>
+              <p className="text-slate-400 mt-2 text-sm">요청하신 티켓(ID: {id})이 존재하지 않거나 삭제되었습니다.</p>
+            </>
+          ) : (
+            <>
+              <h2 className="text-lg font-bold">Failed to load ticket</h2>
+              <p className="text-red-600 mt-2 text-sm">{ticketError.message}</p>
+            </>
+          )}
           <button
             className="mt-4 px-5 py-2.5 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary/90 transition-all"
             onClick={() => navigate('/tickets')}
@@ -217,13 +228,14 @@ export default function TicketDetailPage() {
                   </div>
                   <span className="text-[11px] font-mono text-slate-500 ml-2 italic">pipeline logs</span>
                 </div>
-                <div className="flex-1 p-6 font-mono text-[13px] leading-relaxed text-slate-300 overflow-y-auto space-y-1">
+                <div className="flex-1 p-6 font-mono text-[13px] leading-relaxed text-slate-300 overflow-y-auto space-y-4">
                   {pipeline.steps
                     .filter((s) => s.log)
                     .map((s) => (
-                      <p key={s.id}>
-                        <span className="text-primary font-bold">[{s.stepName}]</span> {s.log}
-                      </p>
+                      <div key={s.id}>
+                        <span className="text-primary font-bold">[{s.stepName}]</span>
+                        <pre className="mt-1 whitespace-pre-wrap text-slate-400">{s.log}</pre>
+                      </div>
                     ))}
                 </div>
               </div>

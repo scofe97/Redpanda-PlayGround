@@ -24,17 +24,3 @@ export function useNexusArtifacts(groupId: string, artifactId: string, enabled: 
   });
 }
 
-export function useRegistryImages() {
-  return useQuery({
-    queryKey: ['sources', 'registry', 'images'],
-    queryFn: () => sourceApi.getRegistryImages(),
-  });
-}
-
-export function useRegistryTags(repo: string) {
-  return useQuery({
-    queryKey: ['sources', 'registry', 'tags', repo],
-    queryFn: () => sourceApi.getRegistryTags(repo),
-    enabled: repo.length > 0,
-  });
-}
