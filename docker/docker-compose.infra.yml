@@ -8,12 +8,13 @@ services:
       - "${JENKINS_PORT:-29080}:8080"
       - "50000:50000"
     environment:
-      JAVA_OPTS: -Xmx1g -Xms512m -Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8
+      JAVA_OPTS: -Xmx1g -Xms512m -Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8 -Djenkins.install.runSetupWizard=false -Dpermissive-script-security.enabled=true
       CASC_JENKINS_CONFIG: /var/jenkins_home/casc.yaml
     volumes:
       - jenkins-data:/var/jenkins_home
       - ./jenkins/casc.yaml:/var/jenkins_home/casc.yaml:ro
-      - ./jenkins/disable-csrf.groovy:/var/jenkins_home/init.groovy.d/disable-csrf.groovy:ro
+      - ./jenkins/Jenkinsfile:/var/jenkins_home/Jenkinsfile:ro
+      - ./jenkins/Jenkinsfile-deploy:/var/jenkins_home/Jenkinsfile-deploy:ro
     deploy:
       resources:
         limits:

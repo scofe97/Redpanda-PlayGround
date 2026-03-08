@@ -16,7 +16,7 @@ pipeline:
     - mapping: |
         # jobName + params → Jenkins REST URL 조합
         let job = this.jobName
-        let query = this.params.key_values().map_each(kv -> "%s=%s".format(kv.key, kv.value)).join("&")
+        let query = this.params.key_values().map_each(kv -> "%s=%s".format(kv.key, kv.value.escape_url_query())).join("&")
         meta jenkins_path = "/job/%s/buildWithParameters?%s".format($job, $query)
         meta execution_id = this.executionId
         meta step_order = this.stepOrder.string()

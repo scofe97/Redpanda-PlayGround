@@ -46,39 +46,21 @@ else
 fi
 
 # --- Helper: create or update Jenkins job ---
+# Jenkins REST API가 UTF-8 한글을 ISO-8859-1로 변환하는 문제가 있어,
+# docker exec으로 config.xml을 직접 쓴 뒤 Jenkins를 리로드하는 방식을 사용한다.
 create_job() {
     local job_name=$1
     local config_file=$2
 
     echo "  📋 Creating/Updating job: $job_name"
 
-    # Try create first (use @file to preserve newlines in XML)
-    local http_code
-    http_code=$(curl -s -o /dev/null -w "%{http_code}" -b /tmp/jenkins-cookies -u "$JENKINS_USER:$JENKINS_PASS" \
-        ${CRUMB_HEADER:+-H "$CRUMB_HEADER"} \
-        -H "Content-Type: application/xml" \
-        --data-binary @"$config_file" \
-        "$JENKINS_URL/createItem?name=$job_name" 2>/dev/null)
+    # Job 디렉토리 생성 (없으면)
+    docker exec playground-jenkins mkdir -p "/var/jenkins_home/jobs/$job_name"
 
-    if [ "$http_code" = "200" ] || [ "$http_code" = "302" ]; then
-        echo "  ✅ Created $job_name"
-    elif [ "$http_code" = "400" ]; then
-        # Job already exists → update config
-        echo "  🔄 $job_name already exists, updating..."
-        local update_code
-        update_code=$(curl -s -o /dev/null -w "%{http_code}" -b /tmp/jenkins-cookies -u "$JENKINS_USER:$JENKINS_PASS" \
-            ${CRUMB_HEADER:+-H "$CRUMB_HEADER"} \
-            -H "Content-Type: application/xml" \
-            -X POST --data-binary @"$config_file" \
-            "$JENKINS_URL/job/$job_name/config.xml" 2>/dev/null)
-        if [ "$update_code" = "200" ] || [ "$update_code" = "302" ]; then
-            echo "  ✅ Updated $job_name"
-        else
-            echo "  ⚠️  $job_name update returned HTTP $update_code"
-        fi
-    else
-        echo "  ⚠️  $job_name creation returned HTTP $http_code"
-    fi
+    # config.xml을 컨테이너에 직접 복사 (UTF-8 인코딩 보존)
+    docker cp "$config_file" "playground-jenkins:/var/jenkins_home/jobs/$job_name/config.xml"
+
+    echo "  ✅ Wrote config for $job_name"
 }
 
 # 4. Create jobs using temp XML files (avoids shell escaping issues)
@@ -97,6 +79,8 @@ pipeline {
     parameters {
         string(name: 'EXECUTION_ID', defaultValue: '', description: 'Pipeline execution ID')
         string(name: 'STEP_ORDER', defaultValue: '1', description: 'Pipeline step order')
+        string(name: 'GIT_URL', defaultValue: '', description: 'Git repository URL')
+        string(name: 'BRANCH', defaultValue: 'main', description: 'Git branch')
     }
     stages {
         stage('Init') {
@@ -106,35 +90,52 @@ pipeline {
                 echo '============================================'
                 echo "Execution ID : ${params.EXECUTION_ID}"
                 echo "Step Order   : ${params.STEP_ORDER}"
+                echo "GIT_URL      : ${params.GIT_URL ?: '(simulation)'}"
+                echo "BRANCH       : ${params.BRANCH}"
                 echo "Build Number : ${env.BUILD_NUMBER}"
                 echo '--------------------------------------------'
             }
         }
-        stage('Git Checkout') {
+        stage('Git Clone') {
             steps {
-                echo '[STEP 1/3] Git Checkout - 소스 코드 체크아웃 시뮬레이션'
-                echo '  > 실제: git clone + branch 전환'
-                echo '  > 테스트: 2초 대기'
-                sleep 2
-                echo '  > Checkout 완료'
+                script {
+                    if (params.GIT_URL) {
+                        echo "[REAL] Git Clone: ${params.GIT_URL} (branch: ${params.BRANCH})"
+                        sh 'rm -rf project'
+                        sh "git clone -b ${params.BRANCH} ${params.GIT_URL} project"
+                        sh 'ls -la project/'
+                    } else {
+                        echo '[SIM] Git Clone 시뮬레이션'
+                        sleep 2
+                    }
+                }
             }
         }
         stage('Build') {
             steps {
-                echo '[STEP 2/3] Build - 프로젝트 컴파일/패키징 시뮬레이션'
-                echo '  > 실제: gradlew build / mvn package'
-                echo '  > 테스트: 3초 대기'
-                sleep 3
-                echo '  > Build 완료 (42 classes compiled)'
+                script {
+                    if (params.GIT_URL) {
+                        echo '[REAL] 프로젝트 파일 분석'
+                        sh 'find project/ -type f | head -20'
+                        sh 'find project/ -type f -name "*.java" -o -name "*.md" | head -10 | xargs wc -l 2>/dev/null || echo "Source analysis complete"'
+                    } else {
+                        echo '[SIM] Build 시뮬레이션'
+                        sleep 3
+                    }
+                }
             }
         }
         stage('Test') {
             steps {
-                echo '[STEP 3/3] Test - 단위 테스트 시뮬레이션'
-                echo '  > 실제: gradlew test + 리포트 생성'
-                echo '  > 테스트: 2초 대기'
-                sleep 2
-                echo '  > Test 완료 (15 passed, 0 failed)'
+                script {
+                    if (params.GIT_URL) {
+                        echo '[REAL] 테스트 (소스 구조 검증)'
+                        sh 'find project/ -type f | wc -l'
+                    } else {
+                        echo '[SIM] Test 시뮬레이션'
+                        sleep 2
+                    }
+                }
             }
         }
     }
@@ -171,6 +172,7 @@ pipeline {
     parameters {
         string(name: 'EXECUTION_ID', defaultValue: '', description: 'Pipeline execution ID')
         string(name: 'STEP_ORDER', defaultValue: '1', description: 'Pipeline step order')
+        string(name: 'DEPLOY_TARGET', defaultValue: '', description: 'Deploy target info')
     }
     stages {
         stage('Init') {
@@ -178,46 +180,31 @@ pipeline {
                 echo '============================================'
                 echo '  [TEST PIPELINE] Redpanda Playground Deploy'
                 echo '============================================'
-                echo "Execution ID : ${params.EXECUTION_ID}"
-                echo "Step Order   : ${params.STEP_ORDER}"
-                echo "Build Number : ${env.BUILD_NUMBER}"
+                echo "Execution ID  : ${params.EXECUTION_ID}"
+                echo "Step Order    : ${params.STEP_ORDER}"
+                echo "Deploy Target : ${params.DEPLOY_TARGET ?: '(unknown)'}"
+                echo "Build Number  : ${env.BUILD_NUMBER}"
                 echo '--------------------------------------------'
             }
         }
         stage('Pre-Deploy Check') {
             steps {
-                echo '[STEP 1/4] Pre-Deploy Check - 배포 전 상태 확인 시뮬레이션'
-                echo '  > 실제: 타겟 서버 헬스체크 + 리소스 확인'
-                echo '  > 테스트: 1초 대기'
-                sleep 1
-                echo '  > Pre-Deploy Check 완료 (target healthy)'
-            }
-        }
-        stage('Stop Service') {
-            steps {
-                echo '[STEP 2/4] Stop Service - 기존 서비스 중지 시뮬레이션'
-                echo '  > 실제: docker stop + graceful shutdown 대기'
-                echo '  > 테스트: 2초 대기'
-                sleep 2
-                echo '  > Stop Service 완료'
+                echo "[CD] 배포 대상: ${params.DEPLOY_TARGET ?: 'unknown'}"
+                echo '[CD] Pre-Deploy Check 완료'
             }
         }
         stage('Deploy') {
             steps {
-                echo '[STEP 3/4] Deploy - 아티팩트 배포 시뮬레이션'
-                echo '  > 실제: docker pull + run / SCP + 설정 교체'
-                echo '  > 테스트: 3초 대기'
-                sleep 3
-                echo '  > Deploy 완료'
+                echo '============================================'
+                echo '  배포 대상 파일/아티팩트:'
+                echo "  ${params.DEPLOY_TARGET ?: 'N/A'}"
+                echo '============================================'
+                echo '[CD] 실제 배포는 수행하지 않음 (PoC)'
             }
         }
         stage('Verify') {
             steps {
-                echo '[STEP 4/4] Verify - 배포 후 검증 시뮬레이션'
-                echo '  > 실제: health check 폴링 + smoke test'
-                echo '  > 테스트: 2초 대기'
-                sleep 2
-                echo '  > Verify 완료 (HTTP 200 OK)'
+                echo '[CD] 배포 검증 완료 (시뮬레이션)'
             }
         }
     }
@@ -246,6 +233,24 @@ create_job "playground-build" "/tmp/jenkins-build-config.xml"
 create_job "playground-deploy" "/tmp/jenkins-deploy-config.xml"
 
 rm -f /tmp/jenkins-build-config.xml /tmp/jenkins-deploy-config.xml
+
+# 5. Reload Jenkins to pick up new job configs
+echo ""
+echo "🔄 Reloading Jenkins configuration..."
+if [ -n "$CRUMB_HEADER" ]; then
+    curl -sf -o /dev/null -b /tmp/jenkins-cookies -u "$JENKINS_USER:$JENKINS_PASS" \
+        -H "$CRUMB_HEADER" \
+        -X POST "$JENKINS_URL/reload" 2>/dev/null || true
+    echo "  ✅ Jenkins reload requested"
+    # Wait for Jenkins to come back after reload
+    sleep 5
+    bash "$SCRIPT_DIR/wait-for-service.sh" "$JENKINS_URL/login" 120 "Jenkins (reload)"
+else
+    echo "  ⚠️  No crumb available, restarting container instead..."
+    docker restart playground-jenkins
+    sleep 5
+    bash "$SCRIPT_DIR/wait-for-service.sh" "$JENKINS_URL/login" 120 "Jenkins (restart)"
+fi
 
 echo ""
 echo "=== Jenkins Setup Complete ==="
