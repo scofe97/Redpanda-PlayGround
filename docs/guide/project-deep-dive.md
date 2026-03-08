@@ -14,7 +14,7 @@ TPS(CI/CD 플랫폼)에서 사용하는 이벤트 기반 아키텍처 패턴을 
 
 배포 요청(티켓) 생성부터 파이프라인 실행까지의 전체 사이클:
 
-1. **티켓 생성**: 어떤 소스(Git 저장소, Nexus 아티팩트, Docker 이미지)를 배포할지 선택
+1. **티켓 생성**: 어떤 소스(Git 저장소, Nexus 아티팩트, Harbor 이미지)를 배포할지 선택
 2. **파이프라인 실행**: 소스 유형에 따라 Clone → Build → Deploy 스텝이 자동 생성되고 순차 실행
 3. **실시간 모니터링**: SSE로 각 스텝의 진행 상태를 브라우저에 실시간 전달
 4. **실패 복구**: 스텝 실패 시 SAGA 패턴으로 완료된 스텝을 역순 보상
@@ -65,9 +65,9 @@ TPS(CI/CD 플랫폼)에서 사용하는 이벤트 기반 아키텍처 패턴을 
 
 | 서비스 | 이미지 | 포트 | 메모리 | 역할 |
 |--------|--------|------|--------|------|
-| redpanda | redpanda:v25.x | 29092, 28081 | - | 메시지 브로커 + Schema Registry |
+| redpanda | redpanda:v24.3.1 | 29092, 28081, 29644 | - | 메시지 브로커 + Schema Registry + Admin |
 | console | console:v2.8.0 | 28080 | 256M | 토픽/메시지 모니터링 UI |
-| connect | connect:4.43.0 | 4195, 4197 | 128M | HTTP↔Kafka 브릿지 |
+| connect | connect:4.43.0 | 24195, 4197 | 128M | HTTP↔Kafka 브릿지 |
 | postgres | postgres:16-alpine | 25432 | 256M | 메인 DB |
 
 **docker-compose.infra.yml** (데모용 — 실제 외부 도구 시뮬레이션):
@@ -110,11 +110,11 @@ erDiagram
     ticket_source {
         bigserial id PK
         bigint ticket_id FK
-        varchar source_type "GIT|NEXUS|REGISTRY"
+        varchar source_type "GIT|NEXUS|HARBOR"
         varchar repo_url "GIT용"
         varchar branch "GIT용"
         varchar artifact_coordinate "NEXUS용"
-        varchar image_name "REGISTRY용"
+        varchar image_name "HARBOR용"
         timestamp created_at
     }
 
@@ -174,7 +174,7 @@ erDiagram
 
 ### 테이블별 역할
 
-**ticket + ticket_source**: 배포 대상을 정의한다. `source_type`에 따라 어떤 필드가 채워지는지 달라지는 다형적 설계다. GIT이면 `repo_url`/`branch`, NEXUS이면 `artifact_coordinate`, REGISTRY이면 `image_name`을 사용한다. 이 소스 유형이 파이프라인 스텝 생성의 기준이 된다.
+**ticket + ticket_source**: 배포 대상을 정의한다. `source_type`에 따라 어떤 필드가 채워지는지 달라지는 다형적 설계다. GIT이면 `repo_url`/`branch`, NEXUS이면 `artifact_coordinate`, HARBOR이면 `image_name`을 사용한다. 이 소스 유형이 파이프라인 스텝 생성의 기준이 된다. 참고로 `SourceType`(GIT/NEXUS/HARBOR — 배포 소스 유형)과 `ToolType`(JENKINS/GITLAB/NEXUS/REGISTRY — 외부 도구 유형)은 별개의 enum이다.
 
 **pipeline_execution + pipeline_step**: 파이프라인 실행 이력이다. `step_order`는 1부터 시작하며, SAGA 보상 시 역순 반복과 웹훅 재개 시 다음 스텝 인덱싱에 사용된다. `log` 필드에는 각 스텝의 실행 출력이 저장되어 프론트엔드 터미널 뷰에 표시된다.
 
@@ -188,7 +188,7 @@ erDiagram
 
 | 버전 | 테이블 | 설명 |
 |------|--------|------|
-| V1 | `ticket`, `ticket_source` | 티켓 + 소스 관리. CASCADE 삭제 |
+| V1 | `ticket`, `ticket_source` | 티켓 + 소스 관리. CASCADE 삭제. `uuid-ossp` 확장 필요 (`docker/init-db/01-init.sql`에서 설정) |
 | V2 | `pipeline_execution`, `pipeline_step` | 파이프라인 실행 이력. UUID PK |
 | V3 | `outbox_event` | Transactional Outbox. 부분 인덱스 |
 | V4 | `processed_event` | 멱등성 보장. 복합 PK |
@@ -329,7 +329,7 @@ POST /api/tickets/{id}/pipeline/start-with-failure
 | `playground.pipeline.commands` | 3 | 7일 | Avro | 파이프라인 실행 커맨드 |
 | `playground.pipeline.events` | 3 | 7일 | Avro | 스텝 변경/완료 이벤트 |
 | `playground.ticket.events` | 3 | 7일 | Avro | 티켓 생성 이벤트 |
-| `playground.webhook.inbound` | 2 | 3일 | JSON | 외부 웹훅 수신 |
+| `playground.webhook.inbound` | 2 | 3일 | JSON (Connect 수신) | 외부 웹훅 수신 |
 | `playground.audit.events` | 1 | 30일 | Avro | 감사 이벤트 |
 | `playground.dlq` | 1 | 30일 | - | Dead Letter Queue |
 
@@ -353,12 +353,12 @@ EventMetadata (공통)
 | 스키마 | 핵심 필드 |
 |--------|----------|
 | PipelineExecutionStartedEvent | metadata, executionId, ticketId, steps(string[]) |
-| PipelineExecutionCompletedEvent | metadata, executionId, ticketId, status |
-| PipelineStepChangedEvent | metadata, executionId, stepOrder, stepType, status, log |
-| TicketCreatedEvent | metadata, ticketId, name |
+| PipelineExecutionCompletedEvent | metadata, executionId, ticketId, status, durationMs, errorMessage |
+| PipelineStepChangedEvent | metadata, executionId, ticketId, stepName, stepType, status, log |
+| TicketCreatedEvent | metadata, ticketId, name, sourceTypes(SourceType[]) |
 | WebhookEvent | metadata, webhookSource, payload(raw JSON), headers(map) |
-| AuditEvent | metadata + 감사 정보 |
-| JenkinsBuildCommand | metadata, executionId, stepOrder, jobName, parameters |
+| AuditEvent | metadata, actor, action, resourceType, resourceId, details |
+| JenkinsBuildCommand | metadata, executionId, ticketId, stepOrder, jobName, params |
 
 직렬화 방식의 특이점: `application.yml`에서 Producer는 `ByteArraySerializer`, Consumer는 `ByteArrayDeserializer`를 사용한다. Avro 직렬화/역직렬화를 코드에서 직접 수행하며(`AvroSerializer` 유틸), Schema Registry 기반 자동 serde를 쓰지 않는다. Outbox 테이블의 `payload`가 BYTEA인 것도 이 때문이다.
 
@@ -405,7 +405,7 @@ React 19 + Vite 6 + TypeScript 5.6 + TanStack Query 5 + Tailwind CSS 4 + React R
 |----|------|
 | `useTickets` | 티켓 CRUD (TanStack Query) |
 | `useTools` | 도구 CRUD + 연결 테스트 (TanStack Query) |
-| `usePipeline` | 파이프라인 최신/이력 조회 + 시작/실패 시뮬레이션 (TanStack Query Mutation) |
+| `usePipeline*` | 4개 개별 훅(usePipelineLatest, usePipelineHistory, useStartPipeline, useStartPipelineWithFailure)으로 분리. 조회 + 실행 + 실패 시뮬레이션 |
 | `useSources` | 소스 브라우징 — GitLab 프로젝트/브랜치, Nexus 아티팩트, Registry 이미지 조회 |
 | `useSSE` | SSE 연결 관리, 지수 백오프 재연결(1s→30s), 이벤트 수신 시 Query 캐시 무효화 |
 
@@ -461,6 +461,8 @@ SSE 이벤트 수신
 | Registry UI | 25051 | http://localhost:25051 |
 | Redpanda (Kafka) | 29092 | - |
 | Schema Registry | 28081 | - |
+| Redpanda Admin | 29644 | - |
+| Redpanda Connect | 24195 | - |
 | PostgreSQL | 25432 | - |
 
 ### 데모 시나리오
