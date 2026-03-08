@@ -29,7 +29,7 @@ jobs:
         definition {
           cps {
             script(new File('/var/jenkins_home/Jenkinsfile').text)
-            sandbox(false)
+            sandbox(true)
           }
         }
       }
@@ -43,7 +43,7 @@ jobs:
         definition {
           cps {
             script(new File('/var/jenkins_home/Jenkinsfile-deploy').text)
-            sandbox(false)
+            sandbox(true)
           }
         }
       }
