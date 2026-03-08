@@ -50,16 +50,20 @@ public class JenkinsWebhookHandler {
             processedEvent.setEventType(eventType);
             processedEventMapper.insert(processedEvent);
 
-            // Jenkins 콘솔 로그 조회
-            String consoleLog = jenkinsAdapter.getConsoleLog(payload.jobName(), payload.buildNumber());
+            // Jenkins 콘솔 로그 조회 (jobName이 있어야 API 호출 가능)
+            String consoleLog = null;
+            if (payload.jobName() != null && !payload.jobName().isBlank()) {
+                consoleLog = jenkinsAdapter.getConsoleLog(payload.jobName(), payload.buildNumber());
+            }
             String buildLog;
+            String jobLabel = payload.jobName() != null ? payload.jobName() : "build";
             if (consoleLog != null && !consoleLog.isBlank()) {
                 buildLog = String.format("=== Jenkins %s #%d %s (%dms) ===\n%s",
-                        payload.jobName(), payload.buildNumber(), payload.result(),
+                        jobLabel, payload.buildNumber(), payload.result(),
                         payload.duration(), consoleLog);
             } else {
-                buildLog = String.format("Jenkins build #%d %s in %dms | url: %s",
-                        payload.buildNumber(), payload.result(), payload.duration(),
+                buildLog = String.format("Jenkins %s #%d %s in %dms | url: %s",
+                        jobLabel, payload.buildNumber(), payload.result(), payload.duration(),
                         payload.url() != null ? payload.url() : "N/A");
             }
 
