@@ -26,3 +26,31 @@ mybatis:
 app:
   connect:
     url: ${CONNECT_URL:http://localhost:4195}
+
+springwolf:
+  enabled: true
+  docket:
+    info:
+      title: Redpanda Playground AsyncAPI
+      version: 1.0.0
+      description: 배포 파이프라인 이벤트 명세 (Ticket → Pipeline → Webhook)
+    servers:
+      redpanda:
+        protocol: kafka
+        host: ${spring.kafka.bootstrap-servers}
+    base-package: com.study.playground
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.study.playground: DEBUG
+    org.apache.kafka: WARN
+    org.mybatis: DEBUG

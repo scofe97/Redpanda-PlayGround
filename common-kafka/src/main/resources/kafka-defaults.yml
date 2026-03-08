@@ -17,15 +17,3 @@ spring:
       value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
       properties:
         specific.avro.reader: true
-
-springwolf:
-  enabled: true
-  docket:
-    base-package: ${SPRINGWOLF_BASE_PACKAGE:com.study.playground}
-    info:
-      title: ${SPRINGWOLF_TITLE:${spring.application.name:application}}
-      version: ${SPRINGWOLF_VERSION:local}
-    servers:
-      redpanda:
-        protocol: kafka
-        host: ${spring.kafka.bootstrap-servers:localhost:29092}
