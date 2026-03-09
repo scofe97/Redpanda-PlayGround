@@ -13,6 +13,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * 파이프라인 엔진 — 스텝 순차 실행과 SAGA 보상을 담당한다.
+ *
+ * <p>각 스텝은 동기적으로 순서대로 실행된다. 실패 시 {@link SagaCompensator}를 통해
+ * 이미 완료된 스텝을 역순으로 보상(롤백)한다. 이렇게 설계한 이유는 분산 트랜잭션 없이도
+ * 부분 실패를 원자적으로 처리할 수 있기 때문이다.
+ *
+ * <p>Jenkins, Deploy처럼 외부 시스템 완료를 기다려야 하는 스텝은 Break-and-Resume 패턴을
+ * 사용한다. 스텝이 {@code waitingForWebhook=true}를 설정하면 현재 스레드를 즉시 해제하고,
+ * 외부 콜백(webhook) 수신 시 {@link #resumeAfterWebhook}에서 실행을 재개한다.
+ * 스레드를 블로킹하지 않으므로 긴 빌드/배포 시간에도 서버 자원을 낭비하지 않는다.
+ */
 @Slf4j
 @Component
 public class PipelineEngine {
@@ -23,14 +35,20 @@ public class PipelineEngine {
     private final PipelineEventProducer eventProducer;
     private final SagaCompensator sagaCompensator;
 
-    public PipelineEngine(JenkinsCloneAndBuildStep gitCloneAndBuild,
-                          NexusDownloadStep nexusDownload,
-                          RegistryImagePullStep imagePull,
-                          RealDeployStep deploy,
-                          PipelineExecutionMapper executionMapper,
-                          PipelineStepMapper stepMapper,
-                          PipelineEventProducer eventProducer,
-                          SagaCompensator sagaCompensator) {
+    /**
+     * 스텝 타입별 실행기를 Map으로 관리하여 if-else/switch 없이 디스패치한다.
+     * GIT_CLONE과 BUILD가 동일 실행기({@link JenkinsCloneAndBuildStep})를 공유하는 이유는
+     * Jenkins 파이프라인이 clone과 build를 하나의 작업으로 처리하기 때문이다.
+     */
+    public PipelineEngine(
+            JenkinsCloneAndBuildStep gitCloneAndBuild,
+            NexusDownloadStep nexusDownload,
+            RegistryImagePullStep imagePull,
+            RealDeployStep deploy,
+            PipelineExecutionMapper executionMapper,
+            PipelineStepMapper stepMapper,
+            PipelineEventProducer eventProducer,
+            SagaCompensator sagaCompensator) {
         this.stepExecutors = Map.of(
                 PipelineStepType.GIT_CLONE, gitCloneAndBuild,
                 PipelineStepType.BUILD, gitCloneAndBuild,
@@ -44,10 +62,19 @@ public class PipelineEngine {
         this.sagaCompensator = sagaCompensator;
     }
 
+    /**
+     * 파이프라인 실행을 시작한다.
+     * 상태를 RUNNING으로 전환한 뒤 첫 번째 스텝(index=0)부터 실행을 위임한다.
+     *
+     * @param execution 실행할 파이프라인 실행 정보
+     */
     public void execute(PipelineExecution execution) {
         log.info("Pipeline execution started: {}", execution.getId());
-        executionMapper.updateStatus(execution.getId(), PipelineStatus.RUNNING.name(),
-                null, null);
+        executionMapper.updateStatus(
+                execution.getId(),
+                PipelineStatus.RUNNING.name(),
+                null,
+                null);
 
         executeFrom(execution, 0, System.currentTimeMillis());
     }
@@ -55,6 +82,13 @@ public class PipelineEngine {
     /**
      * 지정된 인덱스부터 파이프라인 스텝을 순차 실행한다.
      * 스텝이 waitingForWebhook=true를 설정하면 루프를 중단하고 스레드를 해제한다.
+     *
+     * <p>매 진입 시 DB에서 스텝 목록을 다시 조회하는 이유는 webhook 재개 시점에
+     * 다른 스텝의 상태가 외부에서 변경되었을 수 있기 때문이다.
+     *
+     * @param execution  파이프라인 실행 정보
+     * @param fromIndex  실행을 시작할 스텝 인덱스 (0-based)
+     * @param startTime  전체 실행 시작 시각 (밀리초, 소요 시간 계산용)
      */
     private void executeFrom(PipelineExecution execution, int fromIndex, long startTime) {
         // 매 진입 시 DB에서 스텝 목록을 다시 조회하여 최신 스냅샷으로 작업한다
@@ -75,48 +109,83 @@ public class PipelineEngine {
 
                 // Break-and-Resume: webhook 대기 상태면 스레드를 해제하고 루프 중단
                 if (step.isWaitingForWebhook()) {
-                    stepMapper.updateStatus(step.getId(), StepStatus.WAITING_WEBHOOK.name(),
-                            "Waiting for Jenkins webhook callback...", LocalDateTime.now());
+                    stepMapper.updateStatus(
+                            step.getId(),
+                            StepStatus.WAITING_WEBHOOK.name(),
+                            "Waiting for Jenkins webhook callback...",
+                            LocalDateTime.now());
                     eventProducer.publishStepChanged(execution, step, StepStatus.WAITING_WEBHOOK);
                     log.info("Step {} waiting for webhook - thread released (execution={})",
                             step.getStepName(), execution.getId());
                     return; // 스레드 반환 — webhook 도착 시 resumeAfterWebhook()에서 재개
                 }
 
-                stepMapper.updateStatus(step.getId(), StepStatus.SUCCESS.name(),
-                        step.getLog(), LocalDateTime.now());
+                stepMapper.updateStatus(
+                        step.getId(),
+                        StepStatus.SUCCESS.name(),
+                        step.getLog(),
+                        LocalDateTime.now());
                 eventProducer.publishStepChanged(execution, step, StepStatus.SUCCESS);
             } catch (Exception e) {
                 log.error("Step failed: {}", step.getStepName(), e);
-                stepMapper.updateStatus(step.getId(), StepStatus.FAILED.name(),
-                        e.getMessage(), LocalDateTime.now());
+                stepMapper.updateStatus(
+                        step.getId(),
+                        StepStatus.FAILED.name(),
+                        e.getMessage(),
+                        LocalDateTime.now());
                 eventProducer.publishStepChanged(execution, step, StepStatus.FAILED);
 
                 // SAGA: 완료된 스텝을 역순으로 보상 처리
                 sagaCompensator.compensate(execution, step.getStepOrder(), stepExecutors);
 
                 long duration = System.currentTimeMillis() - startTime;
-                executionMapper.updateStatus(execution.getId(), PipelineStatus.FAILED.name(),
-                        LocalDateTime.now(), e.getMessage());
-                eventProducer.publishExecutionCompleted(execution,
-                        com.study.playground.avro.common.PipelineStatus.FAILED, duration, e.getMessage());
+                executionMapper.updateStatus(
+                        execution.getId(),
+                        PipelineStatus.FAILED.name(),
+                        LocalDateTime.now(),
+                        e.getMessage());
+                eventProducer.publishExecutionCompleted(
+                        execution,
+                        com.study.playground.avro.common.PipelineStatus.FAILED,
+                        duration,
+                        e.getMessage());
                 return;
             }
         }
 
         long duration = System.currentTimeMillis() - startTime;
-        executionMapper.updateStatus(execution.getId(), PipelineStatus.SUCCESS.name(),
-                LocalDateTime.now(), null);
-        eventProducer.publishExecutionCompleted(execution,
-                com.study.playground.avro.common.PipelineStatus.SUCCESS, duration, null);
+        executionMapper.updateStatus(
+                execution.getId(),
+                PipelineStatus.SUCCESS.name(),
+                LocalDateTime.now(),
+                null);
+        eventProducer.publishExecutionCompleted(
+                execution,
+                com.study.playground.avro.common.PipelineStatus.SUCCESS,
+                duration,
+                null);
         log.info("Pipeline execution completed: {} in {}ms", execution.getId(), duration);
     }
 
     /**
      * webhook 콜백 수신 후 파이프라인 실행을 재개한다.
      * Jenkins 빌드 완료 시 WebhookEventConsumer가 호출한다.
+     *
+     * <p>CAS(Compare-And-Swap) 방식으로 상태를 갱신하는 이유는 타임아웃 체커
+     * ({@link WebhookTimeoutChecker})가 동시에 FAILED로 전환할 수 있기 때문이다.
+     * {@code updateStatusIfCurrent}가 0을 반환하면 이미 다른 경쟁자가 상태를 변경한
+     * 것이므로 중복 처리를 막기 위해 즉시 반환한다.
+     *
+     * @param executionId 재개할 파이프라인 실행 ID
+     * @param stepOrder   완료된 스텝의 순서 (1-based)
+     * @param result      Jenkins 빌드 결과 ("SUCCESS" 또는 그 외 실패 값)
+     * @param buildLog    Jenkins 빌드 로그 (null 허용)
      */
-    public void resumeAfterWebhook(UUID executionId, int stepOrder, String result, String buildLog) {
+    public void resumeAfterWebhook(
+            UUID executionId,
+            int stepOrder,
+            String result,
+            String buildLog) {
         PipelineExecution execution = executionMapper.findById(executionId);
         if (execution == null) {
             log.warn("resumeAfterWebhook: execution not found: {}", executionId);
@@ -135,7 +204,11 @@ public class PipelineEngine {
         String logMsg = success ? buildLog : (buildLog != null ? buildLog : "Jenkins build failed: " + result);
 
         int affected = stepMapper.updateStatusIfCurrent(
-                step.getId(), StepStatus.WAITING_WEBHOOK.name(), targetStatus, logMsg, LocalDateTime.now());
+                step.getId(),
+                StepStatus.WAITING_WEBHOOK.name(),
+                targetStatus,
+                logMsg,
+                LocalDateTime.now());
 
         if (affected == 0) {
             log.warn("resumeAfterWebhook: CAS failed - step already changed: execution={}, stepOrder={}, currentStatus={}",
@@ -162,10 +235,16 @@ public class PipelineEngine {
             long duration = execution.getStartedAt() != null
                     ? java.time.Duration.between(execution.getStartedAt(), java.time.LocalDateTime.now()).toMillis()
                     : 0;
-            executionMapper.updateStatus(executionId, PipelineStatus.FAILED.name(),
-                    LocalDateTime.now(), logMsg);
-            eventProducer.publishExecutionCompleted(execution,
-                    com.study.playground.avro.common.PipelineStatus.FAILED, duration, logMsg);
+            executionMapper.updateStatus(
+                    executionId,
+                    PipelineStatus.FAILED.name(),
+                    LocalDateTime.now(),
+                    logMsg);
+            eventProducer.publishExecutionCompleted(
+                    execution,
+                    com.study.playground.avro.common.PipelineStatus.FAILED,
+                    duration,
+                    logMsg);
             log.info("Webhook resume: step {} FAILED (execution={})", step.getStepName(), executionId);
         }
     }

@@ -16,7 +16,6 @@ public class OutboxEvent {
     private String eventType;
     private byte[] payload;
     private String topic;
-    // TODO: String → OutboxEventStatus enum + MyBatis TypeHandler로 전환 고려 (PENDING/SENT/DEAD)
     private String status;
     private LocalDateTime createdAt;
     private LocalDateTime sentAt;

@@ -9,9 +9,12 @@ public class EventPublisher {
 
     private final OutboxMapper outboxMapper;
 
-    public void publish(String aggregateType, String aggregateId,
-                        String eventType, byte[] payload, String topic,
-                        String correlationId) {
+    public void publish(String aggregateType
+            , String aggregateId
+            , String eventType
+            , byte[] payload
+            , String topic
+            , String correlationId) {
         outboxMapper.insert(OutboxEvent.of(aggregateType, aggregateId, eventType, payload, topic, correlationId));
     }
 }

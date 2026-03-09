@@ -1,7 +1,9 @@
 package com.study.playground.audit;
 
 import com.study.playground.avro.audit.AuditEvent;
+import com.study.playground.kafka.serialization.AvroSerializer;
 import com.study.playground.kafka.topic.Topics;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.DltHandler;
@@ -13,7 +15,10 @@ import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class AuditEventConsumer {
+
+    private final AvroSerializer avroSerializer;
 
     @RetryableTopic(
             attempts = "3",
@@ -24,8 +29,10 @@ public class AuditEventConsumer {
     )
     @KafkaListener(topics = Topics.AUDIT_EVENTS, groupId = "audit-logger")
     public void onAuditEvent(ConsumerRecord<String, byte[]> record) {
-        String payload = new String(record.value());
-        log.info("[AUDIT] key={}, payload={}", record.key(), payload);
+        AuditEvent event = avroSerializer.deserialize(record.value(), AuditEvent.getClassSchema());
+        log.info("[AUDIT] key={}, actor={}, action={}, resource={}/{}",
+                record.key(), event.getActor(), event.getAction(),
+                event.getResourceType(), event.getResourceId());
     }
 
     @DltHandler

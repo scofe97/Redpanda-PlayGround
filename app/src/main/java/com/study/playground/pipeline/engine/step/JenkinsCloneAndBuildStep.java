@@ -12,21 +12,58 @@ import org.springframework.stereotype.Component;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Git 저장소 클론과 빌드를 Jenkins Job으로 위임하고 webhook 완료를 대기하는 스텝.
+ *
+ * <p>GIT_CLONE과 BUILD 스텝 타입을 하나의 실행기가 처리하는 이유는 Jenkins Pipeline이
+ * 클론과 빌드를 단일 작업(Job)으로 실행하기 때문이다. 두 스텝을 분리하면 오히려
+ * Jenkins Job을 두 번 트리거해야 하는 비효율이 생긴다.
+ *
+ * <p>Jenkins Job 트리거는 Kafka 커맨드 메시지로 발행한다. 직접 HTTP 호출 대신
+ * Kafka를 사용하는 이유는 Jenkins 일시적 장애 시에도 커맨드가 유실되지 않고
+ * 재처리될 수 있기 때문이다.
+ *
+ * <p>커맨드 발행 후 {@code step.setWaitingForWebhook(true)}를 설정하여 엔진이
+ * 스레드를 해제하도록 신호를 보낸다. Jenkins 빌드 완료 시 webhook이 도착하면
+ * {@code PipelineEngine.resumeAfterWebhook}에서 다음 스텝이 재개된다.
+ *
+ * <p>SAGA 보상: {@link #compensate}에서 Jenkins 워크스페이스를 정리한다.
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class JenkinsCloneAndBuildStep implements PipelineStepExecutor {
 
+    /** 기본 Jenkins 빌드 Job 이름. 스텝 이름에서 별도 지정이 없으면 이 Job을 사용한다. */
     private static final String DEFAULT_JOB = "playground-build";
 
     private final JenkinsAdapter jenkinsAdapter;
     private final PipelineCommandProducer commandProducer;
 
+    /**
+     * 이 스텝은 {@link PipelineExecution} 컨텍스트가 필수이므로 단일 파라미터 오버로드를 지원하지 않는다.
+     * 엔진은 항상 {@link #execute(PipelineExecution, PipelineStep)}를 호출하므로
+     * 이 메서드가 직접 호출되는 경우는 프로그래밍 오류다.
+     *
+     * @throws RuntimeException 항상 던짐 — 잘못된 호출 경로 감지용
+     */
     @Override
     public void execute(PipelineStep step) throws Exception {
         throw new RuntimeException("JenkinsCloneAndBuildStep requires PipelineExecution context");
     }
 
+    /**
+     * Jenkins 빌드 Job을 Kafka 커맨드로 트리거하고 webhook 대기 상태로 전환한다.
+     *
+     * <p>스텝 이름에서 Git URL과 브랜치를 파싱하여 Jenkins Job 파라미터로 전달한다.
+     * {@code localhost:29180}을 {@code gitlab:29180}으로 변환하는 이유는 Jenkins가
+     * Docker 네트워크 내부에서 실행되므로 호스트 머신 주소 대신 컨테이너 서비스명을
+     * 사용해야 GitLab에 접근할 수 있기 때문이다.
+     *
+     * @param execution 파이프라인 실행 컨텍스트 (실행 ID를 Jenkins 파라미터로 전달)
+     * @param step      실행할 스텝 정보 (스텝 이름에서 Git URL과 브랜치를 파싱)
+     * @throws Exception Jenkins 연결 불가, 커맨드 발행 실패 시
+     */
     @Override
     public void execute(PipelineExecution execution, PipelineStep step) throws Exception {
         log.info("[Real] JenkinsCloneAndBuild 시작: {}", step.getStepName());
@@ -70,6 +107,13 @@ public class JenkinsCloneAndBuildStep implements PipelineStepExecutor {
         step.setWaitingForWebhook(true);
     }
 
+    /**
+     * SAGA 보상: Jenkins 워크스페이스를 정리하고 VCS 상태를 복원한다.
+     * 현재는 로그만 남기며, 프로덕션에서는 워크스페이스 정리 Job을 트리거해야 한다.
+     *
+     * @param execution 파이프라인 실행 컨텍스트
+     * @param step      보상할 스텝 정보
+     */
     @Override
     public void compensate(PipelineExecution execution, PipelineStep step) throws Exception {
         log.info("[SAGA COMPENSATE] Rolling back {}: stepName={}, executionId={}",
@@ -78,6 +122,4 @@ public class JenkinsCloneAndBuildStep implements PipelineStepExecutor {
         // 프로덕션: Jenkins 작업을 트리거하여 워크스페이스 정리 및 VCS 상태 복원
         // 예: jenkinsAdapter.triggerCleanupJob(execution, step)
     }
-
-
 }

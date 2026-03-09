@@ -31,6 +31,7 @@ public class TicketService {
     private final TicketSourceMapper ticketSourceMapper;
     private final EventPublisher eventPublisher;
     private final AuditEventPublisher auditEventPublisher;
+    private final AvroSerializer avroSerializer;
 
     @Transactional(readOnly = true)
     public List<TicketListResponse> findAll() {
@@ -78,7 +79,7 @@ public class TicketService {
                 .build();
 
         eventPublisher.publish("TICKET", String.valueOf(ticket.getId()),
-                "TICKET_CREATED", AvroSerializer.serialize(event),
+                "TICKET_CREATED", avroSerializer.serialize(event),
                 Topics.TICKET_EVENTS, correlationId);
 
         // Audit 이벤트 발행
