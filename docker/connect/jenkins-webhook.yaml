@@ -1,21 +1,84 @@
+# ============================================================================
+# Jenkins Webhook → Redpanda 인바운드 파이프라인
+# ============================================================================
+# 역할: Jenkins 빌드 완료/실패 시 Notification Plugin이 보내는 HTTP POST를
+#       Redpanda 토픽(playground.webhook.inbound)으로 브릿지한다.
+#
+# 흐름: Jenkins → POST /webhook/jenkins → 메시지 정규화 → Redpanda 토픽
+#
+# 왜 gitlab-webhook.yaml과 별도 파일인가:
+#   포트(4197)와 path(/webhook/jenkins)가 다르고, 향후 Jenkins 전용
+#   필터링(예: 특정 Job만 수신)을 추가할 수 있도록 분리했다.
+#   동일 토픽(playground.webhook.inbound)으로 발행하므로 다운스트림
+#   컨슈머는 webhookSource 필드로 GitLab/Jenkins를 구분한다.
+#
+# 관련 파이프라인:
+#   - gitlab-webhook.yaml: GitLab 웹훅 수신 (동일 토픽)
+#   - jenkins-command.yaml: 토픽 → Jenkins API 호출 (반대 방향)
+# ============================================================================
+
+# --- 로깅 설정 ---
+logger:
+  level: INFO
+  format: logfmt
+  add_timestamp: true
+  static_fields:
+    service: connect-jenkins-webhook
+
+# --- 메트릭 설정 ---
+metrics:
+  prometheus: {}
+
+# --- 관리 HTTP 엔드포인트 ---
+http:
+  enabled: true
+  address: "0.0.0.0:4198"
+
+# --- 입력: Jenkins 웹훅 수신 ---
 input:
   http_server:
+    # Jenkins Notification Plugin이 POST 요청을 보낼 엔드포인트
+    # Jenkins 시스템 설정 > Notification Endpoint에 이 주소를 등록한다.
     address: 0.0.0.0:4197
     path: /webhook/jenkins
     allowed_verbs:
       - POST
+    timeout: 5s
 
+# --- 파이프라인: 메시지 정규화 ---
 pipeline:
   processors:
     - mapping: |
+        # GitLab 웹훅과 동일한 스키마로 정규화한다.
+        # webhookSource로 "JENKINS"를 명시하여 다운스트림에서 구분한다.
         root.webhookSource = "JENKINS"
         root.payload = content().string()
         root.headers = @
         root.receivedAt = now()
 
+    # 처리 실패 시 로그 기록 — Jenkins 웹훅도 유실되면
+    # 파이프라인이 WAITING_WEBHOOK 상태에서 영구 대기할 수 있다.
+    - catch:
+        - log:
+            message: "Jenkins 웹훅 처리 실패"
+            level: ERROR
+            fields_mapping: |
+              root.error = error()
+              root.payload_preview = content().string().slice(0, 200)
+
+# --- 출력: Redpanda 토픽 발행 ---
 output:
-  kafka_franz:
-    seed_brokers:
-      - redpanda:9092
-    topic: playground.webhook.inbound
-    key: ${! json("webhookSource") }
+  # Jenkins 웹훅 유실 시 파이프라인이 WAITING_WEBHOOK에서 멈추므로
+  # 재시도 정책으로 일시 장애를 버텨야 한다.
+  retry:
+    max_retries: 5
+    backoff:
+      initial_interval: 500ms
+      max_interval: 10s
+    output:
+      kafka_franz:
+        seed_brokers:
+          - redpanda:9092
+        topic: playground.webhook.inbound
+        key: ${! json("webhookSource") }
+        max_in_flight: 1
