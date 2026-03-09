@@ -39,9 +39,6 @@ erDiagram
         varchar image_name
         timestamp created_at
     }
-
-    style TICKET fill:#e8f5e9,stroke:#2e7d32,color:#333
-    style TICKET_SOURCE fill:#e8f5e9,stroke:#2e7d32,color:#333
 ```
 
 ### SourceType별 사용 필드

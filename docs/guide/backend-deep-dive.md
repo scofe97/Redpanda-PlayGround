@@ -259,43 +259,90 @@ POST /api/tickets/{id}/pipeline/start-with-failure
 
 ### 토픽 목록
 
-| 토픽 | 파티션 | 보관 | 직렬화 | 용도 |
-|------|--------|------|--------|------|
-| `playground.pipeline.commands` | 3 | 7일 | Avro | 파이프라인 실행 커맨드 |
-| `playground.pipeline.events` | 3 | 7일 | Avro | 스텝 변경/완료 이벤트 |
-| `playground.ticket.events` | 3 | 7일 | Avro | 티켓 생성 이벤트 |
-| `playground.webhook.inbound` | 2 | 3일 | JSON (Connect 수신) | 외부 웹훅 수신 |
-| `playground.audit.events` | 1 | 30일 | Avro | 감사 이벤트 |
-| `playground.dlq` | 1 | 30일 | - | Dead Letter Queue |
+| 토픽 | 파티션 | 보관 | 직렬화 | Avro 스키마 | 용도 |
+|------|--------|------|--------|-------------|------|
+| `playground.pipeline.commands` | 3 | 7일 | Avro | `PipelineExecutionStartedEvent`, `JenkinsBuildCommand` | 파이프라인 실행 커맨드 |
+| `playground.pipeline.events` | 3 | 7일 | Avro | `PipelineStepChangedEvent`, `PipelineExecutionCompletedEvent` | 스텝 변경/완료 이벤트 |
+| `playground.ticket.events` | 3 | 7일 | Avro | `TicketCreatedEvent` | 티켓 생성 이벤트 |
+| `playground.webhook.inbound` | 2 | 3일 | JSON | (Connect가 raw JSON 수신) | 외부 웹훅 수신 |
+| `playground.audit.events` | 1 | 30일 | Avro | `AuditEvent` | 감사 이벤트 |
+| `playground.dlq` | 1 | 30일 | - | (원본 메시지 그대로) | Dead Letter Queue |
 
 네이밍 규칙은 `playground.{도메인}.{유형}`이다. 파이프라인/티켓 토픽은 3 파티션으로 병렬 처리하고, 감사/DLQ는 순서 보장이 중요하므로 1 파티션이다. 웹훅은 보관 기간이 짧다(3일) — 처리 후 재참조할 일이 거의 없기 때문이다.
 
 ### Avro 스키마 구조
 
-모든 도메인 이벤트는 `EventMetadata`를 내장(composition)한다:
+스키마 파일은 `common-kafka/src/main/avro/` 에 위치한다. 이벤트 메타데이터(eventId, correlationId, eventType, timestamp, source)는 Avro 스키마에 포함되지 않고, `CloudEventsHeaderInterceptor`가 **Kafka 헤더**로 별도 부착한다.
+
+#### 공통 enum
 
 ```
-EventMetadata (공통)
-├── eventId: string       # CloudEvents ce-id (UUID)
-├── correlationId: string # 관련 이벤트 연결 (멱등성 키)
-├── eventType: string     # 이벤트 유형 식별자
-├── timestamp: long       # 생성 시각 (ms)
-└── source: string        # 발행 서비스/컴포넌트
+SourceType:     GIT | NEXUS | HARBOR
+PipelineStatus: PENDING | RUNNING | SUCCESS | FAILED
 ```
 
-도메인별 스키마:
+#### 토픽별 스키마 상세
 
-| 스키마 | 핵심 필드 |
-|--------|----------|
-| PipelineExecutionStartedEvent | metadata, executionId, ticketId, steps(string[]) |
-| PipelineExecutionCompletedEvent | metadata, executionId, ticketId, status, durationMs, errorMessage |
-| PipelineStepChangedEvent | metadata, executionId, ticketId, stepName, stepType, status, log |
-| TicketCreatedEvent | metadata, ticketId, name, sourceTypes(SourceType[]) |
-| WebhookEvent | metadata, webhookSource, payload(raw JSON), headers(map) |
-| AuditEvent | metadata, actor, action, resourceType, resourceId, details |
-| JenkinsBuildCommand | metadata, executionId, ticketId, stepOrder, jobName, params |
+**playground.pipeline.commands**
 
-직렬화 방식의 특이점: `application.yml`에서 Producer는 `ByteArraySerializer`, Consumer는 `ByteArrayDeserializer`를 사용한다. Avro 직렬화/역직렬화를 코드에서 직접 수행하며(`AvroSerializer` 유틸), Schema Registry 기반 자동 serde를 쓰지 않는다. Outbox 테이블의 `payload`가 BYTEA인 것도 이 때문이다.
+| 스키마 | 필드 | 타입 | 설명 |
+|--------|------|------|------|
+| **PipelineExecutionStartedEvent** | executionId | string | 실행 UUID |
+| | ticketId | long | 티켓 ID |
+| | steps | string[] | 스텝 이름 목록 |
+| **JenkinsBuildCommand** | executionId | string | 실행 UUID |
+| | ticketId | long | 티켓 ID |
+| | stepOrder | int | 스텝 순서 (1-based) |
+| | jobName | string | Jenkins Job 이름 |
+| | params | map&lt;string&gt; | 빌드 파라미터 |
+
+**playground.pipeline.events**
+
+| 스키마 | 필드 | 타입 | 설명 |
+|--------|------|------|------|
+| **PipelineStepChangedEvent** | executionId | string | 실행 UUID |
+| | ticketId | long | 티켓 ID |
+| | stepName | string | 스텝 이름 |
+| | stepType | string | 스텝 유형 (GIT_CLONE, BUILD 등) |
+| | status | string | 스텝 상태 (RUNNING, SUCCESS, FAILED, COMPENSATED 등) |
+| | log | string? | 실행 로그 (nullable) |
+| **PipelineExecutionCompletedEvent** | executionId | string | 실행 UUID |
+| | ticketId | long | 티켓 ID |
+| | status | PipelineStatus | 최종 상태 (SUCCESS, FAILED) |
+| | durationMs | long | 총 소요시간 (ms) |
+| | errorMessage | string? | 에러 메시지 (nullable) |
+
+**playground.ticket.events**
+
+| 스키마 | 필드 | 타입 | 설명 |
+|--------|------|------|------|
+| **TicketCreatedEvent** | ticketId | long | 티켓 ID |
+| | name | string | 티켓 이름 |
+| | sourceTypes | SourceType[] | 소스 유형 목록 (GIT, NEXUS, HARBOR) |
+
+**playground.audit.events**
+
+| 스키마 | 필드 | 타입 | 설명 |
+|--------|------|------|------|
+| **AuditEvent** | actor | string | 행위자 |
+| | action | string | 수행 행위 |
+| | resourceType | string | 대상 리소스 유형 |
+| | resourceId | string | 대상 리소스 ID |
+| | details | string? | 상세 정보 (nullable) |
+
+**playground.webhook.inbound** — Avro 아님 (JSON)
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| webhookSource | string | 소스 식별 (JENKINS) |
+| payload | string | 원본 JSON 페이로드 |
+| headers | map&lt;string&gt; | HTTP 헤더 |
+
+> Redpanda Connect가 HTTP 수신 → Kafka 발행 시 JSON으로 전달한다. `WebhookEventConsumer`가 소비 후 `WebhookEvent` Avro로 역직렬화하지 않고 raw JSON으로 처리한다.
+
+### 직렬화 방식
+
+`kafka-defaults.yml`에서 Producer는 `ByteArraySerializer`, Consumer는 `ByteArrayDeserializer`를 사용한다. Avro 직렬화/역직렬화를 코드에서 직접 수행하며(`AvroSerializer` 유틸), Schema Registry 기반 자동 serde를 쓰지 않는다. Outbox 테이블의 `payload`가 BYTEA인 것도 이 때문이다.
 
 ### CloudEvents 헤더 규칙
 

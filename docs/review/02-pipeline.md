@@ -44,9 +44,6 @@ erDiagram
         timestamp started_at
         timestamp completed_at
     }
-
-    style PIPELINE_EXECUTION fill:#e3f2fd,stroke:#1565c0,color:#333
-    style PIPELINE_STEP fill:#e3f2fd,stroke:#1565c0,color:#333
 ```
 
 ### 스텝 구성 규칙
