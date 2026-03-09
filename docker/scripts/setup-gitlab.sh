@@ -104,6 +104,16 @@ curl -sf -o /dev/null -X POST "$GITLAB_URL/api/v4/projects/$PORTAL_ID/repository
     -H "Content-Type: application/json" \
     -d '{"branch":"develop","ref":"main"}' || echo "  ⚠️  develop branch may already exist"
 
+# 3. Update app DB with the new PAT
+# Flyway V7 seeds credential as the root password, not PAT.
+# This step ensures the app always has a valid GitLab PAT after setup.
+echo ""
+echo "🔄 Updating support_tool table with GitLab PAT..."
+docker exec playground-postgres psql -U playground -d playground -c \
+    "UPDATE support_tool SET credential = '$TOKEN', updated_at = NOW() WHERE tool_type = 'GITLAB';" \
+    2>/dev/null && echo "✅ support_tool updated with GitLab PAT" \
+    || echo "⚠️  support_tool update skipped (app DB may not be ready yet)"
+
 echo ""
 echo "=== GitLab Setup Complete ==="
 echo "  GitLab URL: $GITLAB_URL"
