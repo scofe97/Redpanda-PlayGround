@@ -9,8 +9,8 @@ import org.springframework.kafka.config.TopicBuilder;
 public class TopicConfig {
 
     @Bean
-    public NewTopic pipelineCommandsTopic() {
-        return TopicBuilder.name(Topics.PIPELINE_COMMANDS)
+    public NewTopic pipelineCmdExecutionTopic() {
+        return TopicBuilder.name(Topics.PIPELINE_CMD_EXECUTION)
                 .partitions(3)
                 .replicas(1) // TODO: Production에서는 replicas(3) + min.insync.replicas=2로 변경 필요
                 .config("retention.ms", String.valueOf(7L * 24 * 60 * 60 * 1000))
@@ -18,8 +18,26 @@ public class TopicConfig {
     }
 
     @Bean
-    public NewTopic pipelineEventsTopic() {
-        return TopicBuilder.name(Topics.PIPELINE_EVENTS)
+    public NewTopic pipelineCmdJenkinsTopic() {
+        return TopicBuilder.name(Topics.PIPELINE_CMD_JENKINS)
+                .partitions(3)
+                .replicas(1) // TODO: Production에서는 replicas(3) + min.insync.replicas=2로 변경 필요
+                .config("retention.ms", String.valueOf(7L * 24 * 60 * 60 * 1000))
+                .build();
+    }
+
+    @Bean
+    public NewTopic pipelineEvtStepChangedTopic() {
+        return TopicBuilder.name(Topics.PIPELINE_EVT_STEP_CHANGED)
+                .partitions(3)
+                .replicas(1) // TODO: Production에서는 replicas(3) + min.insync.replicas=2로 변경 필요
+                .config("retention.ms", String.valueOf(7L * 24 * 60 * 60 * 1000))
+                .build();
+    }
+
+    @Bean
+    public NewTopic pipelineEvtCompletedTopic() {
+        return TopicBuilder.name(Topics.PIPELINE_EVT_COMPLETED)
                 .partitions(3)
                 .replicas(1) // TODO: Production에서는 replicas(3) + min.insync.replicas=2로 변경 필요
                 .config("retention.ms", String.valueOf(7L * 24 * 60 * 60 * 1000))

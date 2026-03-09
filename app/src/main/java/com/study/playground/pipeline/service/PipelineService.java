@@ -37,6 +37,7 @@ public class PipelineService {
     private final PipelineExecutionMapper executionMapper;
     private final PipelineStepMapper stepMapper;
     private final EventPublisher eventPublisher;
+    private final AvroSerializer avroSerializer;
 
     @Transactional
     public PipelineExecutionResponse startPipeline(Long ticketId) {
@@ -74,19 +75,24 @@ public class PipelineService {
     }
 
     private PipelineExecutionResponse doStartPipeline(Long ticketId, boolean withFailure) {
+
+        // 티켓 조회
         Ticket ticket = ticketMapper.findById(ticketId);
         if (ticket == null) {
             throw new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND, "티켓을 찾을 수 없습니다: " + ticketId);
         }
 
+        // 티켓 소스 조회
         List<TicketSource> sources = ticketSourceMapper.findByTicketId(ticketId);
         if (sources.isEmpty()) {
             throw new BusinessException(CommonErrorCode.INVALID_INPUT, "소스가 없는 티켓은 배포할 수 없습니다");
         }
 
+        // 배포중 상태 변경
         ticket.setStatus(TicketStatus.DEPLOYING);
         ticketMapper.update(ticket);
 
+        // 파이프라인 실행
         PipelineExecution execution = new PipelineExecution();
         execution.setId(UUID.randomUUID());
         execution.setTicketId(ticketId);
@@ -94,6 +100,7 @@ public class PipelineService {
         execution.setStartedAt(LocalDateTime.now());
         executionMapper.insert(execution);
 
+        // 단계
         List<PipelineStep> steps = buildSteps(sources);
         if (withFailure) {
             injectRandomFailure(steps);
@@ -101,21 +108,28 @@ public class PipelineService {
         stepMapper.insertBatch(execution.getId(), steps);
 
         // Outbox INSERT → Kafka 발행은 OutboxPoller가 수행
-        List<String> stepNames = steps.stream().map(PipelineStep::getStepName).toList();
+        List<String> stepNameList = steps.stream()
+                .map(PipelineStep::getStepName)
+                .toList();
 
         PipelineExecutionStartedEvent event = PipelineExecutionStartedEvent.newBuilder()
                 .setExecutionId(execution.getId().toString())
                 .setTicketId(ticketId)
-                .setSteps(stepNames)
+                .setSteps(stepNameList)
                 .build();
 
-        eventPublisher.publish("PIPELINE", execution.getId().toString(),
-                "PIPELINE_EXECUTION_STARTED", AvroSerializer.serialize(event),
-                Topics.PIPELINE_COMMANDS, execution.getId().toString());
+        // 아웃박스 DB 생성
+        eventPublisher.publish("PIPELINE"
+                , execution.getId().toString()
+                , "PIPELINE_EXECUTION_STARTED"
+                , avroSerializer.serialize(event),
+                Topics.PIPELINE_CMD_EXECUTION
+                , execution.getId().toString()
+        );
 
         if (withFailure) {
             log.info("[FAIL SIMULATION] Pipeline started with failure injection: executionId={}, failStep={}",
-                    execution.getId(), stepNames.stream().filter(n -> n.contains("[FAIL]")).findFirst().orElse("none"));
+                    execution.getId(), stepNameList.stream().filter(n -> n.contains("[FAIL]")).findFirst().orElse("none"));
         }
 
         return PipelineExecutionResponse.accepted(execution);
@@ -127,6 +141,7 @@ public class PipelineService {
             steps.get(0).setStepName(steps.get(0).getStepName() + " [FAIL]");
             return;
         }
+
         // 첫 번째 스텝 제외 (보상 대상이 없으므로), 2번째 이후 중 랜덤 선택
         int failIndex = 1 + ThreadLocalRandom.current().nextInt(steps.size() - 1);
         PipelineStep failStep = steps.get(failIndex);

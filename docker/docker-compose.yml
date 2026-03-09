@@ -48,7 +48,7 @@ services:
       - "4197:4197"
     volumes:
       - ./connect:/etc/connect:ro
-    command: ["streams", "/etc/connect/*.yaml"]
+    command: ["streams", "--chilled", "/etc/connect/*.yaml"]
     environment:
       JENKINS_TOKEN: ${JENKINS_TOKEN}
     depends_on:

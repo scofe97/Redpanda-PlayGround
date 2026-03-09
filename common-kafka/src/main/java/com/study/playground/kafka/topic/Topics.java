@@ -8,8 +8,10 @@ public final class Topics {
 
     private Topics() {}
 
-    public static final String PIPELINE_COMMANDS = "playground.pipeline.commands";
-    public static final String PIPELINE_EVENTS = "playground.pipeline.events";
+    public static final String PIPELINE_CMD_EXECUTION = "playground.pipeline.commands.execution";
+    public static final String PIPELINE_CMD_JENKINS = "playground.pipeline.commands.jenkins";
+    public static final String PIPELINE_EVT_STEP_CHANGED = "playground.pipeline.events.step-changed";
+    public static final String PIPELINE_EVT_COMPLETED = "playground.pipeline.events.completed";
     public static final String TICKET_EVENTS = "playground.ticket.events";
     public static final String WEBHOOK_INBOUND = "playground.webhook.inbound";
     public static final String AUDIT_EVENTS = "playground.audit.events";

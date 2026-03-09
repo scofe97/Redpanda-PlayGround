@@ -33,6 +33,7 @@ public class TicketStatusEventConsumer {
 
     private final TicketMapper ticketMapper;
     private final ProcessedEventMapper processedEventMapper;
+    private final AvroSerializer avroSerializer;
 
     @RetryableTopic(
             attempts = "4",
@@ -41,19 +42,14 @@ public class TicketStatusEventConsumer {
             dltTopicSuffix = "-dlt",
             retryTopicSuffix = "-retry"
     )
-    @KafkaListener(topics = Topics.PIPELINE_EVENTS, groupId = "ticket-status-updater",
+    @KafkaListener(topics = Topics.PIPELINE_EVT_COMPLETED, groupId = "ticket-status-updater",
             properties = {"auto.offset.reset=earliest"})
     @Transactional
     public void onPipelineEvent(ConsumerRecord<String, byte[]> record) {
-        String eventType = extractHeader(record, "eventType");
-        if (!"PIPELINE_EXECUTION_COMPLETED".equals(eventType)) {
-            return;
-        }
-
-        PipelineExecutionCompletedEvent event = AvroSerializer.deserialize(
+        PipelineExecutionCompletedEvent event = avroSerializer.deserialize(
                 record.value(), PipelineExecutionCompletedEvent.getClassSchema());
 
-        String correlationId = extractHeader(record, "correlationId");
+        String correlationId = extractHeader(record, "ce_correlationid");
 
         // 멱등성 체크
         ProcessedEvent processed = new ProcessedEvent();

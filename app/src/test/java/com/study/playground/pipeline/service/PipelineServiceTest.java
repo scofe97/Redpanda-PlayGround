@@ -75,7 +75,7 @@ class PipelineServiceTest {
         verify(ticketMapper).update(argThat(t -> t.getStatus() == TicketStatus.DEPLOYING));
         verify(executionMapper).insert(any());
         verify(stepMapper).insertBatch(any(), anyList());
-        verify(eventPublisher).publish(eq("PIPELINE"), any(), eq("PIPELINE_EXECUTION_STARTED"), any(), eq(Topics.PIPELINE_COMMANDS), any());
+        verify(eventPublisher).publish(eq("PIPELINE"), any(), eq("PIPELINE_EXECUTION_STARTED"), any(), eq(Topics.PIPELINE_CMD_EXECUTION), any());
     }
 
     @Test

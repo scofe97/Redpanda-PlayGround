@@ -11,15 +11,32 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+/**
+ * 파이프라인 실행 중 발생하는 도메인 이벤트를 Kafka로 발행하는 프로듀서.
+ *
+ * PipelineEngine이 스텝 상태 변경·실행 완료 시점에 이 클래스를 호출한다.
+ * EventPublisher(Outbox 패턴)를 통해 발행하는 이유는 DB 트랜잭션과 이벤트 발행의
+ * 원자성을 보장하기 위해서다. 이 이벤트들은 PIPELINE_EVENTS 토픽으로 전달되어
+ * SSE 컨슈머(PipelineSseConsumer)가 클라이언트에게 실시간으로 푸시한다.
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class PipelineEventProducer {
 
-    private static final String TOPIC = Topics.PIPELINE_EVENTS;
     private final EventPublisher eventPublisher;
+    private final AvroSerializer avroSerializer;
 
-    public void publishStepChanged(PipelineExecution execution, PipelineStep step, StepStatus status) {
+    /**
+     * 파이프라인 스텝의 상태 변경 이벤트를 발행한다.
+     *
+     * 스텝 로그를 함께 포함시키는 이유는 클라이언트가 별도 조회 없이
+     * SSE 이벤트 하나로 현재 상태와 로그를 모두 렌더링할 수 있도록 하기 위해서다.
+     */
+    public void publishStepChanged(
+            PipelineExecution execution,
+            PipelineStep step,
+            StepStatus status) {
         PipelineStepChangedEvent event = PipelineStepChangedEvent.newBuilder()
                 .setExecutionId(execution.getId().toString())
                 .setTicketId(execution.getTicketId())
@@ -29,13 +46,27 @@ public class PipelineEventProducer {
                 .setLog(step.getLog())
                 .build();
 
-        eventPublisher.publish("PIPELINE", execution.getId().toString(),
-                "PIPELINE_STEP_CHANGED", AvroSerializer.serialize(event), TOPIC,
+        eventPublisher.publish(
+                "PIPELINE",
+                execution.getId().toString(),
+                "PIPELINE_STEP_CHANGED",
+                avroSerializer.serialize(event),
+                Topics.PIPELINE_EVT_STEP_CHANGED,
                 execution.getId().toString());
     }
 
-    public void publishExecutionCompleted(PipelineExecution execution, PipelineStatus status,
-                                           long durationMs, String errorMessage) {
+    /**
+     * 파이프라인 전체 실행 완료(성공 또는 실패) 이벤트를 발행한다.
+     *
+     * durationMs를 포함하는 이유는 클라이언트가 실행 시간을 별도 계산 없이
+     * 즉시 표시할 수 있도록 하기 위해서다.
+     * errorMessage는 성공 시 null이며, 실패 시 첫 번째 에러 원인을 담는다.
+     */
+    public void publishExecutionCompleted(
+            PipelineExecution execution,
+            PipelineStatus status,
+            long durationMs,
+            String errorMessage) {
         PipelineExecutionCompletedEvent event = PipelineExecutionCompletedEvent.newBuilder()
                 .setExecutionId(execution.getId().toString())
                 .setTicketId(execution.getTicketId())
@@ -44,8 +75,12 @@ public class PipelineEventProducer {
                 .setErrorMessage(errorMessage)
                 .build();
 
-        eventPublisher.publish("PIPELINE", execution.getId().toString(),
-                "PIPELINE_EXECUTION_COMPLETED", AvroSerializer.serialize(event), TOPIC,
+        eventPublisher.publish(
+                "PIPELINE",
+                execution.getId().toString(),
+                "PIPELINE_EXECUTION_COMPLETED",
+                avroSerializer.serialize(event),
+                Topics.PIPELINE_EVT_COMPLETED,
                 execution.getId().toString());
     }
 }
