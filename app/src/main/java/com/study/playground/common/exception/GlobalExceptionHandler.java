@@ -1,7 +1,6 @@
 package com.study.playground.common.exception;
 
 import com.study.playground.common.dto.ApiError;
-import com.study.playground.common.dto.ApiResponse;
 import com.study.playground.common.dto.CommonErrorCode;
 import com.study.playground.common.dto.Exposure;
 import lombok.extern.slf4j.Slf4j;
@@ -18,32 +17,32 @@ import java.util.stream.Collectors;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
-    public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException e) {
+    public ResponseEntity<ApiError> handleBusinessException(BusinessException e) {
         log.warn("Business exception: {}", e.getMessage());
         String message = e.getErrorCode().getExposure() == Exposure.PUBLIC
                 ? e.getMessage()
                 : e.getErrorCode().getDefaultMessage();
         return ResponseEntity
                 .status(e.getErrorCode().getHttpStatus())
-                .body(ApiResponse.error(e.getErrorCode(), message));
+                .body(ApiError.of(e.getErrorCode(), message));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiResponse<Void>> handleValidationException(MethodArgumentNotValidException e) {
+    public ResponseEntity<ApiError> handleValidationException(MethodArgumentNotValidException e) {
         String message = e.getBindingResult().getFieldErrors().stream()
                 .map(FieldError::getDefaultMessage)
                 .collect(Collectors.joining(", "));
         log.warn("Validation failed: {}", message);
         return ResponseEntity
                 .status(CommonErrorCode.INVALID_INPUT.getHttpStatus())
-                .body(ApiResponse.error(CommonErrorCode.INVALID_INPUT, message));
+                .body(ApiError.of(CommonErrorCode.INVALID_INPUT, message));
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<Void>> handleException(Exception e) {
+    public ResponseEntity<ApiError> handleException(Exception e) {
         log.error("Unexpected error", e);
         return ResponseEntity
                 .status(CommonErrorCode.INTERNAL_ERROR.getHttpStatus())
-                .body(ApiResponse.error(ApiError.of(CommonErrorCode.INTERNAL_ERROR)));
+                .body(ApiError.of(CommonErrorCode.INTERNAL_ERROR));
     }
 }

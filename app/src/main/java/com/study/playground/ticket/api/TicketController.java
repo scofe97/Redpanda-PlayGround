@@ -1,6 +1,5 @@
 package com.study.playground.ticket.api;
 
-import com.study.playground.common.dto.ApiResponse;
 import com.study.playground.ticket.dto.TicketCreateRequest;
 import com.study.playground.ticket.dto.TicketListResponse;
 import com.study.playground.ticket.dto.TicketResponse;
@@ -21,24 +20,25 @@ public class TicketController {
     private final TicketService ticketService;
 
     @GetMapping
-    public ApiResponse<List<TicketListResponse>> findAll() {
-        return ApiResponse.success(ticketService.findAll());
+    public ResponseEntity<List<TicketListResponse>> findAll() {
+        return ResponseEntity.ok(ticketService.findAll());
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<TicketResponse> findById(@PathVariable Long id) {
-        return ApiResponse.success(ticketService.findById(id));
+    public ResponseEntity<TicketResponse> findById(@PathVariable Long id) {
+        return ResponseEntity.ok(ticketService.findById(id));
     }
 
     @PostMapping
-    public ResponseEntity<ApiResponse<TicketResponse>> create(@Valid @RequestBody TicketCreateRequest request) {
+    public ResponseEntity<TicketResponse> create(@Valid @RequestBody TicketCreateRequest request) {
         TicketResponse response = ticketService.create(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(response);
     }
 
     @PutMapping("/{id}")
-    public ApiResponse<TicketResponse> update(@PathVariable Long id, @Valid @RequestBody TicketCreateRequest request) {
-        return ApiResponse.success(ticketService.update(id, request));
+    public ResponseEntity<TicketResponse> update(@PathVariable Long id, @Valid @RequestBody TicketCreateRequest request) {
+        return ResponseEntity.ok(ticketService.update(id, request));
     }
 
     @DeleteMapping("/{id}")

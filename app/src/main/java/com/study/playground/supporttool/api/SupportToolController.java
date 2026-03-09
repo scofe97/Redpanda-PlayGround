@@ -1,12 +1,12 @@
 package com.study.playground.supporttool.api;
 
-import com.study.playground.common.dto.ApiResponse;
 import com.study.playground.supporttool.dto.SupportToolRequest;
 import com.study.playground.supporttool.dto.SupportToolResponse;
 import com.study.playground.supporttool.service.SupportToolService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -20,35 +20,35 @@ public class SupportToolController {
     private final SupportToolService supportToolService;
 
     @GetMapping
-    public ApiResponse<List<SupportToolResponse>> findAll() {
-        return ApiResponse.success(supportToolService.findAll());
+    public ResponseEntity<List<SupportToolResponse>> findAll() {
+        return ResponseEntity.ok(supportToolService.findAll());
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<SupportToolResponse> findById(@PathVariable Long id) {
-        return ApiResponse.success(supportToolService.findById(id));
+    public ResponseEntity<SupportToolResponse> findById(@PathVariable Long id) {
+        return ResponseEntity.ok(supportToolService.findById(id));
     }
 
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<SupportToolResponse> create(@Valid @RequestBody SupportToolRequest request) {
-        return ApiResponse.success(supportToolService.create(request));
+    public ResponseEntity<SupportToolResponse> create(@Valid @RequestBody SupportToolRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(supportToolService.create(request));
     }
 
     @PutMapping("/{id}")
-    public ApiResponse<SupportToolResponse> update(@PathVariable Long id, @Valid @RequestBody SupportToolRequest request) {
-        return ApiResponse.success(supportToolService.update(id, request));
+    public ResponseEntity<SupportToolResponse> update(@PathVariable Long id, @Valid @RequestBody SupportToolRequest request) {
+        return ResponseEntity.ok(supportToolService.update(id, request));
     }
 
     @DeleteMapping("/{id}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
         supportToolService.delete(id);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{id}/test")
-    public ApiResponse<Map<String, Object>> testConnection(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> testConnection(@PathVariable Long id) {
         boolean reachable = supportToolService.testConnection(id);
-        return ApiResponse.success(Map.of("reachable", reachable));
+        return ResponseEntity.ok(Map.of("reachable", reachable));
     }
 }

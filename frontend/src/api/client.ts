@@ -1,8 +1,8 @@
 const BASE_URL = '/api';
 
-interface ApiResponse<T> {
-  data: T | null;
-  error: { code: string; message: string } | null;
+interface ApiErrorBody {
+  code: string;
+  message: string;
 }
 
 export class ApiError extends Error {
@@ -28,10 +28,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     let errorMessage = `HTTP ${res.status}`;
     let errorCode = 'UNKNOWN';
     try {
-      const body: ApiResponse<unknown> = await res.json();
-      if (body.error) {
-        errorMessage = body.error.message;
-        errorCode = body.error.code;
+      const body: ApiErrorBody = await res.json();
+      if (body.code) {
+        errorMessage = body.message;
+        errorCode = body.code;
       }
     } catch {
       // response is not JSON
@@ -39,9 +39,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     throw new ApiError(errorCode, errorMessage, res.status);
   }
 
-  const body: ApiResponse<T> = await res.json();
-  if (body.error) throw new ApiError(body.error.code, body.error.message, res.status);
-  return body.data as T;
+  return res.json() as Promise<T>;
 }
 
 export const api = {
