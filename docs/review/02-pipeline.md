@@ -108,73 +108,151 @@ WAITING_WEBHOOK 상태는 Break-and-Resume 패턴의 핵심이다. 이 상태에
 ### 파이프라인 시작과 실행
 
 ```mermaid
-sequenceDiagram
-    actor User
-    participant API as PipelineController
-    participant Svc as PipelineService
-    participant DB as PostgreSQL
-    participant Kafka as Kafka
-    participant Consumer as PipelineEventConsumer
-    participant Engine as PipelineEngine
-
-    Note over User,API: 1. 파이프라인 시작 요청
-    User->>API: POST /api/tickets/{id}/pipeline/start
-    API->>Svc: startPipeline(ticketId)
-    Svc->>DB: ticket.status = DEPLOYING
-    Svc->>DB: INSERT execution(PENDING) + steps
-    Svc->>DB: INSERT outbox(PIPELINE_EXECUTION_STARTED)
-    Svc-->>API: 202 Accepted + trackingUrl
-
-    Note over Kafka,Engine: 2. 비동기 실행
-    Kafka->>Consumer: PIPELINE_EXECUTION_STARTED
-    Consumer->>DB: 멱등성 체크 (processed_event)
-    Consumer->>Engine: execute(execution) [스레드 풀]
-
-    Note over Engine,DB: 3. 스텝 순차 실행 루프
-    loop 각 스텝
-        Engine->>DB: step.status = RUNNING
-        Engine->>Engine: executor.execute(step)
-        alt 동기 실행기 (Nexus, Harbor)
-            Engine->>DB: step.status = SUCCESS
-        else 비동기 실행기 (Jenkins)
-            Engine->>Kafka: JenkinsBuildCommand
-            Engine->>DB: step.status = WAITING_WEBHOOK
-            Note over Engine: 스레드 반납, 루프 중단
-        end
+graph TD
+    subgraph REQ["1. 파이프라인 시작 요청"]
+        A["User<br>시작 버튼 클릭"] -->|POST /api/tickets/id/pipeline/start| B[PipelineController]
+        B --> C[PipelineService]
+        C --> D["ticket.status = DEPLOYING"]
+        C --> E["INSERT execution PENDING + steps"]
+        C --> F["INSERT outbox<br>PIPELINE_EXECUTION_STARTED"]
+        C -->|202 Accepted + trackingUrl| B
     end
+
+    subgraph ASYNC["2. 비동기 실행"]
+        F -.->|OutboxPoller 500ms| G[Kafka<br>PIPELINE_CMD_EXECUTION]
+        G --> H[PipelineEventConsumer]
+        H --> I{"멱등성 체크<br>processed_event"}
+        I -->|중복| Z1[무시]
+        I -->|신규| J["CompletableFuture.runAsync<br>pipeline-exec 스레드 풀"]
+        J --> K[PipelineEngine.execute]
+    end
+
+    subgraph LOOP["3. 스텝 순차 실행 루프"]
+        K --> L["execution.status = RUNNING"]
+        L --> M{다음 스텝 있는가?}
+        M -->|있음| N["step.status = RUNNING"]
+        N --> O{실행기 타입?}
+        O -->|동기: Nexus, Harbor| P["executor.execute → 즉시 완료"]
+        P --> Q["step.status = SUCCESS"]
+        Q --> M
+        O -->|비동기: Jenkins| R["Kafka에 JenkinsBuildCommand 발행"]
+        R --> S["step.status = WAITING_WEBHOOK"]
+        S --> T["스레드 반납, 루프 중단<br>Break-and-Resume"]
+        M -->|없음: 전체 성공| U["execution.status = SUCCESS"]
+    end
+
+    REQ --> ASYNC
+    ASYNC --> LOOP
+
+    style A fill:#E8F5E9,stroke:#388E3C,color:#333
+    style G fill:#FFF3E0,stroke:#F57C00,color:#333
+    style K fill:#E3F2FD,stroke:#1976D2,color:#333
+    style T fill:#FCE4EC,stroke:#C62828,color:#333
+    style U fill:#E8F5E9,stroke:#388E3C,color:#333
+    style Z1 fill:#F5F5F5,stroke:#9E9E9E,color:#333
 ```
 
 202 Accepted 응답에는 `trackingUrl`이 포함된다. 프론트엔드는 이 URL로 SSE를 연결해서 스텝 진행 상태를 실시간으로 수신한다.
+
+#### CompletableFuture.runAsync를 사용하는 이유
+
+PipelineEventConsumer가 Kafka 메시지를 수신한 뒤, 파이프라인 엔진을 직접 호출하지 않고 `CompletableFuture.runAsync`로 전용 스레드풀(`pipeline-exec-*`)에 위임하는 이유는 Kafka 리스너 스레드를 보호하기 위해서다.
+
+파이프라인 실행은 동기 스텝(Nexus 다운로드, Harbor 조회)만으로도 수 초가 걸리고, 비동기 스텝(Jenkins)까지 포함하면 웹훅 콜백이 올 때까지 대기해야 한다. 이 작업을 리스너 스레드에서 직접 실행하면 두 가지 문제가 발생한다.
+
+1. **폴링 중단**: Spring Kafka의 리스너 스레드는 `poll()` → `process()` → `poll()` 루프를 반복한다. `process()`가 오래 걸리면 다음 `poll()`이 지연되어 브로커가 컨슈머를 죽은 것으로 판단하고 **리밸런싱**을 일으킨다(`max.poll.interval.ms` 초과).
+2. **처리량 병목**: 리스너 스레드 수(`concurrency`)만큼만 동시 처리가 가능하다. 파이프라인처럼 장시간 실행되는 작업이 스레드를 점유하면 다른 메시지 소비가 막힌다.
+
+`CompletableFuture.runAsync`로 분리하면 리스너 스레드는 메시지를 수신하고 즉시 반환하므로 폴링 주기가 유지된다. 파이프라인 실행은 고정 크기 4의 전용 풀에서 독립적으로 진행되며, 풀 크기로 동시 실행 수를 제한해서 리소스 경쟁을 방지한다.
+
+### 토픽 흐름 상세
+
+위 다이어그램의 "2. 비동기 실행"은 `OutboxPoller → Kafka → Consumer`로 압축되어 있지만, 실제로는 엔진이 스텝을 실행하면서 여러 토픽을 발행하고 소비하는 양방향 흐름이 발생한다.
+
+| Topics 상수 | 실제 토픽명 | 방향 | Producer → Consumer | 용도 |
+|------|------|:----:|------|------|
+| `PIPELINE_CMD_EXECUTION` | `playground.pipeline.commands.execution` | → | OutboxPoller → PipelineEventConsumer | 엔진 기동 커맨드 |
+| `PIPELINE_CMD_JENKINS` | `playground.pipeline.commands.jenkins` | → | PipelineCommandProducer → Redpanda Connect | Jenkins 빌드/배포 커맨드 |
+| `WEBHOOK_INBOUND` | `playground.webhook.inbound` | ← | Redpanda Connect → WebhookEventConsumer | Jenkins 콜백 결과 수신 |
+| `PIPELINE_EVT_STEP_CHANGED` | `playground.pipeline.events.step-changed` | → | PipelineEventProducer → PipelineSseConsumer | 스텝 상태 변경 → SSE 브로드캐스트 |
+| `PIPELINE_EVT_COMPLETED` | `playground.pipeline.events.completed` | → | PipelineEventProducer → PipelineSseConsumer | 실행 완료 → SSE 종료 신호 |
+
+`commands.execution` 하나로 시작하지만, 엔진이 루프를 돌면서 최소 4개 토픽이 추가로 관여한다. 특히 Jenkins 스텝은 커맨드가 `commands.jenkins`로 나가고 결과가 `webhook.inbound`로 돌아오는 비대칭 경로를 탄다. 나가는 토픽과 들어오는 토픽이 다르기 때문에 엔진은 스레드를 반납하고 콜백을 기다릴 수 있다(Break-and-Resume).
+
+```mermaid
+graph LR
+    subgraph START["시작"]
+        A[OutboxPoller] -->|Avro| T1["commands.execution"]
+    end
+
+    subgraph ENGINE["엔진"]
+        T1 --> C[PipelineEventConsumer]
+        C --> ENG[PipelineEngine]
+    end
+
+    subgraph CMD["커맨드 발행"]
+        ENG -->|JSON| T2["commands.jenkins"]
+        T2 --> JK[Redpanda Connect<br>→ Jenkins]
+    end
+
+    subgraph CALLBACK["콜백 복귀"]
+        JK -.->|웹훅| T3["webhook.inbound"]
+        T3 --> ENG
+    end
+
+    subgraph EVENT["이벤트 발행"]
+        ENG -->|Avro| T4["events.step-changed"]
+        ENG -->|Avro| T5["events.completed"]
+        T4 --> SSE[PipelineSseConsumer<br>→ 브라우저]
+        T5 --> SSE
+    end
+
+    style T1 fill:#FFF3E0,stroke:#F57C00,color:#333
+    style T2 fill:#FFF3E0,stroke:#F57C00,color:#333
+    style T3 fill:#FCE4EC,stroke:#C62828,color:#333
+    style T4 fill:#E8F5E9,stroke:#388E3C,color:#333
+    style T5 fill:#E8F5E9,stroke:#388E3C,color:#333
+    style SSE fill:#E3F2FD,stroke:#1976D2,color:#333
+```
 
 ### Break-and-Resume: 웹훅 콜백 후 재개
 
 Jenkins 빌드가 완료되면 웹훅 콜백이 도착하고, 파이프라인은 중단된 지점부터 다시 실행을 이어간다.
 
 ```mermaid
-sequenceDiagram
-    participant Jenkins as Jenkins
-    participant Connect as Redpanda Connect
-    participant Kafka as Kafka
-    participant Webhook as WebhookEventConsumer
-    participant Handler as JenkinsWebhookHandler
-    participant Engine as PipelineEngine
-    participant DB as PostgreSQL
-
-    Note over Jenkins,Connect: 4. 외부 콜백 수신
-    Jenkins->>Connect: POST /webhook/jenkins
-    Connect->>Kafka: playground.webhook.inbound
-    Kafka->>Webhook: consume
-    Webhook->>Handler: handle(rawMessage)
-    Handler->>DB: 멱등성 체크
-
-    Note over Handler,Engine: 5. 파이프라인 재개
-    Handler->>Engine: resumeAfterWebhook(executionId, stepOrder, result, log)
-    Engine->>DB: CAS: WAITING_WEBHOOK → SUCCESS/FAILED
-    alt 성공
-        Engine->>Engine: executeFrom(nextStep) [새 스레드]
-    else 실패
-        Engine->>Engine: compensate(failedStep)
+graph TD
+    subgraph CALLBACK["4. 외부 콜백 수신"]
+        A["Jenkins<br>빌드 완료"] -->|POST /webhook/jenkins| B[Redpanda Connect]
+        B --> C[Kafka<br>playground.webhook.inbound]
+        C --> D[WebhookEventConsumer]
+        D -->|source=JENKINS| E[JenkinsWebhookHandler]
+        E --> F{"멱등성 체크<br>jenkins:execId:stepOrder"}
+        F -->|중복| Z2[무시]
+        F -->|신규| G["콘솔 로그 조회<br>JenkinsAdapter"]
     end
+
+    subgraph RESUME["5. 파이프라인 재개"]
+        G --> H["resumeAfterWebhook<br>executionId, stepOrder, result, log"]
+        H --> I{"CAS 업데이트<br>WAITING_WEBHOOK → ?"}
+        I -->|affected=0<br>이미 타임아웃 처리됨| Z3[무시]
+        I -->|affected=1| J{result?}
+        J -->|SUCCESS| K["step.status = SUCCESS"]
+        K --> L["executeFrom nextStep<br>루프 재개"]
+        J -->|FAILED| M["step.status = FAILED"]
+        M --> N["SAGA 보상 시작"]
+    end
+
+    CALLBACK --> RESUME
+
+    style A fill:#FFF3E0,stroke:#F57C00,color:#333
+    style H fill:#E3F2FD,stroke:#1976D2,color:#333
+    style I fill:#FFF9C4,stroke:#F9A825,color:#333
+    style K fill:#E8F5E9,stroke:#388E3C,color:#333
+    style M fill:#FFEBEE,stroke:#C62828,color:#333
+    style L fill:#E8F5E9,stroke:#388E3C,color:#333
+    style N fill:#FFEBEE,stroke:#C62828,color:#333
+    style Z2 fill:#F5F5F5,stroke:#9E9E9E,color:#333
+    style Z3 fill:#F5F5F5,stroke:#9E9E9E,color:#333
 ```
 
 CAS(Compare-And-Swap)는 `updateStatusIfCurrent` 쿼리로 구현된다. 이 쿼리는 현재 상태가 WAITING_WEBHOOK인 경우에만 업데이트를 수행하고, 영향받은 행 수를 반환한다. 행 수가 0이면 이미 타임아웃 체커가 처리한 것이므로 콜백은 무시된다.
@@ -184,27 +262,31 @@ CAS(Compare-And-Swap)는 `updateStatusIfCurrent` 쿼리로 구현된다. 이 쿼
 어떤 스텝에서 실패가 발생하면, SagaCompensator가 이미 성공한 스텝을 역순으로 되돌린다.
 
 ```mermaid
-sequenceDiagram
-    participant Engine as PipelineEngine
-    participant Comp as SagaCompensator
-    participant Exec as StepExecutor
-    participant DB as PostgreSQL
+graph TD
+    subgraph SAGA["6. SAGA 보상 (예: 스텝 3에서 실패)"]
+        A["PipelineEngine<br>스텝 3 실패 감지"] --> B["SagaCompensator.compensate<br>failedStepOrder=3"]
+        B --> C["스텝 2: executor.compensate"]
+        C --> D{보상 성공?}
+        D -->|성공| E["step 2 .status = COMPENSATED"]
+        D -->|실패| F["step 2 .status = FAILED<br>MANUAL INTERVENTION"]
+        E --> G["스텝 1: executor.compensate"]
+        F --> G
+        G --> H{보상 성공?}
+        H -->|성공| I["step 1 .status = COMPENSATED"]
+        H -->|실패| J["step 1 .status = FAILED<br>MANUAL INTERVENTION"]
+        I --> K["execution.status = FAILED"]
+        J --> K
+        K --> L["ticket.status = FAILED"]
+        L --> M["PIPELINE_EXECUTION_COMPLETED 발행"]
+    end
 
-    Note over Engine,Comp: 6. 스텝 3에서 실패 발생 시
-    Engine->>Comp: compensate(execution, failedStep=3)
-
-    Note over Comp,DB: 역순 보상 (best-effort)
-    Comp->>Exec: compensate(step[1])
-    Exec-->>Comp: 성공
-    Comp->>DB: step[1].status = COMPENSATED
-
-    Comp->>Exec: compensate(step[0])
-    Exec-->>Comp: 성공
-    Comp->>DB: step[0].status = COMPENSATED
-
-    Comp-->>Engine: 보상 완료
-    Engine->>DB: execution.status = FAILED
-    Engine->>DB: ticket.status = FAILED
+    style A fill:#FFEBEE,stroke:#C62828,color:#333
+    style E fill:#E8F5E9,stroke:#388E3C,color:#333
+    style F fill:#FFEBEE,stroke:#C62828,color:#333
+    style I fill:#E8F5E9,stroke:#388E3C,color:#333
+    style J fill:#FFEBEE,stroke:#C62828,color:#333
+    style K fill:#FFEBEE,stroke:#C62828,color:#333
+    style M fill:#FFF3E0,stroke:#F57C00,color:#333
 ```
 
 보상은 best-effort 방식이다. 개별 보상이 실패해도 나머지 보상은 계속 진행된다. 보상 실패한 스텝은 FAILED 상태로 남아 수동 개입이 필요함을 표시한다. SAGA 패턴의 설계 결정에 대한 자세한 내용은 [02-saga-orchestrator.md](../patterns/02-saga-orchestrator.md)를 참조한다.

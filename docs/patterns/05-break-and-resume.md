@@ -74,26 +74,26 @@ webhook이 도착하지 않는 상황은 반드시 처리해야 한다. Jenkins 
 
 ```mermaid
 flowchart TD
-    A["PipelineEngine\nBUILD 스텝 실행"] --> B["Jenkins REST API\nbuildWithParameters 호출"]
-    B --> C{"Jenkins\n큐 등록 성공?"}
-    C -- "아니오" --> D["스텝 FAILED\n파이프라인 중단"]
-    C -- "예 (201)" --> E["스텝 상태 → WAITING_WEBHOOK\nwaitingSince 기록 후 스레드 해제"]
+    A["PipelineEngine<br>BUILD 스텝 실행"] --> B["Jenkins REST API<br>buildWithParameters 호출"]
+    B --> C{"Jenkins<br>큐 등록 성공?"}
+    C -- "아니오" --> D["스텝 FAILED<br>파이프라인 중단"]
+    C -- "예 (201)" --> E["스텝 상태 → WAITING_WEBHOOK<br>waitingSince 기록 후 스레드 해제"]
 
-    E --> F["Jenkins 빌드 실행 중\n(스프링 스레드 없음)"]
+    E --> F["Jenkins 빌드 실행 중<br>(스프링 스레드 없음)"]
 
     F --> G{"빌드 완료"}
-    G --> H["Jenkinsfile post 블록\ncurl → Redpanda Connect"]
-    H --> I["Redpanda Connect\nHTTP → webhook-events 토픽 발행"]
-    I --> J["WebhookHandler\n토픽 consume"]
+    G --> H["Jenkinsfile post 블록<br>curl → Redpanda Connect"]
+    H --> I["Redpanda Connect<br>HTTP → webhook-events 토픽 발행"]
+    I --> J["WebhookHandler<br>토픽 consume"]
 
     J --> K{"Jenkins 결과?"}
-    K -- "SUCCESS" --> L["스텝 → SUCCESS\nPipelineEngine.resume()"]
-    K -- "FAILURE" --> M["스텝 → FAILED\n파이프라인 중단"]
-    L --> N["다음 스텝 실행\n또는 파이프라인 완료"]
+    K -- "SUCCESS" --> L["스텝 → SUCCESS<br>PipelineEngine.resume()"]
+    K -- "FAILURE" --> M["스텝 → FAILED<br>파이프라인 중단"]
+    L --> N["다음 스텝 실행<br>또는 파이프라인 완료"]
 
     subgraph Timeout["타임아웃 감시 (별도 스케줄러)"]
-        T["WebhookTimeoutChecker\n1분 주기 실행"] --> U{"waitingSince\n> 5분?"}
-        U -- "예" --> V["스텝 → FAILED\nSAGA 보상 실행\n파이프라인 중단\nSSE 알림"]
+        T["WebhookTimeoutChecker<br>1분 주기 실행"] --> U{"waitingSince<br>> 5분?"}
+        U -- "예" --> V["스텝 → FAILED<br>SAGA 보상 실행<br>파이프라인 중단<br>SSE 알림"]
         U -- "아니오" --> W["다음 주기까지 대기"]
     end
 
