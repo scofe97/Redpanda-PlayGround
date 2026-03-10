@@ -19,10 +19,6 @@ pipeline {
         string(name: 'BRANCH', defaultValue: 'main', description: 'Git branch')
     }
 
-    environment {
-        CONNECT_WEBHOOK_URL = 'http://connect:4197/webhook/jenkins'
-    }
-
     stages {
         stage('Init') {
             steps {
@@ -103,38 +99,6 @@ pipeline {
     }
 
     post {
-        success {
-            echo '[WEBHOOK] 빌드 성공 → Connect로 결과 전송'
-            sh """
-                curl -s -X POST ${CONNECT_WEBHOOK_URL} \
-                  -H 'Content-Type: application/json' \
-                  -d '{
-                    "executionId": "${params.EXECUTION_ID}",
-                    "stepOrder": ${params.STEP_ORDER},
-                    "result": "SUCCESS",
-                    "buildNumber": ${env.BUILD_NUMBER},
-                    "jobName": "${env.JOB_NAME}",
-                    "duration": ${currentBuild.duration},
-                    "url": "${env.BUILD_URL}"
-                  }' || echo 'Webhook delivery failed (Connect may be unavailable)'
-            """
-        }
-        failure {
-            echo '[WEBHOOK] 빌드 실패 → Connect로 결과 전송'
-            sh """
-                curl -s -X POST ${CONNECT_WEBHOOK_URL} \
-                  -H 'Content-Type: application/json' \
-                  -d '{
-                    "executionId": "${params.EXECUTION_ID}",
-                    "stepOrder": ${params.STEP_ORDER},
-                    "result": "FAILURE",
-                    "buildNumber": ${env.BUILD_NUMBER},
-                    "jobName": "${env.JOB_NAME}",
-                    "duration": ${currentBuild.duration},
-                    "url": "${env.BUILD_URL}"
-                  }' || echo 'Webhook delivery failed (Connect may be unavailable)'
-            """
-        }
         always {
             echo '============================================'
             echo '  [TEST PIPELINE] 빌드 종료'

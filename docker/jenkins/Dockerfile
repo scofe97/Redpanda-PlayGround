@@ -19,5 +19,17 @@ RUN jenkins-plugin-cli --plugins \
     pipeline-stage-step \
     pipeline-input-step
 
+# rpk CLI (Kafka 직접 발행용, ~30MB 단일 바이너리)
+USER root
+RUN curl -sL https://github.com/redpanda-data/redpanda/releases/latest/download/rpk-linux-amd64.zip \
+    -o /tmp/rpk.zip \
+    && unzip /tmp/rpk.zip -d /usr/local/bin/ \
+    && rm /tmp/rpk.zip \
+    && chmod +x /usr/local/bin/rpk
+USER jenkins
+
 # CSRF 비활성화 (PoC - API 호출 시 crumb 불필요)
 COPY disable-csrf.groovy /usr/share/jenkins/ref/init.groovy.d/
+
+# 전역 설정 추가
+COPY webhook-listener.groovy /usr/share/jenkins/ref/init.groovy.d/
