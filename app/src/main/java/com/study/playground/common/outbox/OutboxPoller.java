@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -40,10 +41,14 @@ public class OutboxPoller {
      * 발행 실패 시 retryCount를 증가시키고, MAX_RETRIES 초과 시 DEAD로 전이하여
      * 무한 재시도를 방지한다.
      */
+    @Transactional
     @Scheduled(fixedDelay = 500)
     public void pollAndPublish() {
-        List<OutboxEvent> events = outboxMapper.findPendingEvents(50);
-        for (OutboxEvent event : events) {
+        var events = outboxMapper.findPendingEvents(50);
+        if (events.isEmpty()) {
+            return;
+        }
+        for (var event : events) {
             try {
                 ProducerRecord<String, byte[]> record = new ProducerRecord<>(
                         event.getTopic()
