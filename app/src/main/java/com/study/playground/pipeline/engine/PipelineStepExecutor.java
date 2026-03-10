@@ -17,25 +17,16 @@ import com.study.playground.pipeline.domain.PipelineStep;
 public interface PipelineStepExecutor {
 
     /**
-     * 스텝을 실행한다. {@link PipelineExecution} 컨텍스트가 필요 없는 단순 스텝에서 사용한다.
+     * 스텝을 실행한다.
      *
-     * @param step 실행할 스텝 정보
-     * @throws Exception 실행 중 발생한 모든 예외 (엔진이 catch하여 SAGA 보상을 트리거한다)
-     */
-    void execute(PipelineStep step) throws Exception;
-
-    /**
-     * 실행 컨텍스트를 포함하여 스텝을 실행한다.
-     * Jenkins, Deploy처럼 실행 ID나 이벤트 발행이 필요한 스텝은 이 메서드를 오버라이드한다.
-     * 기본 구현은 {@link #execute(PipelineStep)}에 위임하므로 단순 스텝은 오버라이드 불필요하다.
+     * <p>엔진은 항상 execution 컨텍스트와 함께 이 메서드를 호출한다.
+     * execution이 불필요한 동기 스텝(Nexus, Registry)은 파라미터를 무시하면 된다.
      *
      * @param execution 파이프라인 실행 전체 컨텍스트 (실행 ID, 메타데이터 등)
      * @param step      실행할 스텝 정보
-     * @throws Exception 실행 중 발생한 모든 예외
+     * @throws Exception 실행 중 발생한 모든 예외 (엔진이 catch하여 SAGA 보상을 트리거한다)
      */
-    default void execute(PipelineExecution execution, PipelineStep step) throws Exception {
-        execute(step);
-    }
+    void execute(PipelineExecution execution, PipelineStep step) throws Exception;
 
     /**
      * 이전에 성공한 스텝의 효과를 보상(되돌리기)한다.

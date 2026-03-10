@@ -52,5 +52,9 @@ management:
 logging:
   level:
     com.study.playground: DEBUG
+    com.study.playground.common.outbox.OutboxMapper: INFO
+    com.study.playground.pipeline.mapper.PipelineStepMapper.findWaitingWebhookStepsOlderThan: INFO
     org.apache.kafka: WARN
     org.mybatis: DEBUG
+    org.mybatis.spring.SqlSessionUtils: INFO
+    org.mybatis.spring.transaction.SpringManagedTransaction: INFO

@@ -183,6 +183,6 @@ output:
     - kafka_franz:
         seed_brokers:
           - redpanda:9092
-        topic: dlq-pipeline-commands
+        topic: playground.dlq
         key: '${! meta("execution_id") }'
         max_in_flight: 1

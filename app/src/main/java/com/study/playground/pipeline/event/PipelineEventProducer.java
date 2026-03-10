@@ -1,12 +1,14 @@
 package com.study.playground.pipeline.event;
 
+import com.study.playground.avro.common.PipelineStatus;
 import com.study.playground.avro.pipeline.PipelineExecutionCompletedEvent;
 import com.study.playground.avro.pipeline.PipelineStepChangedEvent;
-import com.study.playground.avro.common.PipelineStatus;
 import com.study.playground.common.outbox.EventPublisher;
 import com.study.playground.kafka.serialization.AvroSerializer;
 import com.study.playground.kafka.topic.Topics;
-import com.study.playground.pipeline.domain.*;
+import com.study.playground.pipeline.domain.PipelineExecution;
+import com.study.playground.pipeline.domain.PipelineStep;
+import com.study.playground.pipeline.domain.StepStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -24,6 +26,10 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class PipelineEventProducer {
 
+    private static final String AGGREGATE_TYPE = "PIPELINE";
+    private static final String STEP_CHANGED_EVENT_TYPE = "PIPELINE_STEP_CHANGED";
+    private static final String EXECUTION_COMPLETED_EVENT_TYPE = "PIPELINE_EXECUTION_COMPLETED";
+
     private final EventPublisher eventPublisher;
     private final AvroSerializer avroSerializer;
 
@@ -37,8 +43,9 @@ public class PipelineEventProducer {
             PipelineExecution execution,
             PipelineStep step,
             StepStatus status) {
-        PipelineStepChangedEvent event = PipelineStepChangedEvent.newBuilder()
-                .setExecutionId(execution.getId().toString())
+        var executionId = execution.getId().toString();
+        var event = PipelineStepChangedEvent.newBuilder()
+                .setExecutionId(executionId)
                 .setTicketId(execution.getTicketId())
                 .setStepName(step.getStepName())
                 .setStepType(step.getStepType().name())
@@ -46,13 +53,14 @@ public class PipelineEventProducer {
                 .setLog(step.getLog())
                 .build();
 
+        // 파티션 키 = executionId → 동일 실행의 이벤트 순서 보장
         eventPublisher.publish(
-                "PIPELINE",
-                execution.getId().toString(),
-                "PIPELINE_STEP_CHANGED",
-                avroSerializer.serialize(event),
-                Topics.PIPELINE_EVT_STEP_CHANGED,
-                execution.getId().toString());
+                AGGREGATE_TYPE, executionId
+                , STEP_CHANGED_EVENT_TYPE
+                , avroSerializer.serialize(event)
+                , Topics.PIPELINE_EVT_STEP_CHANGED
+                , executionId
+        );
     }
 
     /**
@@ -67,20 +75,21 @@ public class PipelineEventProducer {
             PipelineStatus status,
             long durationMs,
             String errorMessage) {
-        PipelineExecutionCompletedEvent event = PipelineExecutionCompletedEvent.newBuilder()
-                .setExecutionId(execution.getId().toString())
+        var executionId = execution.getId().toString();
+        var event = PipelineExecutionCompletedEvent.newBuilder()
+                .setExecutionId(executionId)
                 .setTicketId(execution.getTicketId())
                 .setStatus(status)
                 .setDurationMs(durationMs)
                 .setErrorMessage(errorMessage)
                 .build();
 
+        // 파티션 키 = executionId → 동일 실행의 이벤트 순서 보장
         eventPublisher.publish(
-                "PIPELINE",
-                execution.getId().toString(),
-                "PIPELINE_EXECUTION_COMPLETED",
-                avroSerializer.serialize(event),
-                Topics.PIPELINE_EVT_COMPLETED,
-                execution.getId().toString());
+                AGGREGATE_TYPE, executionId
+                , EXECUTION_COMPLETED_EVENT_TYPE
+                , avroSerializer.serialize(event)
+                , Topics.PIPELINE_EVT_COMPLETED, executionId
+        );
     }
 }

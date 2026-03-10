@@ -10,6 +10,8 @@ spring:
       value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
       acks: all
       retries: 3
+      properties:
+        enable.idempotence: true
     consumer:
       group-id: playground
       auto-offset-reset: earliest

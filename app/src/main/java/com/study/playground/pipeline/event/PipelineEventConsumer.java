@@ -21,6 +21,7 @@ import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -45,6 +46,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @RequiredArgsConstructor
 public class PipelineEventConsumer {
 
+    private static final String CE_ID_HEADER = "ce_id";
     private static final AtomicInteger THREAD_COUNTER = new AtomicInteger(0);
 
     /**
@@ -55,10 +57,10 @@ public class PipelineEventConsumer {
      * 풀 크기를 4로 고정한 이유는 실습 환경에서 동시 실행 파이프라인 수를
      * 제한하여 리소스 경쟁을 줄이기 위해서다.
      */
-    private static final Executor PIPELINE_EXECUTOR = Executors.newFixedThreadPool(4, r -> {
-        Thread t = new Thread(r, "pipeline-exec-" + THREAD_COUNTER.incrementAndGet());
-        t.setDaemon(true);
-        return t;
+    private static final Executor PIPELINE_EXECUTOR = Executors.newFixedThreadPool(4, runnable -> {
+        var thread = new Thread(runnable, "pipeline-exec-" + THREAD_COUNTER.incrementAndGet());
+        thread.setDaemon(true);
+        return thread;
     });
 
     private final PipelineEngine pipelineEngine;
@@ -70,13 +72,11 @@ public class PipelineEventConsumer {
     /**
      * PIPELINE_EXECUTION_STARTED 이벤트를 수신하여 파이프라인 엔진을 실행한다.
      *
-     * 멱등성 보장을 위해 ProcessedEvent 테이블에 (correlationId, eventType)을 INSERT하고,
-     * affected == 0이면 이미 처리된 이벤트이므로 건너뛴다.
-     * correlationId 헤더가 없는 경우 "pipeline-started:{executionId}"로 폴백하는 이유는
-     * 헤더 누락 시에도 중복 실행을 막기 위해서다.
+     * 멱등성 보장을 위해 ce_id 헤더(outbox PK)로 중복 검사한다.
+     * ce_id는 outbox 테이블의 auto-increment PK이므로 모든 메시지에 대해 고유하다.
      *
      * execution 레코드 조회 실패 시 IllegalStateException을 던지는 이유는
-     * @RetryableTopic이 예외를 감지하여 재시도 토픽으로 라우팅하도록 하기 위해서다.
+     * @RetryableTopic 예외를 감지하여 재시도 토픽으로 라우팅하도록 하기 위해서다.
      */
     @RetryableTopic(
             attempts = "4",
@@ -93,39 +93,18 @@ public class PipelineEventConsumer {
         log.info("Received pipeline event: executionId={}, ticketId={}, steps={}",
                 event.getExecutionId(), event.getTicketId(), event.getSteps());
 
-        UUID executionId = UUID.fromString(event.getExecutionId());
-        PipelineExecution execution = executionMapper.findById(executionId);
-        if (execution == null) {
-            // 실행 레코드 조회 실패는 일시적 상태일 수 있으므로 재시도로 넘긴다.
-            throw new IllegalStateException("Execution not found: " + executionId);
-        }
+        var executionId = UUID.fromString(event.getExecutionId());
+        var execution = Optional.ofNullable(executionMapper.findById(executionId))
+                .orElseThrow(() -> new IllegalStateException("Execution not found: " + executionId));
+        var eventId = extractHeader(record, CE_ID_HEADER)
+                .orElseThrow(() -> new IllegalStateException("Missing ce_id header for execution: " + executionId));
 
-        String correlationId = extractHeader(record, "ce_correlationid");
-        if (correlationId == null || correlationId.isBlank()) {
-            correlationId = "pipeline-started:" + executionId;
-            log.warn("Missing correlationId header. Fallback correlationId={}", correlationId);
-        }
-
-        ProcessedEvent processed = new ProcessedEvent();
-        processed.setCorrelationId(correlationId);
-        processed.setEventType("PIPELINE_EXECUTION_STARTED");
-        int affected = processedEventMapper.insert(processed);
-        if (affected == 0) {
-            log.info("Duplicate event, skipping: correlationId={}", correlationId);
+        if (isDuplicateEvent(eventId)) {
             return;
         }
 
         execution.setSteps(stepMapper.findByExecutionId(executionId));
-
-        // H3: Kafka 리스너 스레드 블로킹 방지를 위한 비동기 실행
-        final String finalExecutionId = executionId.toString();
-        CompletableFuture.runAsync(() -> {
-            try {
-                pipelineEngine.execute(execution);
-            } catch (Exception e) {
-                log.error("Pipeline execution failed: executionId={}", finalExecutionId, e);
-            }
-        }, PIPELINE_EXECUTOR);
+        runPipelineAsync(execution, executionId);
     }
 
     /**
@@ -140,14 +119,36 @@ public class PipelineEventConsumer {
                 record.topic(), record.key(), record.partition(), record.offset());
     }
 
+    private boolean isDuplicateEvent(String eventId) {
+        if (processedEventMapper.existsByEventId(eventId)) {
+            log.info("Duplicate event, skipping: eventId={}", eventId);
+            return true;
+        }
+
+        var processed = new ProcessedEvent();
+        processed.setEventId(eventId);
+        processedEventMapper.insert(processed);
+        return false;
+    }
+
+    private void runPipelineAsync(PipelineExecution execution, UUID executionId) {
+        CompletableFuture.runAsync(() -> pipelineEngine.execute(execution), PIPELINE_EXECUTOR)
+                .whenComplete((unused, throwable) -> {
+                    if (throwable != null) {
+                        log.error("Pipeline execution failed: executionId={}", executionId, throwable);
+                    }
+                });
+    }
+
     /**
      * Kafka 레코드 헤더에서 특정 키의 값을 UTF-8 문자열로 추출한다.
      *
-     * lastHeader를 사용하는 이유는 동일 키가 여러 번 설정된 경우
+     * lastHeader 사용하는 이유는 동일 키가 여러 번 설정된 경우
      * 가장 최근 값이 유효하다는 관례를 따르기 때문이다.
      */
-    private String extractHeader(ConsumerRecord<String, byte[]> record, String key) {
-        Header header = record.headers().lastHeader(key);
-        return header != null ? new String(header.value(), StandardCharsets.UTF_8) : null;
+    private Optional<String> extractHeader(ConsumerRecord<String, byte[]> record, String key) {
+        return Optional.ofNullable(record.headers().lastHeader(key))
+                .map(Header::value)
+                .map(value -> new String(value, StandardCharsets.UTF_8));
     }
 }

@@ -26,7 +26,7 @@ class PipelineEngineTest {
     @Mock private JenkinsCloneAndBuildStep gitCloneAndBuild;
     @Mock private NexusDownloadStep nexusDownload;
     @Mock private RegistryImagePullStep imagePull;
-    @Mock private RealDeployStep deploy;
+    @Mock private JenkinsDeployStep deploy;
     @Mock private PipelineExecutionMapper executionMapper;
     @Mock private PipelineStepMapper stepMapper;
     @Mock private PipelineEventProducer eventProducer;

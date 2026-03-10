@@ -49,17 +49,19 @@ public class TicketStatusEventConsumer {
         PipelineExecutionCompletedEvent event = avroSerializer.deserialize(
                 record.value(), PipelineExecutionCompletedEvent.getClassSchema());
 
-        String correlationId = extractHeader(record, "ce_correlationid");
+        var eventId = extractHeader(record, "ce_id");
+        if (eventId == null) {
+            throw new IllegalStateException("Missing ce_id header for ticket status update");
+        }
 
         // 멱등성 체크
-        ProcessedEvent processed = new ProcessedEvent();
-        processed.setCorrelationId(correlationId);
-        processed.setEventType("TICKET_STATUS_UPDATE");
-        int affected = processedEventMapper.insert(processed);
-        if (affected == 0) {
-            log.info("Duplicate ticket status update event, skipping: correlationId={}", correlationId);
+        if (processedEventMapper.existsByEventId(eventId)) {
+            log.info("Duplicate ticket status update event, skipping: eventId={}", eventId);
             return;
         }
+        var processed = new ProcessedEvent();
+        processed.setEventId(eventId);
+        processedEventMapper.insert(processed);
 
         long ticketId = event.getTicketId();
         PipelineStatus pipelineStatus = event.getStatus();

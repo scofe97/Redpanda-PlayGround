@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Jenkins 빌드 명령을 Kafka 커맨드 토픽으로 발행하는 프로듀서.
@@ -20,13 +21,22 @@ import java.util.Map;
  * 커맨드(Command)는 외부 시스템(Jenkins)에 특정 행동을 요청하는 메시지다.
  * PIPELINE_COMMANDS 토픽을 별도로 사용하는 이유는 커맨드와 이벤트의
  * 컨슈머 그룹·재시도 정책이 다르기 때문이다.
+ *
+ * <h3>직렬화 방식: JSON (PipelineEventProducer의 Avro와 다름)</h3>
+ * Redpanda Connect(Bloblang)가 이 메시지를 소비하여 Jenkins REST API를
+ * 직접 호출하는데, Bloblang은 JSON 파싱만 지원하고 Avro 바이너리를
+ * 디코딩하지 못한다. 반면 PipelineEventProducer의 이벤트는 Java 컨슈머
+ * (PipelineSseConsumer)가 소비하므로 Avro 직렬화를 사용한다.
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class PipelineCommandProducer {
 
+    private static final String AGGREGATE_TYPE = "PIPELINE";
+    private static final String COMMAND_TYPE = "JENKINS_BUILD_COMMAND";
     private static final String TOPIC = Topics.PIPELINE_CMD_JENKINS;
+
     private final EventPublisher eventPublisher;
     private final AvroSerializer avroSerializer;
 
@@ -42,26 +52,37 @@ public class PipelineCommandProducer {
             PipelineStep step,
             String jobName,
             Map<String, String> params) {
-        JenkinsBuildCommand command = JenkinsBuildCommand.newBuilder()
-                .setExecutionId(execution.getId().toString())
+        var command = JenkinsBuildCommand.newBuilder()
+                .setExecutionId(executionId(execution))
                 .setTicketId(execution.getTicketId())
                 .setStepOrder(step.getStepOrder())
                 .setJobName(jobName)
-                .setParams(params)
+                .setParams(Optional.ofNullable(params).map(Map::copyOf).orElseGet(Map::of))
                 .build();
 
-        // JSON 직렬화: Connect에서 Bloblang으로 파싱 가능하도록
-        byte[] payload = avroSerializer.toJson(command).getBytes(StandardCharsets.UTF_8);
-
-        eventPublisher.publish(
-                "PIPELINE",
-                execution.getId().toString(),
-                "JENKINS_BUILD_COMMAND",
-                payload,
-                TOPIC,
-                execution.getId().toString());
+        publish(execution, avroSerializer.toJson(command).getBytes(StandardCharsets.UTF_8));
 
         log.info("Published JenkinsBuildCommand: job={}, executionId={}, stepOrder={}",
                 jobName, execution.getId(), step.getStepOrder());
+    }
+
+    private void publish(
+            PipelineExecution execution
+            , byte[] payload) {
+        var executionId = executionId(execution);
+
+        // 마지막 인자(executionId)는 Kafka 파티션 키로, 동일 execution의 커맨드가
+        // 같은 파티션에 들어가 순서를 보장한다.
+        eventPublisher.publish(
+                AGGREGATE_TYPE,
+                executionId,
+                PipelineCommandProducer.COMMAND_TYPE,
+                payload,
+                TOPIC,
+                executionId);
+    }
+
+    private String executionId(PipelineExecution execution) {
+        return execution.getId().toString();
     }
 }

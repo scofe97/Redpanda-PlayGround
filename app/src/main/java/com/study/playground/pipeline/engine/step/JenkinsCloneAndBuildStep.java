@@ -41,18 +41,6 @@ public class JenkinsCloneAndBuildStep implements PipelineStepExecutor {
     private final PipelineCommandProducer commandProducer;
 
     /**
-     * 이 스텝은 {@link PipelineExecution} 컨텍스트가 필수이므로 단일 파라미터 오버로드를 지원하지 않는다.
-     * 엔진은 항상 {@link #execute(PipelineExecution, PipelineStep)}를 호출하므로
-     * 이 메서드가 직접 호출되는 경우는 프로그래밍 오류다.
-     *
-     * @throws RuntimeException 항상 던짐 — 잘못된 호출 경로 감지용
-     */
-    @Override
-    public void execute(PipelineStep step) throws Exception {
-        throw new RuntimeException("JenkinsCloneAndBuildStep requires PipelineExecution context");
-    }
-
-    /**
      * Jenkins 빌드 Job을 Kafka 커맨드로 트리거하고 webhook 대기 상태로 전환한다.
      *
      * <p>스텝 이름에서 Git URL과 브랜치를 파싱하여 Jenkins Job 파라미터로 전달한다.
@@ -89,12 +77,18 @@ public class JenkinsCloneAndBuildStep implements PipelineStepExecutor {
         params.put("STEP_ORDER", String.valueOf(step.getStepOrder()));
 
         if (stepName != null && stepName.contains(":")) {
-            String raw = stepName.substring(stepName.indexOf(':') + 1).trim()
-                    .replace("[FAIL]", "").trim();
-            String gitUrl = raw.contains("#") ? raw.substring(0, raw.lastIndexOf('#')) : raw;
-            String branch = raw.contains("#") ? raw.substring(raw.lastIndexOf('#') + 1) : "main";
+            String raw = stepName.substring(stepName.indexOf(':') + 1)
+                    .trim()
+                    .replace("[FAIL]", "")
+                    .trim();
+            String gitUrl = raw.contains("#")
+                    ? raw.substring(0, raw.lastIndexOf('#'))
+                    : raw;
+            String branch = raw.contains("#")
+                    ? raw.substring(raw.lastIndexOf('#') + 1)
+                    : "main";
 
-            // Docker 네트워크 내부 URL 변환
+            // TODO: localhost 하드코딩 제거 — 개발지원도구 GitLab 주소를 application.yml 설정으로 분리
             String internalUrl = gitUrl.replace("localhost:29180", "gitlab:29180");
 
             params.put("GIT_URL", internalUrl);

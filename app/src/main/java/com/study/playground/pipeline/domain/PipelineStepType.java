@@ -4,7 +4,6 @@ package com.study.playground.pipeline.domain;
  * 파이프라인을 구성하는 스텝의 종류.
  *
  * <p>각 타입은 실행 시 호출되는 워커 로직과 1:1로 대응한다.
- * 스텝 순서는 {@link PipelineStep#stepOrder}로 결정되며,
  * 타입은 어떤 작업을 수행할지만 나타낸다.</p>
  */
 public enum PipelineStepType {

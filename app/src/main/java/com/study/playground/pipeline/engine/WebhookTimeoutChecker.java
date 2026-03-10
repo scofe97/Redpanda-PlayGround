@@ -49,9 +49,12 @@ public class WebhookTimeoutChecker {
      */
     @Scheduled(fixedDelay = 30000)
     public void checkTimeouts() {
-        List<PipelineStep> timedOutSteps = stepMapper.findWaitingWebhookStepsOlderThan(TIMEOUT_MINUTES);
+        var timedOutSteps = stepMapper.findWaitingWebhookStepsOlderThan(TIMEOUT_MINUTES);
+        if (timedOutSteps.isEmpty()) {
+            return;
+        }
 
-        for (PipelineStep step : timedOutSteps) {
+        for (var step : timedOutSteps) {
             log.warn("Webhook timeout detected: executionId={}, step={}, stepOrder={}",
                     step.getExecutionId(), step.getStepName(), step.getStepOrder());
 
