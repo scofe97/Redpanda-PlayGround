@@ -3,17 +3,17 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.study.playground.common.idempotency.ProcessedEventMapper">
 
-    <select id="existsByCorrelationIdAndEventType" resultType="boolean">
+    <select id="existsByEventId" resultType="boolean">
         SELECT EXISTS(
             SELECT 1 FROM processed_event
-            WHERE correlation_id = #{correlationId} AND event_type = #{eventType}
+            WHERE event_id = #{eventId}
         )
     </select>
 
     <insert id="insert" parameterType="com.study.playground.common.idempotency.ProcessedEvent">
-        INSERT INTO processed_event (correlation_id, event_type, processed_at)
-        VALUES (#{correlationId}, #{eventType}, NOW())
-        ON CONFLICT (correlation_id, event_type) DO NOTHING
+        INSERT INTO processed_event (event_id, processed_at)
+        VALUES (#{eventId}, NOW())
+        ON CONFLICT (event_id) DO NOTHING
     </insert>
 
 </mapper>

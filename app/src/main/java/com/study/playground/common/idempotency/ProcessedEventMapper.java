@@ -5,8 +5,6 @@ import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface ProcessedEventMapper {
-    boolean existsByCorrelationIdAndEventType(
-            @Param("correlationId") String correlationId,
-            @Param("eventType") String eventType);
+    boolean existsByEventId(@Param("eventId") String eventId);
     int insert(ProcessedEvent event);
 }

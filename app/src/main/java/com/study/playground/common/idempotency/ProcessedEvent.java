@@ -8,7 +8,6 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 public class ProcessedEvent {
-    private String correlationId;
-    private String eventType;
+    private String eventId;
     private LocalDateTime processedAt;
 }
