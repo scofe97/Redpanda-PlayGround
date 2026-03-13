@@ -1,35 +1,31 @@
 package com.study.playground.supporttool.dto;
 
 import com.study.playground.supporttool.domain.SupportTool;
-import lombok.Builder;
-import lombok.Getter;
 
 import java.time.LocalDateTime;
 
-@Getter
-@Builder
-public class SupportToolResponse {
-    private Long id;
-    private String toolType;
-    private String name;
-    private String url;
-    private String username;
-    private boolean hasCredential;
-    private boolean active;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
-
+public record SupportToolResponse(
+        Long id,
+        String toolType,
+        String name,
+        String url,
+        String username,
+        boolean hasCredential,
+        boolean active,
+        LocalDateTime createdAt,
+        LocalDateTime updatedAt
+) {
     public static SupportToolResponse from(SupportTool tool) {
-        return SupportToolResponse.builder()
-                .id(tool.getId())
-                .toolType(tool.getToolType().name())
-                .name(tool.getName())
-                .url(tool.getUrl())
-                .username(tool.getUsername())
-                .hasCredential(tool.getCredential() != null && !tool.getCredential().isBlank())
-                .active(tool.isActive())
-                .createdAt(tool.getCreatedAt())
-                .updatedAt(tool.getUpdatedAt())
-                .build();
+        return new SupportToolResponse(
+                tool.getId()
+                , tool.getToolType().name()
+                , tool.getName()
+                , tool.getUrl()
+                , tool.getUsername()
+                , tool.getCredential() != null && !tool.getCredential().isBlank()
+                , tool.isActive()
+                , tool.getCreatedAt()
+                , tool.getUpdatedAt()
+        );
     }
 }

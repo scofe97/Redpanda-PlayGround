@@ -150,12 +150,14 @@ public class SupportToolService {
     }
 
     private ToolType parseToolType(String toolType) {
-        try {
-            return ToolType.valueOf(toolType);
-        } catch (IllegalArgumentException e) {
-            throw new BusinessException(CommonErrorCode.INVALID_INPUT,
+        return switch (toolType) {
+            case "JENKINS" -> ToolType.JENKINS;
+            case "GITLAB" -> ToolType.GITLAB;
+            case "NEXUS" -> ToolType.NEXUS;
+            case "REGISTRY" -> ToolType.REGISTRY;
+            case null, default -> throw new BusinessException(CommonErrorCode.INVALID_INPUT,
                     "유효하지 않은 도구 타입입니다: " + toolType);
-        }
+        };
     }
 
     private void encodeCredential(SupportTool tool, String rawCredential) {
@@ -168,10 +170,13 @@ public class SupportToolService {
         String decoded = decodeCredential(tool);
         if (decoded == null) return;
 
-        if (tool.getToolType() == ToolType.GITLAB) {
-            headers.set("Private-Token", decoded);
-        } else if (tool.getUsername() != null) {
-            headers.setBasicAuth(tool.getUsername(), decoded);
+        switch (tool.getToolType()) {
+            case GITLAB -> headers.set("Private-Token", decoded);
+            case JENKINS, NEXUS, REGISTRY -> {
+                if (tool.getUsername() != null) {
+                    headers.setBasicAuth(tool.getUsername(), decoded);
+                }
+            }
         }
     }
 

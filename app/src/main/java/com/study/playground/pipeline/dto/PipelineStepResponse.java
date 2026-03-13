@@ -1,8 +1,6 @@
 package com.study.playground.pipeline.dto;
 
 import com.study.playground.pipeline.domain.PipelineStep;
-import lombok.Builder;
-import lombok.Getter;
 
 import java.time.LocalDateTime;
 
@@ -15,25 +13,18 @@ import java.time.LocalDateTime;
  * <p>{@code stepType}, {@code status}를 enum이 아닌 String으로 노출하는 이유:
  * 서버가 새 enum 값을 추가해도 클라이언트 역직렬화가 깨지지 않도록 하기 위함이다.</p>
  */
-@Getter
-@Builder
-public class PipelineStepResponse {
-
-    private Long id;
-    private Integer stepOrder;
-
-    /** enum 이름 문자열. 예: "GIT_CLONE", "BUILD", "DEPLOY" */
-    private String stepType;
-
-    private String stepName;
-
-    /** enum 이름 문자열. 예: "PENDING", "RUNNING", "SUCCESS", "FAILED", "WAITING_WEBHOOK" */
-    private String status;
-
-    private String log;
-    private LocalDateTime startedAt;
-    private LocalDateTime completedAt;
-
+public record PipelineStepResponse(
+        Long id,
+        Integer stepOrder,
+        /** enum 이름 문자열. 예: "GIT_CLONE", "BUILD", "DEPLOY" */
+        String stepType,
+        String stepName,
+        /** enum 이름 문자열. 예: "PENDING", "RUNNING", "SUCCESS", "FAILED", "WAITING_WEBHOOK" */
+        String status,
+        String log,
+        LocalDateTime startedAt,
+        LocalDateTime completedAt
+) {
     /**
      * 도메인 객체를 DTO로 변환하는 팩토리 메서드.
      *
@@ -43,15 +34,15 @@ public class PipelineStepResponse {
      * @param step 변환할 도메인 스텝 객체
      */
     public static PipelineStepResponse from(PipelineStep step) {
-        return PipelineStepResponse.builder()
-                .id(step.getId())
-                .stepOrder(step.getStepOrder())
-                .stepType(step.getStepType().name())
-                .stepName(step.getStepName())
-                .status(step.getStatus().name())
-                .log(step.getLog())
-                .startedAt(step.getStartedAt())
-                .completedAt(step.getCompletedAt())
-                .build();
+        return new PipelineStepResponse(
+                step.getId()
+                , step.getStepOrder()
+                , step.getStepType().name()
+                , step.getStepName()
+                , step.getStatus().name()
+                , step.getLog()
+                , step.getStartedAt()
+                , step.getCompletedAt()
+        );
     }
 }

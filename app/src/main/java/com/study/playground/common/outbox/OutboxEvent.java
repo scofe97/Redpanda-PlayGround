@@ -21,6 +21,7 @@ public class OutboxEvent {
     private LocalDateTime sentAt;
     private Integer retryCount;
     private String correlationId;
+    private String traceParent;
 
     public static OutboxEvent of(String aggregateType, String aggregateId,
                                   String eventType, byte[] payload, String topic,

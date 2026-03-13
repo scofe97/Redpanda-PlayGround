@@ -2,8 +2,6 @@ package com.study.playground.pipeline.dto;
 
 import com.study.playground.pipeline.domain.PipelineExecution;
 import com.study.playground.pipeline.domain.PipelineStep;
-import lombok.Builder;
-import lombok.Getter;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -21,24 +19,18 @@ import java.util.UUID;
  * <p>{@link #trackingUrl}은 클라이언트가 SSE 스트림에 구독할 수 있는 URL을 제공한다.
  * 클라이언트가 URL을 직접 조합하지 않아도 되므로 결합도를 낮춘다.</p>
  */
-@Getter
-@Builder
-public class PipelineExecutionResponse {
-
-    private UUID executionId;
-    private Long ticketId;
-
-    /** enum 이름 문자열. 예: "PENDING", "RUNNING", "SUCCESS", "FAILED" */
-    private String status;
-
-    private List<PipelineStepResponse> steps;
-    private LocalDateTime startedAt;
-    private LocalDateTime completedAt;
-    private String errorMessage;
-
-    /** 실시간 진행 상황을 구독할 수 있는 SSE 엔드포인트 URL. */
-    private String trackingUrl;
-
+public record PipelineExecutionResponse(
+        UUID executionId,
+        Long ticketId,
+        /** enum 이름 문자열. 예: "PENDING", "RUNNING", "SUCCESS", "FAILED" */
+        String status,
+        List<PipelineStepResponse> steps,
+        LocalDateTime startedAt,
+        LocalDateTime completedAt,
+        String errorMessage,
+        /** 실시간 진행 상황을 구독할 수 있는 SSE 엔드포인트 URL. */
+        String trackingUrl
+) {
     /**
      * 조회 응답용 팩토리 메서드. 스텝 목록을 포함한 전체 상태를 반환한다.
      *
@@ -51,16 +43,16 @@ public class PipelineExecutionResponse {
     public static PipelineExecutionResponse from(
             PipelineExecution execution,
             List<PipelineStep> steps) {
-        return PipelineExecutionResponse.builder()
-                .executionId(execution.getId())
-                .ticketId(execution.getTicketId())
-                .status(execution.getStatus().name())
-                .steps(steps != null ? steps.stream().map(PipelineStepResponse::from).toList() : List.of())
-                .startedAt(execution.getStartedAt())
-                .completedAt(execution.getCompletedAt())
-                .errorMessage(execution.getErrorMessage())
-                .trackingUrl("/api/tickets/" + execution.getTicketId() + "/pipeline/events")
-                .build();
+        return new PipelineExecutionResponse(
+                execution.getId()
+                , execution.getTicketId()
+                , execution.getStatus().name()
+                , steps != null ? steps.stream().map(PipelineStepResponse::from).toList() : List.of()
+                , execution.getStartedAt()
+                , execution.getCompletedAt()
+                , execution.getErrorMessage()
+                , "/api/tickets/" + execution.getTicketId() + "/pipeline/events"
+        );
     }
 
     /**
@@ -72,11 +64,15 @@ public class PipelineExecutionResponse {
      * @param execution 방금 생성된 파이프라인 실행 도메인 객체
      */
     public static PipelineExecutionResponse accepted(PipelineExecution execution) {
-        return PipelineExecutionResponse.builder()
-                .executionId(execution.getId())
-                .ticketId(execution.getTicketId())
-                .status(execution.getStatus().name())
-                .trackingUrl("/api/tickets/" + execution.getTicketId() + "/pipeline/events")
-                .build();
+        return new PipelineExecutionResponse(
+                execution.getId()
+                , execution.getTicketId()
+                , execution.getStatus().name()
+                , null
+                , null
+                , null
+                , null
+                , "/api/tickets/" + execution.getTicketId() + "/pipeline/events"
+        );
     }
 }

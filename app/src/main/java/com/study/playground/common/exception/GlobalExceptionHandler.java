@@ -9,12 +9,23 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 
 import java.util.stream.Collectors;
 
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    /**
+     * 클라이언트가 연결을 끊은 후 응답을 쓰려 할 때 발생한다.
+     * SSE 구독 해제, Prometheus 스크래핑 타임아웃 등에서 정상적으로 발생하므로
+     * 로깅하지 않고 무시한다. 응답을 보낼 수 없으므로 null을 반환한다.
+     */
+    @ExceptionHandler(AsyncRequestNotUsableException.class)
+    public void handleClientAbort(AsyncRequestNotUsableException e) {
+        // 클라이언트가 이미 없으므로 응답 불가 — 무시
+    }
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiError> handleBusinessException(BusinessException e) {
@@ -40,9 +51,23 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleException(Exception e) {
+        if (isClientAbort(e)) {
+            return null;
+        }
         log.error("Unexpected error", e);
         return ResponseEntity
                 .status(CommonErrorCode.INTERNAL_ERROR.getHttpStatus())
                 .body(ApiError.of(CommonErrorCode.INTERNAL_ERROR));
+    }
+
+    private boolean isClientAbort(Throwable e) {
+        while (e != null) {
+            String name = e.getClass().getSimpleName();
+            if ("ClientAbortException".equals(name) || "Broken pipe".equals(e.getMessage())) {
+                return true;
+            }
+            e = e.getCause();
+        }
+        return false;
     }
 }

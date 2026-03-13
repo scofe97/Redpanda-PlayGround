@@ -18,10 +18,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -140,15 +138,15 @@ public class TicketService {
 
     private TicketSource toTicketSource(TicketSourceRequest req) {
         TicketSource source = new TicketSource();
-        String validTypes = Arrays.stream(SourceType.values())
-                .map(Enum::name)
-                .collect(Collectors.joining(", "));
-        try {
-            source.setSourceType(SourceType.valueOf(req.getSourceType()));
-        } catch (IllegalArgumentException e) {
-            throw new BusinessException(CommonErrorCode.INVALID_INPUT,
-                    "유효하지 않은 소스 타입입니다: " + req.getSourceType() + " (허용: " + validTypes + ")");
-        }
+        SourceType sourceType = switch (req.getSourceType()) {
+            case "GIT" -> SourceType.GIT;
+            case "NEXUS" -> SourceType.NEXUS;
+            case "HARBOR" -> SourceType.HARBOR;
+            case null, default -> throw new BusinessException(CommonErrorCode.INVALID_INPUT,
+                    "유효하지 않은 소스 타입입니다: " + req.getSourceType()
+                    + " (허용: GIT, NEXUS, HARBOR)");
+        };
+        source.setSourceType(sourceType);
         source.setRepoUrl(req.getRepoUrl());
         source.setBranch(req.getBranch());
         source.setArtifactCoordinate(req.getArtifactCoordinate());

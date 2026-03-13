@@ -1,5 +1,9 @@
 package com.study.playground.common.outbox;
 
+import io.opentelemetry.api.GlobalOpenTelemetry;
+import io.opentelemetry.api.trace.*;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.context.Scope;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -10,7 +14,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -19,6 +22,10 @@ import java.util.concurrent.TimeUnit;
  * DB outbox 테이블에 저장된 이벤트를 주기적으로 폴링하여 Kafka로 발행한다.
  * 트랜잭션과 메시지 발행의 원자성을 보장하기 위해, 비즈니스 로직은 DB에만 쓰고
  * 이 폴러가 비동기로 Kafka 발행을 담당한다.
+ *
+ * E2E 트레이스 연결:
+ * outbox 이벤트에 저장된 traceparent를 복원하여 원래 HTTP 요청의 trace에
+ * Kafka 발행 스팬을 연결한다. Tempo에서 하나의 trace로 시각화된다.
  */
 @Slf4j
 @Component
@@ -37,7 +44,7 @@ public class OutboxPoller {
     /**
      * PENDING 상태의 outbox 이벤트를 폴링하여 Kafka로 발행한다.
      *
-     * 흐름: PENDING 조회 → Kafka 발행(동기 대기 5s) → SENT 마킹.
+     * 흐름: PENDING 조회 → trace context 복원 → Kafka 발행(동기 대기 5s) → SENT 마킹.
      * 발행 실패 시 retryCount를 증가시키고, MAX_RETRIES 초과 시 DEAD로 전이하여
      * 무한 재시도를 방지한다.
      */
@@ -58,8 +65,8 @@ public class OutboxPoller {
                 );
                 addHeaders(record, event);
 
-                // 메시지 적재
-                kafkaTemplate.send(record).get(5, TimeUnit.SECONDS);
+                // traceparent가 있으면 원래 trace에 연결하여 발행
+                publishWithTraceContext(record, event);
 
                 // 메시지 적재 성공 처리
                 outboxMapper.markAsSent(event.getId());
@@ -80,6 +87,60 @@ public class OutboxPoller {
                 }
             }
         }
+    }
+
+    /**
+     * 저장된 traceparent로 trace context를 복원하고 Kafka 메시지를 발행한다.
+     *
+     * traceparent가 없으면(OTel Agent 없이 실행) 새 trace로 발행된다.
+     * traceparent가 있으면 원래 HTTP 요청 trace의 자식 스팬으로 발행되어
+     * Tempo에서 HTTP → Outbox → Kafka → Connect가 하나의 trace로 연결된다.
+     */
+    private void publishWithTraceContext(ProducerRecord<String, byte[]> record
+            , OutboxEvent event) throws Exception {
+        SpanContext parentContext = parseTraceParent(event.getTraceParent());
+        if (parentContext == null) {
+            kafkaTemplate.send(record).get(5, TimeUnit.SECONDS);
+            return;
+        }
+
+        Tracer tracer = GlobalOpenTelemetry.getTracer("outbox-poller");
+        Span span = tracer.spanBuilder("OutboxPoller.publish")
+                .setParent(Context.current().with(Span.wrap(parentContext)))
+                .setAttribute("outbox.event.id", event.getId())
+                .setAttribute("outbox.event.type", event.getEventType())
+                .setAttribute("outbox.aggregate.id", event.getAggregateId())
+                .startSpan();
+
+        try (Scope ignored = span.makeCurrent()) {
+            kafkaTemplate.send(record).get(5, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            span.setStatus(StatusCode.ERROR, e.getMessage());
+            span.recordException(e);
+            throw e;
+        } finally {
+            span.end();
+        }
+    }
+
+    /**
+     * W3C traceparent 문자열을 SpanContext로 파싱한다.
+     * 형식: 00-{traceId(32hex)}-{spanId(16hex)}-{flags(2hex)}
+     */
+    private SpanContext parseTraceParent(String traceParent) {
+        if (traceParent == null || traceParent.isEmpty()) {
+            return null;
+        }
+        String[] parts = traceParent.split("-");
+        if (parts.length < 4) {
+            return null;
+        }
+        return SpanContext.createFromRemoteParent(
+                parts[1]
+                , parts[2]
+                , TraceFlags.getSampled()
+                , TraceState.getDefault()
+        );
     }
 
     /**
