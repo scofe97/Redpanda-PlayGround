@@ -1,0 +1,54 @@
+services:
+  nexus:
+    image: sonatype/nexus3:3.72.0
+    container_name: playground-nexus
+    ports:
+      - "${NEXUS_PORT:-28881}:8081"
+    environment:
+      INSTALL4J_ADD_VM_PARAMS: -Xms512m -Xmx1g -XX:MaxDirectMemorySize=512m
+    volumes:
+      - nexus-data:/nexus-data
+    deploy:
+      resources:
+        limits:
+          memory: 1228M
+
+  registry:
+    image: registry:2
+    container_name: playground-registry
+    ports:
+      - "${REGISTRY_PORT:-25050}:5000"
+    environment:
+      REGISTRY_STORAGE_DELETE_ENABLED: "true"
+    volumes:
+      - registry-data:/var/lib/registry
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  registry-ui:
+    image: joxit/docker-registry-ui:2.5
+    container_name: playground-registry-ui
+    ports:
+      - "${REGISTRY_UI_PORT:-25051}:80"
+    environment:
+      REGISTRY_TITLE: Playground Registry
+      REGISTRY_URL: http://registry:5000
+      SINGLE_REGISTRY: "true"
+      DELETE_IMAGES: "true"
+    depends_on:
+      - registry
+    deploy:
+      resources:
+        limits:
+          memory: 30M
+
+volumes:
+  nexus-data:
+  registry-data:
+
+networks:
+  default:
+    name: playground-net
+    external: true

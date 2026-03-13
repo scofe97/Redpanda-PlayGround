@@ -1,0 +1,204 @@
+# ============================================================================
+# 모니터링 스택
+# ============================================================================
+# Grafana + Loki(Alloy) + Tempo + Prometheus
+# 로그 수집, 분산 트레이싱, 메트릭 스크래핑을 통합한다.
+#
+# 사용법:
+#   cd docker && docker compose -f docker-compose.monitoring.yml up -d
+#
+# 의존성:
+#   playground-net 네트워크가 먼저 생성되어야 한다 (docker-compose.yml이 선행).
+# ============================================================================
+
+services:
+  # --------------------------------------------------------------------------
+  # Loki — 로그 저장소
+  # --------------------------------------------------------------------------
+  # Grafana Labs가 만든 로그 집계 시스템. Prometheus와 같은 라벨 기반 인덱싱을
+  # 사용하여 로그 본문은 인덱싱하지 않고 라벨(container, job 등)만 인덱싱한다.
+  # 이 덕분에 Elasticsearch 대비 스토리지/메모리를 크게 절약한다.
+  #
+  # 이 프로젝트에서의 역할:
+  #   Alloy가 Docker 소켓으로 수집한 컨테이너 로그를 저장하고,
+  #   Grafana에서 LogQL로 검색할 수 있게 한다.
+  #
+  # 쿼리 예시: {container="playground-connect"} |= "ERROR"
+  # --------------------------------------------------------------------------
+  loki:
+    image: grafana/loki:3.4.2
+    container_name: playground-loki
+    command: -config.file=/etc/loki/config.yaml
+    volumes:
+      - ./monitoring/loki-config.yaml:/etc/loki/config.yaml:ro
+      - loki-data:/loki                 # 로그 데이터 영속화
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3100/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # --------------------------------------------------------------------------
+  # Tempo — 분산 트레이스 저장소
+  # --------------------------------------------------------------------------
+  # Grafana Labs가 만든 분산 트레이싱 백엔드. Jaeger/Zipkin과 같은 역할이지만
+  # 오브젝트 스토리지(또는 로컬 파일시스템)에 트레이스를 저장하여 운영이 단순하다.
+  # OTLP, Jaeger, Zipkin 프로토콜을 모두 수신할 수 있다.
+  #
+  # 이 프로젝트에서의 역할:
+  #   Spring Boot(OTel Agent)와 Connect가 보낸 OTLP 트레이스를 저장하고,
+  #   Grafana에서 TraceQL로 검색/워터폴 뷰를 제공한다.
+  #
+  # WAL(Write-Ahead Log): 수신된 트레이스를 먼저 WAL에 기록하고, 주기적으로
+  # 블록으로 플러시한다. 재시작 시 WAL replay로 메모리를 많이 쓰므로 1GB 할당.
+  # --------------------------------------------------------------------------
+  tempo:
+    image: grafana/tempo:2.7.1
+    container_name: playground-tempo
+    command: -config.file=/etc/tempo/config.yaml
+    volumes:
+      - ./monitoring/tempo-config.yaml:/etc/tempo/config.yaml:ro
+      - tempo-data:/var/tempo            # WAL + 블록 데이터 영속화
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3200/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 1G                     # 256MB/512MB에서 OOM 발생 → 1GB
+
+  # --------------------------------------------------------------------------
+  # Alloy — 통합 텔레메트리 수집기
+  # --------------------------------------------------------------------------
+  # Grafana Labs가 만든 OpenTelemetry Collector 기반 수집기.
+  # 기존 Grafana Agent를 대체하며, 하나의 바이너리로 로그/트레이스/메트릭을
+  # 수집·변환·전송할 수 있다. 설정은 HCL 유사 문법(.alloy 파일)을 사용한다.
+  #
+  # 이 프로젝트에서 Alloy가 하는 2가지 역할:
+  #
+  # 1) 로그 수집 (Docker Socket → Loki)
+  #    Docker 소켓을 마운트하여 playground-* 컨테이너의 stdout/stderr를
+  #    실시간 수집한다. Java 멀티라인 스택트레이스 조인도 처리한다.
+  #    컨테이너가 파일 로깅을 지원하지 않아도 로그를 중앙 집중할 수 있는
+  #    유일한 방법이다 (Connect 등은 stdout-only).
+  #
+  # 2) OTLP 릴레이 (애플리케이션 → Tempo)
+  #    gRPC(:4317)와 HTTP(:4318)로 OTLP 트레이스를 수신하고,
+  #    노이즈 스팬(outbox 폴링, DB 커넥션 체크, Prometheus 스크래핑)을
+  #    필터링한 뒤 Tempo로 전달한다.
+  #
+  # 포트:
+  #   24317 → 4317 (OTLP gRPC) — Spring Boot에서 트레이스 전송
+  #   24318 → 4318 (OTLP HTTP) — Spring Boot/Connect에서 트레이스 전송
+  #   24312 → 12345 (Alloy UI) — 파이프라인 상태 확인용 웹 UI
+  # --------------------------------------------------------------------------
+  alloy:
+    image: grafana/alloy:v1.6.1
+    container_name: playground-alloy
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --stability.level=generally-available
+    ports:
+      - "${ALLOY_OTLP_GRPC_PORT:-24317}:4317"
+      - "${ALLOY_OTLP_HTTP_PORT:-24318}:4318"
+      - "${ALLOY_UI_PORT:-24312}:12345"
+    volumes:
+      - ./monitoring/alloy-config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro   # 컨테이너 로그 수집용
+    depends_on:
+      loki:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 192M
+
+  # --------------------------------------------------------------------------
+  # Prometheus — 메트릭 수집/저장
+  # --------------------------------------------------------------------------
+  # Pull 방식으로 타겟의 /metrics 엔드포인트를 주기적으로 스크래핑한다.
+  # 시계열 데이터를 TSDB에 저장하고 PromQL로 쿼리한다.
+  #
+  # 스크래핑 대상 (prometheus.yml):
+  #   - Spring Boot :8080/actuator/prometheus
+  #   - Redpanda :9644/metrics
+  #   - Connect :4195/metrics, :4198/metrics
+  # --------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    container_name: playground-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=3d   # 3일 보존 (PoC용)
+      - --web.enable-lifecycle             # /-/reload API 활성화
+    ports:
+      - "${PROMETHEUS_PORT:-29090}:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # --------------------------------------------------------------------------
+  # Grafana — 통합 대시보드 UI
+  # --------------------------------------------------------------------------
+  # Loki(로그), Tempo(트레이스), Prometheus(메트릭)를 단일 UI에서 탐색한다.
+  # 익명 Admin 접근 허용 (PoC용, 프로덕션에서는 인증 필수).
+  #
+  # provisioning으로 데이터소스 3개가 자동 등록된다.
+  # 로그에서 traceId를 클릭하면 Tempo 트레이스로 점프하는 연결도 설정되어 있다.
+  # --------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:11.5.2
+    container_name: playground-grafana
+    ports:
+      - "${GRAFANA_PORT:-23000}:3000"
+    environment:
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+      GF_AUTH_ANONYMOUS_ENABLED: "true"          # PoC: 로그인 없이 접근
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_SERVER_ROOT_URL: "http://localhost:${GRAFANA_PORT:-23000}"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      loki:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+volumes:
+  loki-data:
+  tempo-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  default:
+    name: playground-net
+    external: true

@@ -1,0 +1,33 @@
+services:
+  jenkins:
+    build:
+      context: ./jenkins
+      dockerfile: Dockerfile
+    container_name: playground-jenkins
+    ports:
+      - "${JENKINS_PORT:-29080}:8080"
+      - "50000:50000"
+    environment:
+      JAVA_OPTS: -Xmx1g -Xms512m -Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8 -Djenkins.install.runSetupWizard=false
+      CASC_JENKINS_CONFIG: /var/jenkins_home/casc.yaml
+      # Connect webhook URL — GCP→로컬 터널 사용 시 cloudflared URL로 설정
+      CONNECT_WEBHOOK_URL: ${CONNECT_WEBHOOK_URL:-http://connect:4197/webhook/jenkins}
+      # GitLab PAT — git clone 시 credential 주입용
+      GITLAB_TOKEN: ${GITLAB_TOKEN:-}
+    volumes:
+      - jenkins-data:/var/jenkins_home
+      - ./jenkins/casc.yaml:/var/jenkins_home/casc.yaml:ro
+      - ./jenkins/Jenkinsfile:/var/jenkins_home/Jenkinsfile:ro
+      - ./jenkins/Jenkinsfile-deploy:/var/jenkins_home/Jenkinsfile-deploy:ro
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
+
+volumes:
+  jenkins-data:
+
+networks:
+  default:
+    name: playground-net
+    external: true
