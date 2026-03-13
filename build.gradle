@@ -13,16 +13,16 @@ subprojects {
     version = '0.0.1-SNAPSHOT'
 
     java {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
         toolchain {
-            languageVersion = JavaLanguageVersion.of(17)
+            languageVersion = JavaLanguageVersion.of(21)
         }
     }
 
     tasks.withType(Test).configureEach {
         javaLauncher = javaToolchains.launcherFor {
-            languageVersion = JavaLanguageVersion.of(17)
+            languageVersion = JavaLanguageVersion.of(21)
         }
     }
 
@@ -40,6 +40,7 @@ subprojects {
     dependencyManagement {
         imports {
             mavenBom org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES
+            mavenBom 'io.opentelemetry.instrumentation:opentelemetry-instrumentation-bom:2.12.0'
         }
     }
 }

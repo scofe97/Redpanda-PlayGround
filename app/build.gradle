@@ -18,8 +18,12 @@ dependencies {
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-database-postgresql'
 
-    // Micrometer Tracing
-    implementation 'io.micrometer:micrometer-tracing-bridge-brave'
+    // Micrometer — Prometheus 메트릭 노출 (/actuator/prometheus)
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+
+    // OpenTelemetry Spring Boot Starter — Auto-Configuration으로 TracerProvider 등록
+    // Spring AOP 기반 자동 계측 (MVC, JDBC, Kafka). 수동 span(OutboxPoller)도 동일 API 사용.
+    implementation 'io.opentelemetry.instrumentation:opentelemetry-spring-boot-starter'
 
     // Jackson
     implementation 'com.fasterxml.jackson.core:jackson-databind'

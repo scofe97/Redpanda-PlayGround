@@ -27,3 +27,6 @@ logs/
 
 # Docker volumes (local)
 docker/data/
+
+# OTel Java Agent
+lib/

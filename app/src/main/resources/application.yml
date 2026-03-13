@@ -44,10 +44,22 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       show-details: always
+
+otel:
+  service:
+    name: redpanda-playground
+  exporter:
+    otlp:
+      endpoint: http://localhost:24318
+      protocol: http/protobuf
+  metrics:
+    exporter: none
+  logs:
+    exporter: none
 
 logging:
   level:

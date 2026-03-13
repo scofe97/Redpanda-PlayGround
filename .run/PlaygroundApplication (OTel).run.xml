@@ -1,0 +1,19 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="PlaygroundApplication (OTel)" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
+    <module name="redpanda-playground.app.main" />
+    <option name="SPRING_BOOT_MAIN_CLASS" value="com.study.playground.PlaygroundApplication" />
+    <option name="VM_PARAMETERS" value="-javaagent:$PROJECT_DIR$/lib/opentelemetry-javaagent.jar" />
+    <envs>
+      <env name="OTEL_SERVICE_NAME" value="redpanda-playground" />
+      <env name="OTEL_EXPORTER_OTLP_ENDPOINT" value="http://localhost:24318" />
+      <env name="OTEL_EXPORTER_OTLP_PROTOCOL" value="http/protobuf" />
+      <env name="OTEL_TRACES_EXPORTER" value="otlp" />
+      <env name="OTEL_METRICS_EXPORTER" value="none" />
+      <env name="OTEL_LOGS_EXPORTER" value="none" />
+      <env name="OTEL_INSTRUMENTATION_SPRING_SCHEDULING_ENABLED" value="false" />
+    </envs>
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
