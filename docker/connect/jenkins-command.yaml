@@ -28,29 +28,9 @@
 #   - RealDeployStep.java: DEPLOY 스텝에서 커맨드 발행
 # ============================================================================
 
-# --- 로깅 설정 ---
-# logfmt: 구조화 로그 포맷. Loki/Promtail로 수집 시 필드 파싱이 용이하다.
-# static_fields.service: 여러 Connect 인스턴스 로그를 구분하는 식별자.
-logger:
-  level: INFO
-  format: logfmt
-  add_timestamp: true
-  static_fields:
-    service: connect-jenkins-command
-
-# --- 메트릭 설정 ---
-# Prometheus가 /metrics 엔드포인트를 scrape한다.
-# 주요 메트릭: input_received_total, output_sent_total, output_error_total
-metrics:
-  prometheus: {}
-
-# --- 관리 HTTP 엔드포인트 ---
-# /ping: liveness 체크 (K8s livenessProbe 대상)
-# /ready: readiness 체크 (K8s readinessProbe 대상)
-# /metrics: Prometheus 메트릭
-http:
-  enabled: true
-  address: "0.0.0.0:4195"
+# --- 관측성 설정 ---
+# logger, metrics, tracer, http는 서비스 전역 설정이다.
+# streams 모드에서는 파이프라인별이 아닌 observability.yaml(-o 플래그)에서 관리한다.
 
 # --- 입력: Redpanda 토픽에서 커맨드 수신 ---
 # 토픽-스키마 1:1 매칭으로 이 토픽에는 JenkinsBuildCommand만 존재한다.
@@ -107,7 +87,7 @@ pipeline:
         request_map: 'root = ""'
         processors:
           - http:
-              url: 'http://jenkins:8080${! meta("jenkins_path") }'
+              url: 'http://34.64.73.157:29080${! meta("jenkins_path") }'
               verb: POST
               headers:
                 Content-Type: application/x-www-form-urlencoded
@@ -128,9 +108,13 @@ pipeline:
           root = if errored() { error() } else { deleted() }
 
     # 4단계: 에러 분류
-    # 성공 시 deleted()로 여기에 도달하지 않는다.
+    # 성공 시 deleted()로 메시지가 비어 있다. 빈 메시지를 먼저 걸러낸다.
     # 에러 문자열에서 HTTP 상태 코드 패턴을 매칭하여 분류한다.
     - switch:
+        # 성공: branch에서 deleted()로 메시지가 비어 있으므로 즉시 drop
+        - check: 'content().length() == 0'
+          processors:
+            - mapping: 'root = deleted()'
         # 5xx/429: 서버 에러 또는 레이트리밋 → 재시도 대상
         # throw()로 에러를 발생시켜 output retry가 재시도하도록 한다.
         - check: 'this.contains("status 429") || this.contains("status 5")'

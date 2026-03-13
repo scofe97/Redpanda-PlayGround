@@ -16,28 +16,8 @@
 #   - jenkins-command.yaml: 토픽 → Jenkins API 호출 (반대 방향)
 # ============================================================================
 
-# --- 로깅 설정 ---
-# JSON 포맷으로 구조화 로그를 출력한다.
-# static_fields.service로 여러 Connect 인스턴스의 로그를 구분한다.
-logger:
-  level: INFO
-  format: logfmt
-  add_timestamp: true
-  static_fields:
-    service: connect-gitlab-webhook
-
-# --- 메트릭 설정 ---
-# Prometheus가 /metrics 엔드포인트를 scrape하여 처리량/에러율을 수집한다.
-metrics:
-  prometheus: {}
-
-# --- 관리 HTTP 엔드포인트 ---
-# /ping: liveness 체크 (컨테이너 살아있는지)
-# /ready: readiness 체크 (트래픽 수신 가능한지)
-# /metrics: Prometheus 메트릭
-http:
-  enabled: true
-  address: "0.0.0.0:4195"
+# --- 관측성 설정 ---
+# logger, metrics, tracer, http는 observability.yaml(-o 플래그)에서 관리한다.
 
 # --- 입력: GitLab 웹훅 수신 ---
 input:

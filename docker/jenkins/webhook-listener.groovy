@@ -10,7 +10,8 @@ import hudson.model.listeners.RunListener
  * 사용자 Jenkinsfile에 웹훅 코드를 넣을 필요 없음.
  */
 
-def WEBHOOK_URL = 'http://connect:4197/webhook/jenkins'
+// 환경변수 CONNECT_WEBHOOK_URL이 설정되어 있으면 사용, 없으면 로컬 Docker 네트워크 기본값
+def WEBHOOK_URL = System.getenv('CONNECT_WEBHOOK_URL') ?: 'http://connect:4197/webhook/jenkins'
 
 RunListener.all().add(new RunListener<Run>() {
 

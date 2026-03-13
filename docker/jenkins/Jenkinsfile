@@ -41,7 +41,13 @@ pipeline {
                     if (params.GIT_URL) {
                         echo "[REAL] Git Clone: ${params.GIT_URL} (branch: ${params.BRANCH})"
                         sh 'rm -rf project'
-                        sh "git clone -b ${params.BRANCH} ${params.GIT_URL} project"
+                        // GITLAB_TOKEN 환경변수가 있으면 URL에 credential 주입
+                        def cloneUrl = params.GIT_URL
+                        def gitToken = env.GITLAB_TOKEN
+                        if (gitToken && cloneUrl.startsWith('http')) {
+                            cloneUrl = cloneUrl.replaceFirst('http(s?)://', "http\$1://oauth2:${gitToken}@")
+                        }
+                        sh "git clone -b ${params.BRANCH} ${cloneUrl} project"
                         sh 'ls -la project/'
                     } else {
                         echo '[SIM] Git Clone - 소스 코드 체크아웃 시뮬레이션'
