@@ -22,7 +22,7 @@
 | 항목 | 값 |
 |------|-----|
 | VM | `dev-server` (e2-custom-4-8192, 4 vCPU / 8GB RAM) |
-| IP | `34.64.73.157` (ephemeral) |
+| IP | `34.47.83.38` (ephemeral) |
 | 파일 위치 | `~/playground/docker/` |
 | 네트워크 | `playground-net` (bridge, 로컬과 별도) |
 
@@ -68,9 +68,9 @@ docker logs playground-jenkins
 
 | 서비스 | URL |
 |--------|-----|
-| Jenkins | `http://34.64.73.157:29080` | admin / admin |
-| GitLab | `http://34.64.73.157:29180` | root / playground1234! |
-| GitLab SSH | `ssh://git@34.64.73.157:29122` | — |
+| Jenkins | `http://34.47.83.38:29080` | admin / admin |
+| GitLab | `http://34.47.83.38:29180` | root / playground1234! |
+| GitLab SSH | `ssh://git@34.47.83.38:29122` | — |
 
 > IP는 ephemeral이므로 VM stop/start 시 변경될 수 있다. 변경 시 `gcloud compute instances describe dev-server --zone=asia-northeast3-a --format="value(networkInterfaces[0].accessConfigs[0].natIP)"`로 확인.
 
@@ -82,10 +82,10 @@ docker logs playground-jenkins
 
 | 방향 | 방법 | 비고 |
 |------|------|------|
-| 로컬 앱 → GCP Jenkins/GitLab | 호스트 포트(`34.64.73.157:29080`) | 방화벽 규칙으로 허용 |
-| 로컬 Connect → GCP Jenkins | `jenkins-command.yaml`에 GCP IP 직접 지정 | `http://34.64.73.157:29080` |
+| 로컬 앱 → GCP Jenkins/GitLab | 호스트 포트(`34.47.83.38:29080`) | 방화벽 규칙으로 허용 |
+| 로컬 Connect → GCP Jenkins | `jenkins-command.yaml`에 GCP IP 직접 지정 | `http://34.47.83.38:29080` |
 | **GCP Jenkins → 로컬 Connect** | **cloudflared 터널** | 아래 참조 |
-| GCP Jenkins → GCP GitLab | IP 기반 (`34.64.73.157:29180`) + PAT 인증 | 같은 VM이지만 별도 compose 프로젝트라 컨테이너명 불가 |
+| GCP Jenkins → GCP GitLab | IP 기반 (`34.47.83.38:29180`) + PAT 인증 | 같은 VM이지만 별도 compose 프로젝트라 컨테이너명 불가 |
 
 ### cloudflared 터널 (GCP → 로컬 역방향)
 

@@ -87,7 +87,7 @@ pipeline:
         request_map: 'root = ""'
         processors:
           - http:
-              url: 'http://34.64.73.157:29080${! meta("jenkins_path") }'
+              url: 'http://34.47.83.38:29080${! meta("jenkins_path") }'
               verb: POST
               headers:
                 Content-Type: application/x-www-form-urlencoded

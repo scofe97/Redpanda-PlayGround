@@ -64,7 +64,7 @@ dev: ## 개발 환경 실행 안내
 	@echo "  Console:      http://localhost:28080"
 	@echo "  AsyncAPI:     http://localhost:8080/springwolf/asyncapi-ui.html"
 	@echo "  Health:       http://localhost:8080/actuator/health"
-	@echo "  Jenkins:      http://34.64.73.157:29080 (GCP, admin/admin)"
+	@echo "  Jenkins:      http://34.47.83.38:29080 (GCP, admin/admin)"
 	@echo "  Grafana:      http://localhost:23000"
 	@echo "  Prometheus:   http://localhost:29090"
 
