@@ -23,6 +23,10 @@ datasources:
       tracesToLogs:
         datasourceUid: loki
         filterByTraceID: true
+        mapTagNamesEnabled: true
+        mappedTags:
+          - key: service.name
+            value: service_name
       serviceMap:
         datasourceUid: prometheus
 

@@ -80,7 +80,7 @@ services:
   # 기존 Grafana Agent를 대체하며, 하나의 바이너리로 로그/트레이스/메트릭을
   # 수집·변환·전송할 수 있다. 설정은 HCL 유사 문법(.alloy 파일)을 사용한다.
   #
-  # 이 프로젝트에서 Alloy가 하는 2가지 역할:
+  # 이 프로젝트에서 Alloy가 하는 3가지 역할:
   #
   # 1) 로그 수집 (Docker Socket → Loki)
   #    Docker 소켓을 마운트하여 playground-* 컨테이너의 stdout/stderr를
@@ -92,6 +92,10 @@ services:
   #    gRPC(:4317)와 HTTP(:4318)로 OTLP 트레이스를 수신하고,
   #    노이즈 스팬(outbox 폴링, DB 커넥션 체크, Prometheus 스크래핑)을
   #    필터링한 뒤 Tempo로 전달한다.
+  #
+  # 3) 메트릭 스크래핑 (타겟 → remote_write → Prometheus)
+  #    4개 타겟(Spring Boot, Redpanda, Connect×2)을 직접 스크래핑하고
+  #    remote_write로 Prometheus에 전송한다. Prometheus는 저장+쿼리만 담당.
   #
   # 포트:
   #   24317 → 4317 (OTLP gRPC) — Spring Boot에서 트레이스 전송
@@ -124,15 +128,11 @@ services:
           memory: 192M
 
   # --------------------------------------------------------------------------
-  # Prometheus — 메트릭 수집/저장
+  # Prometheus — 메트릭 저장/쿼리
   # --------------------------------------------------------------------------
-  # Pull 방식으로 타겟의 /metrics 엔드포인트를 주기적으로 스크래핑한다.
-  # 시계열 데이터를 TSDB에 저장하고 PromQL로 쿼리한다.
-  #
-  # 스크래핑 대상 (prometheus.yml):
-  #   - Spring Boot :8080/actuator/prometheus
-  #   - Redpanda :9644/metrics
-  #   - Connect :4195/metrics, :4198/metrics
+  # Alloy가 remote_write로 전송한 메트릭을 TSDB에 저장하고 PromQL로 쿼리한다.
+  # 스크래핑은 Alloy가 담당한다 (alloy-config.alloy 참조).
+  # --web.enable-remote-write-receiver 플래그로 remote_write 수신을 활성화한다.
   # --------------------------------------------------------------------------
   prometheus:
     image: prom/prometheus:v3.2.1
@@ -142,6 +142,7 @@ services:
       - --storage.tsdb.path=/prometheus
       - --storage.tsdb.retention.time=3d   # 3일 보존 (PoC용)
       - --web.enable-lifecycle             # /-/reload API 활성화
+      - --web.enable-remote-write-receiver # Alloy remote_write 수신
     ports:
       - "${PROMETHEUS_PORT:-29090}:9090"
     volumes:

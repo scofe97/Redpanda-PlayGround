@@ -1,8 +1,12 @@
 // ============================================================================
-// Grafana Alloy — 통합 수집기
+// Grafana Alloy — 통합 수집기 (단일 수집 지점)
 // ============================================================================
 // 1. Docker 소켓으로 컨테이너 로그 수집 → Loki 전송
 // 2. OTLP 수신 (gRPC/HTTP) → Tempo 전송
+// 3. Prometheus 타겟 스크래핑 → remote_write → Prometheus 전송
+//
+// "앱은 OTLP만 알면 된다" 원칙: 모든 텔레메트리 신호가 Alloy를 거쳐
+// 각 백엔드로 라우팅된다. Prometheus는 저장(TSDB) + 쿼리(PromQL)만 담당한다.
 // ============================================================================
 
 // --- Docker 로그 수집 ---
@@ -48,6 +52,22 @@ loki.process "multiline" {
     firstline     = "^\\d{4}-\\d{2}-\\d{2}|^\\[|^ts=|^level="
     max_wait_time = "3s"
     max_lines     = 128
+  }
+
+  forward_to = [loki.process.extract_trace.receiver]
+}
+
+// trace_id를 Structured Metadata로 추출
+// 로그 본문의 traceId=xxx 패턴에서 값을 추출하여 Loki Structured Metadata에 저장한다.
+// 라벨이 아닌 Structured Metadata를 사용하는 이유: trace_id는 요청마다 고유하여
+// 라벨로 올리면 스트림 카디널리티가 폭발한다.
+loki.process "extract_trace" {
+  stage.regex {
+    expression = "traceId=(?P<trace_id>\\w+)"
+  }
+
+  stage.structured_metadata {
+    values = { trace_id = "trace_id" }
   }
 
   forward_to = [loki.write.default.receiver]
@@ -108,5 +128,40 @@ otelcol.processor.filter "noise" {
 otelcol.exporter.otlphttp "tempo" {
   client {
     endpoint = "http://tempo:4318"
+  }
+}
+
+// --- 메트릭 수집 (Prometheus scrape → remote_write) ---
+// Alloy가 단일 수집 지점이 되도록 Prometheus 스크래핑을 Alloy에서 수행한다.
+// Prometheus는 저장(TSDB) + 쿼리(PromQL)만 담당한다.
+
+prometheus.scrape "spring_boot" {
+  targets         = [{ __address__ = "host.docker.internal:8080" }]
+  metrics_path    = "/actuator/prometheus"
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.default.receiver]
+}
+
+prometheus.scrape "redpanda" {
+  targets         = [{ __address__ = "redpanda:9644" }]
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.default.receiver]
+}
+
+prometheus.scrape "connect_command" {
+  targets         = [{ __address__ = "connect:4195" }]
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.default.receiver]
+}
+
+prometheus.scrape "connect_webhook" {
+  targets         = [{ __address__ = "connect:4198" }]
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.default.receiver]
+}
+
+prometheus.remote_write "default" {
+  endpoint {
+    url = "http://prometheus:9090/api/v1/write"
   }
 }

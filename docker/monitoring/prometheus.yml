@@ -1,38 +1,11 @@
-# Prometheus 스크래핑 설정
-# 15초 간격, 3일 보존 (--storage.tsdb.retention.time=3d)
+# Prometheus 설정
+# 3일 보존 (--storage.tsdb.retention.time=3d)
+#
+# scrape는 Alloy가 수행한다 (alloy-config.alloy의 prometheus.scrape 참조).
+# Prometheus는 remote_write 수신 + 저장(TSDB) + PromQL 쿼리만 담당한다.
 
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
-scrape_configs:
-  # Spring Boot Actuator (/actuator/prometheus)
-  # host.docker.internal: Spring Boot는 호스트에서 실행된다.
-  - job_name: 'spring-boot'
-    metrics_path: '/actuator/prometheus'
-    static_configs:
-      - targets: ['host.docker.internal:8080']
-        labels:
-          service: 'redpanda-playground'
-
-  # Redpanda 내부 메트릭 (Admin API)
-  - job_name: 'redpanda'
-    static_configs:
-      - targets: ['redpanda:9644']
-        labels:
-          service: 'redpanda'
-
-  # Redpanda Connect — jenkins-command 파이프라인
-  # 메트릭: input_received_total, output_sent_total, output_error_total
-  - job_name: 'connect-command'
-    static_configs:
-      - targets: ['connect:4195']
-        labels:
-          service: 'connect-jenkins-command'
-
-  # Redpanda Connect — jenkins-webhook 파이프라인
-  - job_name: 'connect-webhook'
-    static_configs:
-      - targets: ['connect:4198']
-        labels:
-          service: 'connect-jenkins-webhook'
+scrape_configs: []
