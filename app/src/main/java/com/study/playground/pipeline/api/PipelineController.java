@@ -38,16 +38,6 @@ public class PipelineController {
     }
 
     /**
-     * 실패 시뮬레이션: 랜덤 스텝에 [FAIL] 마커를 삽입하여 SAGA 보상 트랜잭션을 검증한다.
-     */
-    @PostMapping("/start-with-failure")
-    public ResponseEntity<PipelineExecutionResponse> startWithFailure(@PathVariable Long ticketId) {
-        PipelineExecutionResponse response = pipelineService.startPipelineWithFailure(ticketId);
-        return ResponseEntity.status(HttpStatus.ACCEPTED)
-                .body(response);
-    }
-
-    /**
      * 가장 최근 파이프라인 실행 결과를 조회한다.
      */
     @GetMapping

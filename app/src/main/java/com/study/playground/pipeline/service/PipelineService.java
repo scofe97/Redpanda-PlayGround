@@ -24,7 +24,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -41,7 +40,7 @@ public class PipelineService {
 
     @Transactional
     public PipelineExecutionResponse startPipeline(Long ticketId) {
-        return doStartPipeline(ticketId, false);
+        return doStartPipeline(ticketId);
     }
 
     @Transactional(readOnly = true)
@@ -65,16 +64,7 @@ public class PipelineService {
                 .toList();
     }
 
-    /**
-     * 실패 시뮬레이션: 랜덤 스텝에 [FAIL] 마커를 삽입하여 SAGA 보상 트랜잭션을 검증한다.
-     * 첫 번째 스텝은 보상할 대상이 없으므로 제외하고, 2번째 이후 스텝 중 하나를 랜덤 선택한다.
-     */
-    @Transactional
-    public PipelineExecutionResponse startPipelineWithFailure(Long ticketId) {
-        return doStartPipeline(ticketId, true);
-    }
-
-    private PipelineExecutionResponse doStartPipeline(Long ticketId, boolean withFailure) {
+    private PipelineExecutionResponse doStartPipeline(Long ticketId) {
 
         // 티켓 조회
         Ticket ticket = ticketMapper.findById(ticketId);
@@ -102,9 +92,6 @@ public class PipelineService {
 
         // 단계
         List<PipelineStep> steps = buildSteps(sources);
-        if (withFailure) {
-            injectRandomFailure(steps);
-        }
         stepMapper.insertBatch(execution.getId(), steps);
 
         // Outbox INSERT → Kafka 발행은 OutboxPoller가 수행
@@ -127,25 +114,7 @@ public class PipelineService {
                 , execution.getId().toString()
         );
 
-        if (withFailure) {
-            log.info("[FAIL SIMULATION] Pipeline started with failure injection: executionId={}, failStep={}",
-                    execution.getId(), stepNameList.stream().filter(n -> n.contains("[FAIL]")).findFirst().orElse("none"));
-        }
-
         return PipelineExecutionResponse.accepted(execution);
-    }
-
-    private void injectRandomFailure(List<PipelineStep> steps) {
-        if (steps.size() <= 1) {
-            // 스텝이 1개면 그 스텝에 [FAIL] 삽입
-            steps.get(0).setStepName(steps.get(0).getStepName() + " [FAIL]");
-            return;
-        }
-
-        // 첫 번째 스텝 제외 (보상 대상이 없으므로), 2번째 이후 중 랜덤 선택
-        int failIndex = 1 + ThreadLocalRandom.current().nextInt(steps.size() - 1);
-        PipelineStep failStep = steps.get(failIndex);
-        failStep.setStepName(failStep.getStepName() + " [FAIL]");
     }
 
     private List<PipelineStep> buildSteps(List<TicketSource> sources) {

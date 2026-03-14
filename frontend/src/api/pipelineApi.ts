@@ -24,7 +24,6 @@ export interface PipelineExecution {
 
 export const pipelineApi = {
   start: (ticketId: number) => api.post<PipelineExecution>(`/tickets/${ticketId}/pipeline/start`),
-  startWithFailure: (ticketId: number) => api.post<PipelineExecution>(`/tickets/${ticketId}/pipeline/start-with-failure`),
   getLatest: (ticketId: number) => api.get<PipelineExecution>(`/tickets/${ticketId}/pipeline`),
   getHistory: (ticketId: number) => api.get<PipelineExecution[]>(`/tickets/${ticketId}/pipeline/history`),
 };

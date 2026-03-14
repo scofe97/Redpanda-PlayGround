@@ -2,6 +2,7 @@ package com.study.playground.pipeline.service;
 
 import com.study.playground.common.exception.BusinessException;
 import com.study.playground.common.outbox.EventPublisher;
+import com.study.playground.kafka.serialization.AvroSerializer;
 import com.study.playground.kafka.topic.Topics;
 import com.study.playground.pipeline.domain.PipelineStatus;
 import com.study.playground.pipeline.dto.PipelineExecutionResponse;
@@ -35,6 +36,7 @@ class PipelineServiceTest {
     @Mock private PipelineExecutionMapper executionMapper;
     @Mock private PipelineStepMapper stepMapper;
     @Mock private EventPublisher eventPublisher;
+    @Mock private AvroSerializer avroSerializer;
 
     @InjectMocks
     private PipelineService pipelineService;
@@ -70,8 +72,8 @@ class PipelineServiceTest {
         PipelineExecutionResponse response = pipelineService.startPipeline(1L);
 
         // Then
-        assertThat(response.getExecutionId()).isNotNull();
-        assertThat(response.getStatus()).isEqualTo(PipelineStatus.PENDING.name());
+        assertThat(response.executionId()).isNotNull();
+        assertThat(response.status()).isEqualTo(PipelineStatus.PENDING.name());
         verify(ticketMapper).update(argThat(t -> t.getStatus() == TicketStatus.DEPLOYING));
         verify(executionMapper).insert(any());
         verify(stepMapper).insertBatch(any(), anyList());

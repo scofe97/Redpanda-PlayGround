@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTicket, useDeleteTicket } from '../hooks/useTickets';
-import { usePipelineLatest, useStartPipeline, useStartPipelineWithFailure } from '../hooks/usePipeline';
+import { usePipelineLatest, useStartPipeline } from '../hooks/usePipeline';
 import { useSSE } from '../hooks/useSSE';
 import StatusBadge from '../components/StatusBadge';
 import PipelineTimeline from '../components/PipelineTimeline';
@@ -14,7 +14,6 @@ export default function TicketDetailPage() {
   const { data: ticket, isLoading, error: ticketError } = useTicket(isValidId ? ticketId : -1);
   const { data: pipeline, error: pipelineError } = usePipelineLatest(isValidId ? ticketId : -1);
   const startPipeline = useStartPipeline();
-  const startWithFailure = useStartPipelineWithFailure();
   const deleteTicket = useDeleteTicket();
 
   const isRunning =
@@ -86,14 +85,6 @@ export default function TicketDetailPage() {
     }
   };
 
-  const handleStartWithFailure = async () => {
-    try {
-      await startWithFailure.mutateAsync(ticketId);
-    } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed to start pipeline');
-    }
-  };
-
   const handleDelete = async () => {
     if (!window.confirm(`"${ticket.name}" 티켓을 삭제하시겠습니까?`)) return;
     try {
@@ -128,15 +119,6 @@ export default function TicketDetailPage() {
             >
               <span className="material-symbols-outlined text-sm">play_arrow</span>
               {startPipeline.isPending ? '시작 중...' : isRunning ? '실행 중...' : '파이프라인 시작'}
-            </button>
-            <button
-              className="px-5 py-2.5 bg-amber-50 text-amber-700 border border-amber-300 text-sm font-bold rounded-lg hover:bg-amber-100 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              onClick={handleStartWithFailure}
-              disabled={isRunning || startWithFailure.isPending}
-              title="랜덤 스텝에서 실패를 발생시켜 SAGA 보상 트랜잭션을 검증합니다"
-            >
-              <span className="material-symbols-outlined text-sm">bug_report</span>
-              {startWithFailure.isPending ? '시작 중...' : '실패 시뮬레이션'}
             </button>
             <button
               className="px-5 py-2.5 bg-red-50 text-red-600 border border-red-200 text-sm font-bold rounded-lg hover:bg-red-100 transition-all flex items-center gap-2"

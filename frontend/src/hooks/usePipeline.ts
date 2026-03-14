@@ -28,14 +28,3 @@ export function useStartPipeline() {
     },
   });
 }
-
-export function useStartPipelineWithFailure() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (ticketId: number) => pipelineApi.startWithFailure(ticketId),
-    onSuccess: (_, ticketId) => {
-      queryClient.invalidateQueries({ queryKey: ['pipeline', ticketId] });
-      queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
-    },
-  });
-}
