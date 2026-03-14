@@ -6,7 +6,10 @@
     {"name": "executionId", "type": "string"},
     {"name": "ticketId", "type": "long"},
     {"name": "stepOrder", "type": "int"},
+    {"name": "jenkinsUrl", "type": "string"},
     {"name": "jobName", "type": "string"},
+    {"name": "username", "type": ["null", "string"], "default": null},
+    {"name": "credential", "type": ["null", "string"], "default": null},
     {"name": "params", "type": {"type": "map", "values": "string"}}
   ]
 }

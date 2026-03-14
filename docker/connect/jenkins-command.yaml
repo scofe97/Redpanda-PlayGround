@@ -60,6 +60,7 @@ pipeline:
         let query = this.params.key_values().map_each(kv -> "%s=%s".format(kv.key, kv.value.escape_url_query())).join("&")
 
         # output이 아닌 프로세서에서 HTTP 호출하므로 메타데이터에 URL 정보를 저장한다.
+        meta jenkins_url = this.jenkinsUrl
         meta jenkins_path = "/job/%s/buildWithParameters?%s".format($job, $query)
         meta execution_id = this.executionId
         meta step_order = this.stepOrder.string()
@@ -87,7 +88,7 @@ pipeline:
         request_map: 'root = ""'
         processors:
           - http:
-              url: 'http://34.47.83.38:29080${! meta("jenkins_path") }'
+              url: '${! meta("jenkins_url") }${! meta("jenkins_path") }'
               verb: POST
               headers:
                 Content-Type: application/x-www-form-urlencoded

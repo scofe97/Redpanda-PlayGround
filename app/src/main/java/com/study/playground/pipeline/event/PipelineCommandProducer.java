@@ -6,6 +6,9 @@ import com.study.playground.kafka.serialization.AvroSerializer;
 import com.study.playground.kafka.topic.Topics;
 import com.study.playground.pipeline.domain.PipelineExecution;
 import com.study.playground.pipeline.domain.PipelineStep;
+import com.study.playground.supporttool.domain.SupportTool;
+import com.study.playground.supporttool.domain.ToolType;
+import com.study.playground.supporttool.mapper.SupportToolMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -39,6 +42,7 @@ public class PipelineCommandProducer {
 
     private final EventPublisher eventPublisher;
     private final AvroSerializer avroSerializer;
+    private final SupportToolMapper supportToolMapper;
 
     /**
      * Jenkins 빌드 트리거 커맨드를 발행한다.
@@ -52,11 +56,20 @@ public class PipelineCommandProducer {
             PipelineStep step,
             String jobName,
             Map<String, String> params) {
+        // TODO: 멀티 Jenkins 지원 시 toolId를 파라미터로 받아 특정 Jenkins를 선택
+        SupportTool jenkins = supportToolMapper.findActiveByToolType(ToolType.JENKINS);
+        if (jenkins == null) {
+            throw new RuntimeException("Active Jenkins tool not found in support_tool table");
+        }
+
         var command = JenkinsBuildCommand.newBuilder()
                 .setExecutionId(executionId(execution))
                 .setTicketId(execution.getTicketId())
                 .setStepOrder(step.getStepOrder())
+                .setJenkinsUrl(jenkins.getUrl())
                 .setJobName(jobName)
+                .setUsername(jenkins.getUsername())
+                .setCredential(jenkins.getCredential())
                 .setParams(Optional.ofNullable(params).map(Map::copyOf).orElseGet(Map::of))
                 .build();
 

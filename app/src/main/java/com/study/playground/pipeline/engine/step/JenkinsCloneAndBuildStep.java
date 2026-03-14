@@ -88,8 +88,11 @@ public class JenkinsCloneAndBuildStep implements PipelineStepExecutor {
                     ? raw.substring(raw.lastIndexOf('#') + 1)
                     : "main";
 
-            // TODO: localhost 하드코딩 제거 — 개발지원도구 GitLab 주소를 application.yml 설정으로 분리
-            String internalUrl = gitUrl.replace("localhost:29180", "gitlab:29180");
+            // 외부IP/localhost → Docker 서비스명 변환 (Jenkins는 같은 playground-net에서 실행)
+            String internalUrl = gitUrl
+                    .replace("localhost:29180", "playground-gitlab:29180")
+                    .replace("34.47.74.0:29180", "playground-gitlab:29180")
+                    .replace("10.178.0.3:29180", "playground-gitlab:29180");
 
             params.put("GIT_URL", internalUrl);
             params.put("BRANCH", branch);
