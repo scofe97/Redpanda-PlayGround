@@ -1,0 +1,47 @@
+// ============================================================================
+// Local Alloy — Sidecar (Spring Boot OTLP + 메트릭 → Server 3)
+// ============================================================================
+// 역할:
+//   1. Spring Boot OTLP 트레이스 수신 → Server 3 Alloy (외부IP)
+//   2. Spring Boot actuator 메트릭 스크래핑 → Server 3 Prometheus (외부IP)
+//
+// Docker 로그 수집 없음 — Spring Boot는 호스트에서 실행.
+// Server 3 주소: 34.22.78.240 (외부IP — 로컬은 VPC 밖)
+// ============================================================================
+
+// --- OTLP 수신 → Server 3 Alloy로 전달 ---
+// Spring Boot OTel Agent → localhost:24318 → 이 Alloy → Server 3
+otelcol.receiver.otlp "default" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    traces = [otelcol.exporter.otlphttp.central.input]
+  }
+}
+
+// Server 3 Alloy 외부IP (로컬은 VPC 밖이므로 외부IP 사용)
+otelcol.exporter.otlphttp "central" {
+  client {
+    endpoint = "http://34.22.78.240:4318"
+  }
+}
+
+// --- Spring Boot 메트릭 스크래핑 → Server 3 Prometheus ---
+prometheus.scrape "spring_boot" {
+  targets         = [{ __address__ = "host.docker.internal:8080" }]
+  metrics_path    = "/actuator/prometheus"
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.default.receiver]
+}
+
+// Server 3 Prometheus 외부IP
+prometheus.remote_write "default" {
+  endpoint {
+    url = "http://34.22.78.240:9090/api/v1/write"
+  }
+}

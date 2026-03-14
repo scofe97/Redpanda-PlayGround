@@ -1,0 +1,106 @@
+# ============================================================================
+# Server 2 (dev-server-2) — Jenkins + GitLab + Alloy Sidecar
+# ============================================================================
+# GCP VM: 10.178.0.3 (internal) / 34.47.74.0 (external)
+#
+# Jenkins: CI/CD 파이프라인 실행 (커스텀 이미지 — rpk CLI 포함)
+# GitLab: Git 저장소 (메모리 최적화 설정)
+# Alloy: Jenkins 로그만 수집 → Server 3 Loki (GitLab drop)
+#
+# 사용법:
+#   scp -r server-2/ dev-server-2:~/deploy/
+#   ssh dev-server-2 "cd ~/deploy/server-2 && docker compose up -d"
+#
+# 의존성:
+#   Server 3 (모니터링)이 먼저 실행되어야 Alloy가 로그를 전송할 수 있다.
+# ============================================================================
+
+services:
+  jenkins:
+    build:
+      context: ./jenkins
+      dockerfile: Dockerfile
+    container_name: playground-jenkins
+    ports:
+      - "${JENKINS_PORT:-29080}:8080"
+      - "50000:50000"
+    environment:
+      JAVA_OPTS: >-
+        -Xmx1g -Xms512m
+        -Dfile.encoding=UTF-8
+        -Dsun.jnu.encoding=UTF-8
+        -Djenkins.install.runSetupWizard=false
+      CASC_JENKINS_CONFIG: /var/jenkins_home/casc.yaml
+      CONNECT_WEBHOOK_URL: ${CONNECT_WEBHOOK_URL:-http://10.178.0.2:4197/webhook/jenkins}
+      GITLAB_TOKEN: ${GITLAB_TOKEN:-}
+    volumes:
+      - jenkins-data:/var/jenkins_home
+      - ./jenkins/casc.yaml:/var/jenkins_home/casc.yaml:ro
+      - ./jenkins/Jenkinsfile:/var/jenkins_home/Jenkinsfile:ro
+      - ./jenkins/Jenkinsfile-deploy:/var/jenkins_home/Jenkinsfile-deploy:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/login || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
+
+  gitlab:
+    image: gitlab/gitlab-ce:17.4.0-ce.0
+    container_name: playground-gitlab
+    hostname: playground-gitlab
+    ports:
+      - "${GITLAB_HTTP_PORT:-29180}:${GITLAB_HTTP_PORT:-29180}"
+      - "${GITLAB_SSH_PORT:-29122}:22"
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'http://${EXTERNAL_IP:-34.47.74.0}:${GITLAB_HTTP_PORT:-29180}'
+        gitlab_rails['initial_root_password'] = '${GITLAB_ROOT_PASSWORD:-playground1234!}'
+        puma['worker_processes'] = 0
+        sidekiq['concurrency'] = 5
+        prometheus_monitoring['enable'] = false
+        gitlab_rails['env'] = { 'MALLOC_CONF' => 'dirty_decay_ms:1000,muzzy_decay_ms:1000' }
+    volumes:
+      - gitlab-config:/etc/gitlab
+      - gitlab-data:/var/opt/gitlab
+      - gitlab-logs:/var/log/gitlab
+    shm_size: '256m'
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 4096M
+
+  alloy:
+    image: grafana/alloy:v1.6.1
+    container_name: playground-alloy
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --stability.level=generally-available
+    ports:
+      - "24312:12345"
+    volumes:
+      - ./monitoring/alloy-config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+volumes:
+  jenkins-data:
+  gitlab-config:
+  gitlab-data:
+  gitlab-logs:
+
+networks:
+  default:
+    name: playground-net

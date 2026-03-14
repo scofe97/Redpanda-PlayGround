@@ -1,0 +1,32 @@
+# ============================================================================
+# Local (macOS) — Alloy Sidecar
+# ============================================================================
+# Spring Boot + React는 호스트에서 실행. Alloy만 Docker로 띄워서
+# Spring Boot OTLP 트레이스와 메트릭을 Server 3으로 전송한다.
+#
+# 사용법:
+#   cd docker/deploy/local && docker compose up -d
+#   SPRING_PROFILES_ACTIVE=gcp make backend
+# ============================================================================
+
+services:
+  alloy:
+    image: grafana/alloy:v1.6.1
+    container_name: playground-alloy-local
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --stability.level=generally-available
+    ports:
+      # OTLP 수신 — Spring Boot OTel Agent가 localhost:24318로 전송
+      - "24317:4317"
+      - "24318:4318"
+      # Alloy UI
+      - "24312:12345"
+    volumes:
+      - ./monitoring/alloy-config.alloy:/etc/alloy/config.alloy:ro
+    deploy:
+      resources:
+        limits:
+          memory: 128M

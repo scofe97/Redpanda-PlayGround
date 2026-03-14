@@ -1,0 +1,43 @@
+# ============================================================================
+# GitLab Webhook → Redpanda 인바운드 파이프라인
+# ============================================================================
+# 변경점 없음 — 로컬 버전과 동일
+# ============================================================================
+
+input:
+  http_server:
+    address: 0.0.0.0:4196
+    path: /webhook/gitlab
+    allowed_verbs:
+      - POST
+    timeout: 5s
+
+pipeline:
+  processors:
+    - mapping: |
+        root.webhookSource = "GITLAB"
+        root.payload = content().string()
+        root.headers = @
+        root.receivedAt = now()
+
+    - catch:
+        - log:
+            message: "GitLab 웹훅 처리 실패"
+            level: ERROR
+            fields_mapping: |
+              root.error = error()
+              root.payload_preview = content().string().slice(0, 200)
+
+output:
+  retry:
+    max_retries: 5
+    backoff:
+      initial_interval: 500ms
+      max_interval: 10s
+    output:
+      kafka_franz:
+        seed_brokers:
+          - redpanda:9092
+        topic: playground.webhook.inbound
+        key: ${! json("webhookSource") }
+        max_in_flight: 1

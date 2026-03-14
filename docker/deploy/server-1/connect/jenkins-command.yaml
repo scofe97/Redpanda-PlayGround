@@ -1,0 +1,99 @@
+# ============================================================================
+# Redpanda → Jenkins API 커맨드 파이프라인
+# ============================================================================
+# Jenkins URL은 메시지의 jenkinsUrl 필드를 사용한다 (support_tool에서 주입).
+# 인증: 메시지의 username/credential → Base64 Authorization 헤더.
+#       메시지에 인증 정보가 없으면 환경변수 JENKINS_TOKEN을 fallback으로 사용.
+# ============================================================================
+
+input:
+  kafka_franz:
+    seed_brokers:
+      - redpanda:9092
+    topics:
+      - playground.pipeline.commands.jenkins
+    consumer_group: connect-jenkins-command-v6
+    start_from_oldest: true
+
+pipeline:
+  processors:
+    - mapping: |
+        let job = this.jobName
+        let query = this.params.key_values().map_each(kv -> "%s=%s".format(kv.key, kv.value.escape_url_query())).join("&")
+
+        meta jenkins_url = this.jenkinsUrl
+        meta jenkins_path = "/job/%s/buildWithParameters?%s".format($job, $query)
+        meta execution_id = this.executionId
+        meta step_order = this.stepOrder.string()
+
+        # 인증: username:credential → Base64
+        # Avro union ["null","string"]은 JSON에서 {"string":"value"} 형태로 직렬화됨
+        let user = if this.username.type() == "object" { this.username.string } else { this.username | "admin" }
+        let cred = if this.credential.type() == "object" { this.credential.string } else { this.credential | "admin" }
+        meta jenkins_auth = "Basic " + ($user + ":" + $cred).encode("base64")
+
+        root = ""
+
+    - log:
+        message: "Jenkins API 호출"
+        level: INFO
+        fields_mapping: |
+          root.execution_id = meta("execution_id")
+          root.step_order = meta("step_order")
+          root.jenkins_url = meta("jenkins_url")
+          root.jenkins_path = meta("jenkins_path")
+
+    - branch:
+        request_map: 'root = ""'
+        processors:
+          - http:
+              url: '${! meta("jenkins_url") }${! meta("jenkins_path") }'
+              verb: POST
+              headers:
+                Content-Type: application/x-www-form-urlencoded
+                Authorization: '${! meta("jenkins_auth") }'
+                X-Execution-Id: '${! meta("execution_id") }'
+                X-Step-Order: '${! meta("step_order") }'
+              timeout: 15s
+              successful_on: [200, 201, 202]
+        result_map: |
+          root = if errored() { error() } else { deleted() }
+
+    - switch:
+        - check: 'content().length() == 0'
+          processors:
+            - mapping: 'root = deleted()'
+        - check: 'this.contains("status 429") || this.contains("status 5")'
+          processors:
+            - log:
+                message: "Jenkins 5xx/429 — 재시도 대상"
+                level: WARN
+                fields_mapping: |
+                  root.execution_id = meta("execution_id")
+                  root.error = content().string()
+            - mapping: 'root = throw("retryable: " + content().string())'
+        - processors:
+            - log:
+                message: "Jenkins 4xx — DLQ 직행"
+                level: ERROR
+                fields_mapping: |
+                  root.execution_id = meta("execution_id")
+                  root.step_order = meta("step_order")
+                  root.error = content().string()
+
+output:
+  fallback:
+    - retry:
+        max_retries: 5
+        backoff:
+          initial_interval: 2s
+          max_interval: 30s
+        output:
+          drop: {}
+
+    - kafka_franz:
+        seed_brokers:
+          - redpanda:9092
+        topic: playground.dlq
+        key: '${! meta("execution_id") }'
+        max_in_flight: 1

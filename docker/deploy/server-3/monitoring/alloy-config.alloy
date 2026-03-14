@@ -1,0 +1,107 @@
+// ============================================================================
+// Server 3 Alloy — Central (OTLP 수신 + 노이즈 필터 + 자체 로그 수집)
+// ============================================================================
+// 역할:
+//   1. 모든 원격 OTLP 트레이스 수신 → 노이즈 필터 → Tempo 전달
+//   2. Docker 소켓으로 모니터링 자체 컨테이너 로그 수집 → Loki
+//
+// 노이즈 필터를 이 서버에만 두는 이유:
+//   필터 규칙을 한 곳에서 관리하면 sidecar 설정을 건드리지 않고
+//   노이즈 정책을 변경할 수 있다.
+// ============================================================================
+
+// --- 자체 컨테이너 로그 수집 ---
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "playground_only" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/playground-.*"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+}
+
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.playground_only.output
+  forward_to = [loki.process.multiline.receiver]
+}
+
+loki.process "multiline" {
+  stage.multiline {
+    firstline     = "^\\d{4}-\\d{2}-\\d{2}|^\\[|^ts=|^level="
+    max_wait_time = "3s"
+    max_lines     = 128
+  }
+
+  forward_to = [loki.process.extract_trace.receiver]
+}
+
+loki.process "extract_trace" {
+  stage.regex {
+    expression = "traceId=(?P<trace_id>\\w+)"
+  }
+
+  stage.structured_metadata {
+    values = { trace_id = "trace_id" }
+  }
+
+  forward_to = [loki.write.default.receiver]
+}
+
+// 같은 Docker 네트워크의 Loki
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
+
+// --- OTLP 수신 → 노이즈 필터 → Tempo ---
+// Server 1 Alloy, Local Alloy, Spring Boot가 여기로 트레이스를 전송한다.
+otelcol.receiver.otlp "default" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    traces = [otelcol.processor.filter.noise.input]
+  }
+}
+
+// 노이즈 스팬 드롭 (모든 서버의 트레이스를 한 곳에서 필터링)
+otelcol.processor.filter "noise" {
+  error_mode = "ignore"
+
+  traces {
+    span = [
+      "IsMatch(name, \"SELECT playground.outbox_event.*\")",
+      "IsMatch(name, \"UPDATE playground.outbox_event.*\")",
+      "name == \"playground\"",
+      "name == \"GET /actuator/prometheus\"",
+    ]
+  }
+
+  output {
+    traces = [otelcol.exporter.otlphttp.tempo.input]
+  }
+}
+
+// 같은 Docker 네트워크의 Tempo
+otelcol.exporter.otlphttp "tempo" {
+  client {
+    endpoint = "http://tempo:4318"
+  }
+}

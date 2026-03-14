@@ -1,0 +1,49 @@
+jenkins:
+  systemMessage: "Redpanda Playground - Jenkins CI/CD"
+  numExecutors: 2
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: admin
+          password: admin
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+security:
+  globalJobDslSecurityConfiguration:
+    useScriptSecurity: false
+unclassified:
+  location:
+    url: http://34.47.74.0:29080/
+jobs:
+  - script: |
+      pipelineJob('playground-build') {
+        description('Redpanda Playground - Build Pipeline')
+        parameters {
+          stringParam('EXECUTION_ID', '', 'Pipeline execution ID')
+          stringParam('STEP_ORDER', '1', 'Step order number')
+          stringParam('GIT_URL', '', 'Git repository URL (optional)')
+          stringParam('BRANCH', 'main', 'Git branch')
+        }
+        definition {
+          cps {
+            script(new File('/var/jenkins_home/Jenkinsfile').text)
+            sandbox(true)
+          }
+        }
+      }
+      pipelineJob('playground-deploy') {
+        description('Redpanda Playground - Deploy Pipeline')
+        parameters {
+          stringParam('EXECUTION_ID', '', 'Pipeline execution ID')
+          stringParam('STEP_ORDER', '2', 'Step order number')
+          stringParam('DEPLOY_TARGET', 'staging', 'Deploy target environment')
+        }
+        definition {
+          cps {
+            script(new File('/var/jenkins_home/Jenkinsfile-deploy').text)
+            sandbox(true)
+          }
+        }
+      }

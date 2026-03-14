@@ -1,0 +1,64 @@
+// ============================================================================
+// Server 2 Alloy — Sidecar (Jenkins 로그만 수집)
+// ============================================================================
+// 역할: Docker 소켓으로 Jenkins 컨테이너 로그 수집 → Server 3 Loki
+//
+// GitLab은 로그량이 과도하여 drop한다 (로컬 설정과 동일).
+// OTLP/메트릭 수집 없음 — Jenkins는 OTel/Prometheus 미지원.
+//
+// Server 3 주소: 10.178.0.4 (같은 VPC 내부IP)
+// ============================================================================
+
+// --- Docker 로그 수집 ---
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+// Jenkins 컨테이너만 수집, GitLab은 drop
+discovery.relabel "jenkins_only" {
+  targets = discovery.docker.containers.targets
+
+  // playground- 또는 jenkins 접두사 컨테이너만 keep
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(playground-.*|.*jenkins.*)"
+    action        = "keep"
+  }
+
+  // GitLab 제외 (로그량 과도)
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*gitlab.*)"
+    action        = "drop"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+}
+
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.jenkins_only.output
+  forward_to = [loki.process.multiline.receiver]
+}
+
+// Java 멀티라인 스택트레이스 조인 (Jenkins는 Java 기반)
+loki.process "multiline" {
+  stage.multiline {
+    firstline     = "^\\d{4}-\\d{2}-\\d{2}|^\\[|^ts=|^level="
+    max_wait_time = "3s"
+    max_lines     = 128
+  }
+
+  forward_to = [loki.write.default.receiver]
+}
+
+// Server 3 Loki로 전송 (내부IP)
+loki.write "default" {
+  endpoint {
+    url = "http://10.178.0.4:3100/loki/api/v1/push"
+  }
+}

@@ -1,0 +1,116 @@
+// ============================================================================
+// Server 1 Alloy — Sidecar (Redpanda, Connect, PostgreSQL 로그 + 메트릭)
+// ============================================================================
+// 역할:
+//   1. Docker 소켓으로 로컬 컨테이너 로그 수집 → Server 3 Loki
+//   2. Connect OTLP 수신 → Server 3 Alloy (노이즈 필터는 Server 3에서 처리)
+//   3. Redpanda + Connect 메트릭 스크래핑 → Server 3 Prometheus
+//
+// Server 3 주소: 10.178.0.4 (같은 VPC 내부IP)
+// ============================================================================
+
+// --- Docker 로그 수집 ---
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "playground_only" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/playground-.*"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+}
+
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.playground_only.output
+  forward_to = [loki.process.multiline.receiver]
+}
+
+// Java 멀티라인 스택트레이스 조인
+loki.process "multiline" {
+  stage.multiline {
+    firstline     = "^\\d{4}-\\d{2}-\\d{2}|^\\[|^ts=|^level="
+    max_wait_time = "3s"
+    max_lines     = 128
+  }
+
+  forward_to = [loki.process.extract_trace.receiver]
+}
+
+// trace_id를 Structured Metadata로 추출
+loki.process "extract_trace" {
+  stage.regex {
+    expression = "traceId=(?P<trace_id>\\w+)"
+  }
+
+  stage.structured_metadata {
+    values = { trace_id = "trace_id" }
+  }
+
+  forward_to = [loki.write.default.receiver]
+}
+
+// Server 3 Loki로 전송 (내부IP)
+loki.write "default" {
+  endpoint {
+    url = "http://10.178.0.4:3100/loki/api/v1/push"
+  }
+}
+
+// --- OTLP 수신 → Server 3 Alloy로 전달 ---
+// Connect tracer가 alloy:4318로 전송 → 여기서 수신 후 Server 3로 릴레이
+otelcol.receiver.otlp "default" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    traces = [otelcol.exporter.otlphttp.central.input]
+  }
+}
+
+// Server 3 Alloy OTLP 수신 엔드포인트로 전달 (노이즈 필터는 Server 3에서 처리)
+otelcol.exporter.otlphttp "central" {
+  client {
+    endpoint = "http://10.178.0.4:4318"
+  }
+}
+
+// --- 메트릭 스크래핑 → Server 3 Prometheus ---
+prometheus.scrape "redpanda" {
+  targets         = [{ __address__ = "redpanda:9644" }]
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.default.receiver]
+}
+
+prometheus.scrape "connect_command" {
+  targets         = [{ __address__ = "connect:4195" }]
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.default.receiver]
+}
+
+prometheus.scrape "connect_webhook" {
+  targets         = [{ __address__ = "connect:4198" }]
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.default.receiver]
+}
+
+// Server 3 Prometheus (내부IP)
+prometheus.remote_write "default" {
+  endpoint {
+    url = "http://10.178.0.4:9090/api/v1/write"
+  }
+}
