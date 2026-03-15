@@ -1,4 +1,4 @@
-# Docker Compose 분리 및 GCP 오프로딩
+# Docker Compose 구성
 
 ## 배경
 
@@ -14,8 +14,9 @@
 | `docker-compose.gitlab.yml` | gitlab | **GCP** | `external: true` |
 | `docker-compose.nexus.yml` | nexus, registry, registry-ui | 로컬 (미사용) | 필요 시 실행 |
 | `docker-compose.monitoring.yml` | loki, tempo, alloy, prometheus, grafana | 로컬 | 변경 없음 |
+| `docker-compose.infra.yml` | (삭제됨) | - | 위 3개 파일로 분리 |
 
-삭제된 파일: `docker-compose.infra.yml` (3개 파일로 분리됨)
+총 7개 Compose 파일로 구성된다. 삭제된 파일: `docker-compose.infra.yml` (3개 파일로 분리됨)
 
 ## GCP 서버 정보
 

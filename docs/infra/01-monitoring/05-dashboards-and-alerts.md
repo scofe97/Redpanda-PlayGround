@@ -325,7 +325,7 @@ groups:
         annotations:
           summary: "Redpanda 브로커가 다운됐다"
           description: "{{ $labels.instance }} 브로커가 1분 이상 응답하지 않는다. 전체 메시징이 중단된 상태다."
-          runbook: "https://github.com/your-repo/docs/guide/monitoring/04-failure-scenarios.md#2-1-redpanda"
+          runbook: "https://github.com/your-repo/docs/guide/monitoring/04-failure-scenarios.md#4-1-redpanda-브로커-다운"
 
       - alert: ConnectDown
         expr: up{job=~"connect_.*"} == 0
@@ -416,6 +416,8 @@ rule_files:
 3. Notification policies에서 severity 기반 라우팅 설정
 
 Grafana Alerting은 Prometheus 알림 규칙 파일을 읽어 동일한 규칙을 평가할 수 있다.
+
+> AlertManager의 개념, 라우팅/억제 설계, Docker Compose 설정 예시는 [08-alertmanager-guide.md](./08-alertmanager-guide.md)를 참조한다.
 
 ---
 
@@ -571,4 +573,68 @@ curl -X POST http://localhost:29090/-/reload
 
 # 적용 확인
 curl -s http://localhost:29090/api/v1/rules | jq '.data.groups[].name'
+```
+
+---
+
+## 7. Spring Boot 로그 Loki 직접 전송 (Loki4j)
+
+Docker 컨테이너 로그는 Alloy가 Docker 소켓을 통해 자동 수집하지만, 로컬에서 직접 실행하는 Spring Boot 앱은 Docker 바깥이라 Alloy가 수집할 수 없다. Loki4j Logback Appender를 사용하면 앱에서 Loki로 직접 로그를 전송할 수 있다.
+
+### 7-1. 의존성
+
+```groovy
+// app/build.gradle
+implementation 'com.github.loki4j:loki-logback-appender:1.6.0'
+```
+
+주의: Maven Central의 아티팩트 이름은 `loki-logback-appender`이다. `loki4j-logback`이 아니다.
+
+### 7-2. Logback 설정
+
+`app/src/main/resources/logback-spring.xml`에서 GCP 프로필에서만 Loki appender를 활성화한다. 로컬 개발 시에는 콘솔 출력만 사용하고, GCP 환경에서만 Loki로 전송한다.
+
+```xml
+<springProfile name="gcp">
+    <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
+        <http>
+            <url>http://34.22.78.240:3100/loki/api/v1/push</url>
+            <connectionTimeoutMs>5000</connectionTimeoutMs>
+            <requestTimeoutMs>5000</requestTimeoutMs>
+        </http>
+        <format>
+            <label>
+                <pattern>service_name=redpanda-playground,level=%level,profile=gcp</pattern>
+            </label>
+            <message>
+                <pattern>{"timestamp":"%d{...}","traceId":"%mdc{traceId:-}","message":"%message"}</pattern>
+            </message>
+        </format>
+    </appender>
+</springProfile>
+```
+
+프로필별 동작:
+- **기본 프로필**: 콘솔만 (Loki 없음)
+- **gcp 프로필**: 콘솔 + Loki (외부 IP로 전송)
+- **test 프로필**: 콘솔만 (Loki 없음)
+
+### 7-3. GCP 방화벽
+
+로컬 앱에서 GCP Loki로 직접 전송하려면 포트 3100이 열려야 한다.
+
+```bash
+gcloud compute firewall-rules create allow-loki \
+    --allow tcp:3100 \
+    --target-tags http-server \
+    --source-ranges 0.0.0.0/0 \
+    --description "Allow Loki push from local Spring Boot"
+```
+
+### 7-4. Grafana에서 앱 로그 조회
+
+```logql
+{service_name="redpanda-playground"} |= ""
+{service_name="redpanda-playground", level="ERROR"}
+{service_name="redpanda-playground"} | json | traceId != ""
 ```

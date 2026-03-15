@@ -31,7 +31,7 @@ RUN jenkins-plugin-cli --plugins \
 - **셋업 위자드 스킵**: `-Djenkins.install.runSetupWizard=false` — CasC로 자동 설정하므로 위자드 불필요
 - **CasC 플러그인**: `configuration-as-code` — `casc.yaml`로 Jenkins 설정을 코드로 관리
 
-### docker-compose.infra.yml
+### docker-compose.jenkins.yml
 
 ```yaml
 jenkins:
@@ -114,10 +114,10 @@ JENKINS_PASS=admin bash docker/scripts/setup-jenkins.sh
 
 ```bash
 # 볼륨 초기화가 필요한 경우
-docker compose -f docker-compose.infra.yml stop jenkins
-docker compose -f docker-compose.infra.yml rm -f jenkins
+docker compose -f docker-compose.jenkins.yml stop jenkins
+docker compose -f docker-compose.jenkins.yml rm -f jenkins
 docker volume rm docker_jenkins-data
-docker compose -f docker-compose.infra.yml up -d --build jenkins
+docker compose -f docker-compose.jenkins.yml up -d --build jenkins
 ```
 
 ### 3-3. Groovy init script Permission denied
@@ -159,10 +159,10 @@ make setup-jenkins
 docker logs -f playground-jenkins
 
 # Jenkins 볼륨 초기화 (설정 리셋 필요 시)
-docker compose -f docker-compose.infra.yml stop jenkins
-docker compose -f docker-compose.infra.yml rm -f jenkins
+docker compose -f docker-compose.jenkins.yml stop jenkins
+docker compose -f docker-compose.jenkins.yml rm -f jenkins
 docker volume rm docker_jenkins-data
-docker compose -f docker-compose.infra.yml up -d --build jenkins
+docker compose -f docker-compose.jenkins.yml up -d --build jenkins
 ```
 
 ---

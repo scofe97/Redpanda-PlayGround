@@ -124,3 +124,93 @@ docker logs playground-prometheus 2>&1 | grep -i "remote_write\|write"
 ```
 
 Alloy의 remote_write 엔드포인트가 `http://prometheus:9090/api/v1/write`로 설정되어 있는지 `alloy-config.alloy`에서 확인한다. Docker Compose 네트워크 내부에서는 서비스명(`prometheus`)으로 통신한다.
+
+---
+
+## 3. 운영 점검
+
+장애 시나리오 대응([04-failure-scenarios.md](./04-failure-scenarios.md))과 별도로, 정기 점검으로 문제를 사전에 감지할 수 있다.
+
+### 3-1. 컨테이너 로그 확인 명령어
+
+```bash
+# 실시간 로그 스트리밍
+docker logs -f playground-redpanda
+docker logs -f playground-connect
+docker logs -f playground-postgres
+
+# 최근 N줄
+docker logs playground-tempo --tail 100
+
+# 특정 키워드 필터링
+docker logs playground-tempo 2>&1 | grep -i "error\|warn\|oom\|exit"
+
+# 타임스탬프 포함
+docker logs playground-redpanda --timestamps --tail 50
+```
+
+### 3-2. LogQL 조회 예시
+
+모니터링 스택이 정상일 때 Grafana Explore에서 LogQL로 컨테이너 로그를 조회할 수 있다. Spring Boot는 호스트에서 실행되므로 Docker 로그 수집 대상이 아니다.
+
+```logql
+# Redpanda 에러 로그
+{container="playground-redpanda"} |= "error"
+
+# Connect 파이프라인 에러
+{container="playground-connect"} |= "error" | json
+
+# PostgreSQL 연결 오류
+{container="playground-postgres"} |= "connection"
+
+# 전체 컨테이너 에러 (Tempo 제외)
+{container=~"playground-.*"} != "playground-tempo" |= "error"
+```
+
+### 3-3. 일일/주간 점검 체크리스트
+
+**일일 점검** (실행 중인 경우):
+
+```bash
+# 전체 컨테이너 상태
+docker compose ps
+docker compose -f docker-compose.monitoring.yml ps
+
+# 메모리 사용량 스냅샷
+docker stats --no-stream
+
+# Tempo 디스크 사용량
+docker exec playground-tempo du -sh /var/tempo/
+
+# consumer lag
+docker exec playground-redpanda rpk group list
+```
+
+**주간 점검:**
+
+```bash
+# 디스크 전체 사용량
+df -h
+
+# Docker 볼륨 크기
+docker system df -v
+
+# Prometheus TSDB 크기
+curl -s http://localhost:29090/api/v1/status/tsdb | jq '.data.headStats'
+
+# Tempo 트레이스 데이터 크기
+docker exec playground-tempo du -sh /var/tempo/traces/
+
+# Loki 청크 크기
+docker exec playground-loki du -sh /loki/chunks/
+```
+
+### 3-4. 리텐션 정책 요약
+
+| 스토리지 | 보존 기간 | 설정 위치 |
+|----------|----------|----------|
+| Loki | 72h (3일) | `monitoring/loki-config.yaml` |
+| Tempo | 72h (3일) | `monitoring/tempo-config.yaml` |
+| Prometheus | 3일 | `docker-compose.monitoring.yml` `--storage.tsdb.retention.time` |
+
+리텐션 기간이 지난 데이터는 자동 삭제된다. 장기 보존이 필요한 경우 GCP 배포 환경에서 리텐션을 늘리되, Tempo 디스크 사용량과 메모리 limit을 함께 조정해야 한다. 자원 측정 상세는 [06-tempo-resource-measurement.md](./06-tempo-resource-measurement.md)를 참조한다.
