@@ -2,10 +2,13 @@
 # 3일 보존 (--storage.tsdb.retention.time=3d)
 #
 # scrape는 각 서버의 Alloy sidecar가 수행한다.
-# Prometheus는 remote_write 수신 + 저장(TSDB) + PromQL 쿼리만 담당한다.
+# Prometheus는 remote_write 수신 + 저장(TSDB) + PromQL 쿼리 + 알림 규칙 평가를 담당한다.
 
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
 
 scrape_configs: []

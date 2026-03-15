@@ -21,6 +21,9 @@ dependencies {
     // Micrometer — Prometheus 메트릭 노출 (/actuator/prometheus)
     implementation 'io.micrometer:micrometer-registry-prometheus'
 
+    // Loki4j — Logback appender로 Spring Boot 로그를 Loki에 직접 전송
+    implementation 'com.github.loki4j:loki4j-logback:1.5.2'
+
     // OpenTelemetry Spring Boot Starter — Auto-Configuration으로 TracerProvider 등록
     // Spring AOP 기반 자동 계측 (MVC, JDBC, Kafka). 수동 span(OutboxPoller)도 동일 API 사용.
     implementation 'io.opentelemetry.instrumentation:opentelemetry-spring-boot-starter'
