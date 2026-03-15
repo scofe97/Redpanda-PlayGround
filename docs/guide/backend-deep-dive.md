@@ -84,6 +84,7 @@ erDiagram
         varchar url
         varchar username
         varchar credential "Base64 encoded (평문 저장)"
+        varchar auth_type "BASIC|BEARER|PRIVATE_TOKEN|NONE"
         boolean active
         timestamp created_at
         timestamp updated_at
@@ -113,6 +114,17 @@ erDiagram
 
 **support_tool**: 외부 도구(Jenkins, GitLab, Nexus, Registry) 연결 정보를 런타임에 관리한다. `application.yml`에 하드코딩하지 않고 DB에서 관리하기 때문에, 앱 재시작 없이 도구를 추가/수정할 수 있다. `credential` 필드는 평문으로 저장된다. `ToolRegistry.decodeCredential()`이 값을 그대로 반환하며, API 응답 시에는 `hasCredential` boolean으로 마스킹한다.
 
+`auth_type` 컬럼은 각 도구가 어떤 인증 방식을 사용하는지 명시한다. 기존에는 `username`/`credential` 두 컬럼만 있었는데, Jenkins는 Basic Auth를, GitLab은 `Private-Token` 헤더를 요구하는 등 도구마다 인증 프로토콜이 달라서 어떤 방식으로 헤더를 구성해야 하는지 알 수 없었다. `auth_type`이 이 결정을 코드가 아닌 데이터로 표현한다.
+
+| auth_type | 인증 헤더 구성 | 사용 도구 |
+|-----------|--------------|----------|
+| BASIC | `Authorization: Basic base64(username:credential)` | Jenkins, Nexus |
+| BEARER | `Authorization: Bearer {credential}` | (확장용) |
+| PRIVATE_TOKEN | `Private-Token: {credential}` | GitLab |
+| NONE | 헤더 없음 | Docker Registry (로컬) |
+
+커넥터 템플릿에서 `auth_type`에 따라 인증 헤더가 결정된다. 예를 들어 Jenkins Command 커넥터(`jenkins-command.yaml`)는 `basic_auth` 섹션에 `${TOOL_USERNAME}`과 `${TOOL_CREDENTIAL}`을 치환하고, GitLab 커넥터는 `Private-Token` 헤더에 `${TOOL_CREDENTIAL}`을 주입한다. 중요한 점은 credential이 Kafka 메시지에 절대 포함되지 않는다는 것이다. 인증 정보는 커넥터 등록 시 `ConnectorManager.loadAndReplace()`가 템플릿 변수를 치환하여 Connect 스트림 설정에만 주입하므로, 토픽을 소비하는 다른 컨슈머가 credential을 볼 수 없다.
+
 **connector_config**: 동적으로 생성된 Redpanda Connect 스트림의 설정을 영속화한다. Connect Streams API로 등록한 스트림은 컨테이너 재시작 시 소멸하므로, 변수 치환이 완료된 YAML을 이 테이블에 저장하고 앱 기동 시 복원한다. `support_tool`과 1:N 관계이며 `ON DELETE CASCADE`로 도구 삭제 시 자동 정리된다. 상세: `docs/patterns/10-dynamic-connector-management.md`
 
 ### Flyway 마이그레이션
@@ -128,6 +140,7 @@ erDiagram
 | V7 | `support_tool` | 기본 도구 시드 데이터 삽입 |
 | V8 | `pipeline_step` | step_name 컬럼 길이 확장 |
 | V9 | `connector_config` | 동적 Connect 스트림 설정 영속화. `support_tool` FK + CASCADE 삭제 |
+| V12 | `support_tool` | `auth_type` 컬럼 추가. 기존 데이터: GITLAB→PRIVATE_TOKEN, REGISTRY→NONE, 나머지→BASIC |
 
 ---
 

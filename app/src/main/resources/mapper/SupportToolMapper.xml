@@ -4,27 +4,27 @@
 <mapper namespace="com.study.playground.supporttool.mapper.SupportToolMapper">
 
     <select id="findAll" resultType="com.study.playground.supporttool.domain.SupportTool">
-        SELECT id, tool_type, name, url, username, credential, active, created_at, updated_at
+        SELECT id, tool_type, name, url, auth_type, username, credential, active, created_at, updated_at
         FROM support_tool
         ORDER BY tool_type, name
     </select>
 
     <select id="findById" resultType="com.study.playground.supporttool.domain.SupportTool">
-        SELECT id, tool_type, name, url, username, credential, active, created_at, updated_at
+        SELECT id, tool_type, name, url, auth_type, username, credential, active, created_at, updated_at
         FROM support_tool
         WHERE id = #{id}
     </select>
 
     <select id="findActiveByToolType" resultType="com.study.playground.supporttool.domain.SupportTool">
-        SELECT id, tool_type, name, url, username, credential, active, created_at, updated_at
+        SELECT id, tool_type, name, url, auth_type, username, credential, active, created_at, updated_at
         FROM support_tool
         WHERE tool_type = #{toolType} AND active = true
         LIMIT 1
     </select>
 
     <insert id="insert" parameterType="com.study.playground.supporttool.domain.SupportTool" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO support_tool (tool_type, name, url, username, credential, active, created_at, updated_at)
-        VALUES (#{toolType}, #{name}, #{url}, #{username}, #{credential}, #{active}, NOW(), NOW())
+        INSERT INTO support_tool (tool_type, name, url, auth_type, username, credential, active, created_at, updated_at)
+        VALUES (#{toolType}, #{name}, #{url}, #{authType}, #{username}, #{credential}, #{active}, NOW(), NOW())
     </insert>
 
     <update id="update" parameterType="com.study.playground.supporttool.domain.SupportTool">
@@ -32,6 +32,7 @@
         SET tool_type = #{toolType},
             name = #{name},
             url = #{url},
+            auth_type = #{authType},
             username = #{username},
             credential = #{credential},
             active = #{active},

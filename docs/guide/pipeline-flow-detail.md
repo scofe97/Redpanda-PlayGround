@@ -227,7 +227,7 @@ Jenkins URL은 메시지에 내장된다. `PipelineCommandProducer`가 커맨드
 | 커넥터 Bloblang | `meta jenkins_url = this.jenkinsUrl`로 메타데이터 추출 |
 | HTTP 호출 | `${! meta("jenkins_url") }${! meta("jenkins_path") }`로 URL 조합 |
 
-인증 정보(`username`/`credential`)는 메시지에 포함하지 않는다. 커넥터 템플릿의 `${TOOL_USERNAME}`, `${TOOL_CREDENTIAL}` 또는 환경변수로 주입한다.
+인증 정보(`username`/`credential`)는 메시지에 포함하지 않는다. 커넥터 템플릿의 `${TOOL_USERNAME}`, `${TOOL_CREDENTIAL}` 또는 환경변수로 주입하며, `support_tool.auth_type`에 따라 Basic Auth/Private-Token 등 헤더 구성 방식이 결정된다.
 
 #### 전체 흐름
 

@@ -12,6 +12,7 @@ public class SupportTool {
     private ToolType toolType;
     private String name;
     private String url;
+    private AuthType authType;
     private String username;
     private String credential;
     private boolean active;

@@ -32,7 +32,10 @@ infra-logs: ## 인프라 로그 확인 (실시간)
 
 # === Backend ===
 
-backend: ## Spring Boot 백엔드 실행 (OTel Agent 자동 attach — lib/에 JAR 있을 때)
+backend: ## Spring Boot 백엔드 실행 (GCP 프로필 기본 — 로컬은 make backend-local)
+	SPRING_PROFILES_ACTIVE=gcp ./gradlew :app:bootRun
+
+backend-local: ## Spring Boot 백엔드 실행 (로컬 DB/Redpanda)
 	./gradlew :app:bootRun
 
 build: ## 백엔드 빌드 (테스트 제외)
