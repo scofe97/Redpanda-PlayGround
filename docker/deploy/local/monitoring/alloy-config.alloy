@@ -9,6 +9,23 @@
 // Server 3 주소: 34.22.78.240 (외부IP — 로컬은 VPC 밖)
 // ============================================================================
 
+// --- Spring Boot 로그 수신 (Loki4j → Alloy → Server 3 Loki) ---
+// 호스트 Spring Boot는 Docker 컨테이너가 아니므로 Loki4j가 이 엔드포인트로 push한다.
+loki.source.api "spring_boot" {
+  http {
+    listen_address = "0.0.0.0"
+    listen_port    = 3100
+  }
+  forward_to = [loki.write.default.receiver]
+}
+
+// Server 3 Loki 외부IP
+loki.write "default" {
+  endpoint {
+    url = "http://34.22.78.240:3100/loki/api/v1/push"
+  }
+}
+
 // --- OTLP 수신 → Server 3 Alloy로 전달 ---
 // Spring Boot OTel Agent → localhost:24318 → 이 Alloy → Server 3
 otelcol.receiver.otlp "default" {

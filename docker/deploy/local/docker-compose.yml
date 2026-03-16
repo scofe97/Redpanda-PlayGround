@@ -19,7 +19,9 @@ services:
       - --server.http.listen-addr=0.0.0.0:12345
       - --stability.level=generally-available
     ports:
-      # OTLP 수신 — Spring Boot OTel Agent가 localhost:24318로 전송
+      # Loki4j 로그 수신 — Spring Boot가 localhost:23100으로 push
+      - "23100:3100"
+      # OTLP 수신 — Spring Boot OTel Starter가 localhost:24318로 전송
       - "24317:4317"
       - "24318:4318"
       # Alloy UI
