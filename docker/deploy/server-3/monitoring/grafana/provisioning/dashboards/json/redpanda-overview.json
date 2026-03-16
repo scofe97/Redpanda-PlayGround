@@ -8,7 +8,7 @@
   "timepicker": {},
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "panels": [
     {
       "id": 1,
@@ -19,7 +19,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "up{job=\"redpanda\"}",
+          "expr": "up{job=\"prometheus.scrape.redpanda\"}",
           "legendFormat": "Broker",
           "refId": "A"
         }
@@ -51,12 +51,12 @@
       "id": 2,
       "type": "stat",
       "title": "Partition Count",
-      "description": "Total number of Kafka partitions",
+      "description": "Total number of Kafka partitions (leader count)",
       "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "redpanda_kafka_partitions",
+          "expr": "count(vectorized_cluster_partition_leader == 1)",
           "legendFormat": "Partitions",
           "refId": "A"
         }
@@ -80,12 +80,12 @@
       "id": 3,
       "type": "stat",
       "title": "Active Connections",
-      "description": "Number of active RPC connections",
+      "description": "Number of active Kafka RPC connections",
       "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "redpanda_rpc_active_connections",
+          "expr": "vectorized_kafka_rpc_active_connections",
           "legendFormat": "Connections",
           "refId": "A"
         }
@@ -109,14 +109,19 @@
       "id": 4,
       "type": "timeseries",
       "title": "Bytes In / Out",
-      "description": "Network throughput by direction (produce/fetch)",
+      "description": "Kafka API network throughput (received vs sent)",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "rate(redpanda_kafka_request_bytes_total[5m])",
-          "legendFormat": "{{direction}}",
+          "expr": "rate(vectorized_kafka_rpc_received_bytes[5m])",
+          "legendFormat": "Bytes In (received)",
           "refId": "A"
+        },
+        {
+          "expr": "rate(vectorized_kafka_rpc_sent_bytes[5m])",
+          "legendFormat": "Bytes Out (sent)",
+          "refId": "B"
         }
       ],
       "fieldConfig": {
@@ -133,14 +138,14 @@
     {
       "id": 5,
       "type": "timeseries",
-      "title": "Consumer Group Lag",
-      "description": "Number of unconsumed messages per consumer group",
+      "title": "Consumer Group Offset",
+      "description": "Committed offset per consumer group/topic/partition",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "redpanda_kafka_consumer_group_lag",
-          "legendFormat": "{{group}}",
+          "expr": "vectorized_kafka_group_offset",
+          "legendFormat": "{{group}} / {{topic}} [{{partition}}]",
           "refId": "A"
         }
       ],
@@ -158,14 +163,14 @@
     {
       "id": 6,
       "type": "timeseries",
-      "title": "Messages In (Produce Rate)",
-      "description": "Number of produce requests handled per second",
+      "title": "Request Rate (Produce / Fetch)",
+      "description": "Completed Kafka API requests per second by command",
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "rate(redpanda_kafka_request_handler_latency_count{redpanda_cmd=\"produce\"}[5m])",
-          "legendFormat": "Produce req/s",
+          "expr": "sum by (redpanda_cmd) (rate(vectorized_kafka_handler_requests_completed_total[5m]))",
+          "legendFormat": "{{redpanda_cmd}}",
           "refId": "A"
         }
       ],

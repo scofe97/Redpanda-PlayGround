@@ -8,7 +8,7 @@
   "timepicker": {},
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "panels": [
     {
       "id": 1,
@@ -19,8 +19,8 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "up{job=~\"connect.*\"}",
-          "legendFormat": "{{job}}",
+          "expr": "up{job=~\".*connect.*\"}",
+          "legendFormat": "{{instance}}",
           "refId": "A"
         }
       ],
@@ -55,7 +55,7 @@
       "targets": [
         {
           "expr": "output_error",
-          "legendFormat": "DLQ total",
+          "legendFormat": "{{path}} DLQ",
           "refId": "A"
         }
       ],
@@ -81,13 +81,13 @@
       "id": 3,
       "type": "timeseries",
       "title": "Input Rate",
-      "description": "Messages received by Connect input per second",
+      "description": "Messages received by Connect input per second, by pipeline",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "expr": "rate(input_received[5m])",
-          "legendFormat": "{{job}} input",
+          "legendFormat": "{{path}}",
           "refId": "A"
         }
       ],
@@ -106,13 +106,13 @@
       "id": 4,
       "type": "timeseries",
       "title": "Output Rate",
-      "description": "Messages successfully sent by Connect output per second",
+      "description": "Messages successfully sent by Connect output per second, by pipeline",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "expr": "rate(output_sent[5m])",
-          "legendFormat": "{{job}} output",
+          "legendFormat": "{{path}}",
           "refId": "A"
         }
       ],
@@ -131,13 +131,13 @@
       "id": 5,
       "type": "timeseries",
       "title": "Error Rate",
-      "description": "Messages failed at output per second (→ DLQ)",
+      "description": "Messages failed at output per second, by pipeline",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "expr": "rate(output_error[5m])",
-          "legendFormat": "{{job}} errors",
+          "legendFormat": "{{path}}",
           "refId": "A"
         }
       ],
@@ -157,13 +157,13 @@
       "id": 6,
       "type": "timeseries",
       "title": "Processor Duration (ms)",
-      "description": "Batch processor duration in milliseconds",
+      "description": "Batch processor duration in milliseconds, by pipeline",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "expr": "processor_latency_ns / 1e6",
-          "legendFormat": "{{job}} duration",
+          "legendFormat": "{{path}}",
           "refId": "A"
         }
       ],

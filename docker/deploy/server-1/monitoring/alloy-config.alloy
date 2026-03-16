@@ -102,12 +102,6 @@ prometheus.scrape "connect_command" {
   forward_to      = [prometheus.remote_write.default.receiver]
 }
 
-prometheus.scrape "connect_webhook" {
-  targets         = [{ __address__ = "connect:4198" }]
-  scrape_interval = "15s"
-  forward_to      = [prometheus.remote_write.default.receiver]
-}
-
 // Server 3 Prometheus (내부IP)
 prometheus.remote_write "default" {
   endpoint {
