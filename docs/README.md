@@ -23,6 +23,22 @@
 | [01-architecture.md](frontend/01-architecture.md) | 기술 스택, 페이지 구성, 핵심 훅, SSE + TanStack Query 연동 |
 | [02-ui-styling-guide.md](frontend/02-ui-styling-guide.md) | Google Stitch UI 디자인 적용 가이드 |
 
+### requirements/
+
+| 문서 | 내용 |
+|------|------|
+| [README.md](requirements/README.md) | 요구사항 인덱스 + 전체 현황 대시보드 + 유스케이스 |
+| [01-ticket.md](requirements/01-ticket.md) | 티켓 관리 — 업무코드, 워크플로우 연계 |
+| [02-workflow.md](requirements/02-workflow.md) | 워크플로우 — 컴포넌트 조합 (빌드/배포/결재) |
+| [03-pipeline.md](requirements/03-pipeline.md) | 파이프라인 — 독립성, Job 구성관리 (가이드형/자유형) |
+| [04-build-job.md](requirements/04-build-job.md) | 빌드 Job — 빌드/반입 선택, CI 추상화 |
+| [05-test-job.md](requirements/05-test-job.md) | 테스트 Job — PoC 생략, TPS 참고용 |
+| [06-deploy-job.md](requirements/06-deploy-job.md) | 배포 Job — VM/K8S 분기, CD 추상화 |
+| [07-artifact-management.md](requirements/07-artifact-management.md) | 결과물 — 조회/업로드/수정 |
+| [08-middleware.md](requirements/08-middleware.md) | 미들웨어 — 역할 기반 + 프리셋 |
+| [09-deploy-environment.md](requirements/09-deploy-environment.md) | 배포 환경 — 서버/클러스터/저장소 관리 |
+| [10-user-and-notification.md](requirements/10-user-and-notification.md) | 사용자 — 권한/알림 |
+
 ### infra/
 
 | 문서 | 내용 |

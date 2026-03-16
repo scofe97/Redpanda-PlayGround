@@ -1,6 +1,6 @@
 # 대시보드와 알림 설계
 
-이 문서는 Redpanda Playground의 Grafana 대시보드 구성과 Prometheus 알림 규칙 설계를 정리한다. 현재 프로젝트에는 대시보드와 알림이 없는 상태에서 시작하여, 운영에 필요한 최소한의 가시성을 확보하는 것이 목표다. 아키텍처 전반은 [monitoring-guide.md](../monitoring-guide.md)를, 장애 대응은 [04-failure-scenarios.md](./04-failure-scenarios.md)를 참조한다.
+이 문서는 Redpanda Playground의 Grafana 대시보드 구성과 Prometheus 알림 규칙 설계를 정리한다. 현재 프로젝트에는 대시보드와 알림이 없는 상태에서 시작하여, 운영에 필요한 최소한의 가시성을 확보하는 것이 목표다. 아키텍처 전반은 [01-architecture-overview.md](./01-architecture-overview.md)를, 장애 대응은 [04-failure-scenarios.md](./04-failure-scenarios.md)를 참조한다.
 
 ---
 
@@ -44,17 +44,17 @@ up{job="redpanda"}
 
 **파티션 수 (Stat 패널)**
 ```promql
-sum(redpanda_kafka_partitions)
+count(vectorized_cluster_partition_leader == 1)
 ```
 
 **초당 처리량 — Bytes In (Time Series)**
 ```promql
-rate(redpanda_kafka_request_bytes_total{request="produce"}[1m])
+rate(vectorized_kafka_rpc_received_bytes[5m])
 ```
 
 **초당 처리량 — Bytes Out (Time Series)**
 ```promql
-rate(redpanda_kafka_request_bytes_total{request="fetch"}[1m])
+rate(vectorized_kafka_rpc_sent_bytes[5m])
 ```
 
 **Consumer Lag (Time Series — 가장 중요)**
@@ -65,7 +65,7 @@ sum by (group, topic) (kafka_consumer_group_lag)
 
 **토픽별 메시지 수 (Bar Gauge)**
 ```promql
-sum by (topic) (redpanda_kafka_topic_partition_committed_offset)
+sum by (topic) (vectorized_kafka_group_offset)
 ```
 
 **Consumer Group 상태 테이블**
@@ -310,7 +310,7 @@ container_memory_usage_bytes{name=~"playground-.*"}
 
 ### 3-2. 알림 규칙 파일
 
-Prometheus 알림 규칙은 `monitoring/prometheus-rules.yml`에 정의하고, `prometheus.yml`의 `rule_files`에서 로드한다. docker-compose에서 `/etc/prometheus/rules/alerts.yml`로 마운트된다.
+Prometheus 알림 규칙은 `monitoring/prometheus-rules.yml`에 정의하고, `prometheus.yml`의 `rule_files`에서 로드한다. docker-compose에서 `/etc/prometheus/rules/alerts.yml`로 마운트된다. 로컬은 `docker/shared/monitoring/prometheus-rules.yml`, GCP는 `docker/deploy/server-3/monitoring/prometheus-rules.yml`에 위치한다.
 
 **`monitoring/prometheus-rules.yml`:**
 ```yaml
@@ -489,10 +489,15 @@ providers:
 ### 5-3. docker-compose.monitoring.yml에 마운트 추가
 
 ```yaml
+# 로컬: docker/local/docker-compose.monitoring.yml
+grafana:
+  volumes:
+    - ../shared/monitoring/grafana/provisioning:/etc/grafana/provisioning
+
+# GCP: docker/deploy/server-3/docker-compose.yml
 grafana:
   volumes:
     - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
-    # 기존 datasources도 같은 경로로 마운트되어 있어야 함
 ```
 
 ### 5-4. 대시보드 JSON 생성 방법
@@ -565,14 +570,15 @@ JSON 파일 내 대시보드 자체의 `uid` 필드도 명시적으로 설정해
 알림 규칙(`prometheus-rules.yml`)을 변경한 후에는 Prometheus를 재시작하거나 hot-reload를 사용해야 변경이 적용된다.
 
 ```bash
-# Prometheus hot-reload (SIGHUP)
+# 로컬
 docker kill --signal=SIGHUP playground-prometheus
-
-# 또는 HTTP endpoint
 curl -X POST http://localhost:29090/-/reload
-
-# 적용 확인
 curl -s http://localhost:29090/api/v1/rules | jq '.data.groups[].name'
+
+# GCP (Server 3)
+gcloud compute ssh dev-server-3 --zone=asia-northeast3-a \
+  --command="docker kill --signal=SIGHUP playground-prometheus"
+curl -X POST http://34.22.78.240:9090/-/reload
 ```
 
 ---
