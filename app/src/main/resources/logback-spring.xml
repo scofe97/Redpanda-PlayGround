@@ -8,7 +8,8 @@
     <springProfile name="gcp">
         <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
             <http>
-                <url>http://34.22.78.240:3100/loki/api/v1/push</url>
+                <!-- 로컬 Alloy의 loki.source.api 엔드포인트 (Alloy 경유 → Loki) -->
+                <url>http://localhost:23100/loki/api/v1/push</url>
                 <connectionTimeoutMs>5000</connectionTimeoutMs>
                 <requestTimeoutMs>5000</requestTimeoutMs>
             </http>
