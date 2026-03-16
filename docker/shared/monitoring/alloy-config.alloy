@@ -73,6 +73,18 @@ loki.process "extract_trace" {
   forward_to = [loki.write.default.receiver]
 }
 
+// --- Spring Boot 로그 수신 (Loki4j → Alloy → Loki) ---
+// 호스트에서 실행되는 Spring Boot는 Docker 소켓으로 수집할 수 없다.
+// Loki4j Logback Appender가 이 엔드포인트로 push하면 Alloy가 Loki로 전달한다.
+// 직접 Loki에 쏘지 않고 Alloy를 경유하여 단일 수집 지점 원칙을 유지한다.
+loki.source.api "spring_boot" {
+  http {
+    listen_address = "0.0.0.0"
+    listen_port    = 3100
+  }
+  forward_to = [loki.write.default.receiver]
+}
+
 loki.write "default" {
   endpoint {
     url = "http://loki:3100/loki/api/v1/push"

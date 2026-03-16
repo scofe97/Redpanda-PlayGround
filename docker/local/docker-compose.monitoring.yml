@@ -30,7 +30,7 @@ services:
     container_name: playground-loki
     command: -config.file=/etc/loki/config.yaml
     volumes:
-      - ./monitoring/loki-config.yaml:/etc/loki/config.yaml:ro
+      - ../shared/monitoring/loki-config.yaml:/etc/loki/config.yaml:ro
       - loki-data:/loki                 # 로그 데이터 영속화
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3100/ready || exit 1"]
@@ -61,7 +61,7 @@ services:
     container_name: playground-tempo
     command: -config.file=/etc/tempo/config.yaml
     volumes:
-      - ./monitoring/tempo-config.yaml:/etc/tempo/config.yaml:ro
+      - ../shared/monitoring/tempo-config.yaml:/etc/tempo/config.yaml:ro
       - tempo-data:/var/tempo            # WAL + 블록 데이터 영속화
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3200/ready || exit 1"]
@@ -113,9 +113,10 @@ services:
     ports:
       - "${ALLOY_OTLP_GRPC_PORT:-24317}:4317"
       - "${ALLOY_OTLP_HTTP_PORT:-24318}:4318"
+      - "${ALLOY_LOKI_API_PORT:-23100}:3100"   # Spring Boot Loki4j → Alloy 경유
       - "${ALLOY_UI_PORT:-24312}:12345"
     volumes:
-      - ./monitoring/alloy-config.alloy:/etc/alloy/config.alloy:ro
+      - ../shared/monitoring/alloy-config.alloy:/etc/alloy/config.alloy:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro   # 컨테이너 로그 수집용
     depends_on:
       loki:
@@ -146,8 +147,8 @@ services:
     ports:
       - "${PROMETHEUS_PORT:-29090}:9090"
     volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./monitoring/prometheus-rules.yml:/etc/prometheus/rules/alerts.yml:ro
+      - ../shared/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../shared/monitoring/prometheus-rules.yml:/etc/prometheus/rules/alerts.yml:ro
       - prometheus-data:/prometheus
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/ready || exit 1"]
@@ -180,8 +181,8 @@ services:
       GF_AUTH_DISABLE_LOGIN_FORM: "true"
       GF_SERVER_ROOT_URL: "http://localhost:${GRAFANA_PORT:-23000}"
     volumes:
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./monitoring/grafana/provisioning/dashboards/json:/var/lib/grafana/dashboards:ro
+      - ../shared/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../shared/monitoring/grafana/provisioning/dashboards/json:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
     depends_on:
       loki:

@@ -31,7 +31,7 @@ services:
     environment:
       CONFIG_FILEPATH: /tmp/config.yml
     volumes:
-      - ./console-config.yml:/tmp/config.yml:ro
+      - ../shared/console-config.yml:/tmp/config.yml:ro
     depends_on:
       redpanda:
         condition: service_healthy
@@ -47,7 +47,7 @@ services:
       - "${CONNECT_PORT}:4195"
       - "4197:4197"
     volumes:
-      - ./connect:/etc/connect:ro
+      - ../shared/connect:/etc/connect:ro
     command: ["streams", "--chilled", "-o", "/etc/connect/observability.yaml", "/etc/connect/jenkins-command.yaml", "/etc/connect/jenkins-webhook.yaml", "/etc/connect/gitlab-webhook.yaml"]
     logging:
       driver: json-file

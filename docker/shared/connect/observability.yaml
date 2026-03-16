@@ -1,0 +1,36 @@
+# ============================================================================
+# Redpanda Connect — 관측성 전역 설정 (streams 모드 root config)
+# ============================================================================
+# streams 모드에서 tracer/logger/metrics/http는 파이프라인별이 아닌
+# 서비스 전역 설정이다. -o 플래그로 이 파일을 지정한다.
+#
+# 사용법: redpanda-connect streams -o /etc/connect/observability.yaml ...
+# ============================================================================
+
+# --- 로깅 설정 ---
+logger:
+  level: INFO                          # 로그 레벨 (TRACE/DEBUG/INFO/WARN/ERROR)
+  format: logfmt                       # 출력 형식 (logfmt | json). logfmt은 key=value 형태로 grep 친화적
+  add_timestamp: true                  # 각 로그 라인에 타임스탬프 추가
+  static_fields:                       # 모든 로그에 자동 추가되는 고정 필드
+    service: redpanda-connect          # Loki/Grafana에서 서비스 식별용
+
+# --- 메트릭 설정 ---
+metrics:
+  prometheus: {}                       # Prometheus 메트릭 엔드포인트 활성화 (GET /metrics)
+                                       # 빈 객체 = 기본값 사용. http.address 포트에서 노출됨
+
+# --- HTTP 서버 설정 ---
+http:
+  enabled: true                        # 내장 HTTP 서버 활성화 (헬스체크, 메트릭, API)
+  address: "0.0.0.0:4195"             # 바인드 주소. 0.0.0.0 = 모든 인터페이스에서 수신
+                                       # /ready (헬스), /metrics (Prometheus), /streams/* (CRUD API)
+
+# --- 분산 추적 설정 ---
+tracer:
+  open_telemetry_collector:            # OpenTelemetry Collector로 트레이스 전송
+    http:
+      - address: alloy:4318            # Grafana Alloy의 OTLP HTTP 수신 엔드포인트
+                                       # Docker 네트워크 내 서비스명(alloy)으로 접근
+    tags:                              # 모든 스팬에 추가되는 리소스 속성
+      service.name: redpanda-connect   # Tempo/Grafana에서 서비스 식별용
