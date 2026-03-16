@@ -34,6 +34,7 @@ public class GitLabAdapter {
         return toolRegistry.getActiveTool(ToolType.GITLAB);
     }
 
+    /** 전체 GitLab 프로젝트(저장소) 목록을 조회한다. 실패 시 빈 리스트 반환. */
     public List<GitLabProject> getProjects() {
         try {
             String url = UriComponentsBuilder.fromHttpUrl(getTool().getUrl())
@@ -52,6 +53,7 @@ public class GitLabAdapter {
         }
     }
 
+    /** 지정한 프로젝트의 브랜치 목록을 조회한다. 실패 시 빈 리스트 반환. */
     public List<GitLabBranch> getBranches(Long projectId) {
         try {
             String url = UriComponentsBuilder.fromHttpUrl(getTool().getUrl())
@@ -70,6 +72,7 @@ public class GitLabAdapter {
         }
     }
 
+    /** 지정한 프로젝트의 상세 정보를 조회한다. 실패 시 null 반환. */
     public GitLabProject getProject(Long projectId) {
         try {
             String url = UriComponentsBuilder.fromHttpUrl(getTool().getUrl())

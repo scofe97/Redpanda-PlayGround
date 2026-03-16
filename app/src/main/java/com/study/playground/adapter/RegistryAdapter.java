@@ -31,10 +31,7 @@ public class RegistryAdapter {
         return toolRegistry.getActiveTool(ToolType.REGISTRY);
     }
 
-    /**
-     * Checks whether an image with the given name and tag exists in the registry.
-     * imageName format: "repo/image" or just "image"; tag: "latest", "1.0.0", etc.
-     */
+    /** 레지스트리에 해당 이미지:태그가 존재하는지 확인한다. imageName 형식: "repo/image" 또는 "image". */
     public boolean imageExists(String imageName, String tag) {
         try {
             AdapterInputValidator.validatePathParam(imageName, "imageName");
@@ -57,10 +54,7 @@ public class RegistryAdapter {
         }
     }
 
-    /**
-     * Returns all repository names from the registry catalog.
-     * Returns empty list if registry is unavailable.
-     */
+    /** 레지스트리 카탈로그에서 전체 저장소 이름 목록을 조회한다. 미응답 시 빈 리스트 반환. */
     public List<String> listRepositories() {
         try {
             String url = UriComponentsBuilder.fromHttpUrl(getTool().getUrl())
@@ -81,10 +75,7 @@ public class RegistryAdapter {
         }
     }
 
-    /**
-     * Returns the list of tags for a given image repository.
-     * Returns empty list if registry is unavailable or image not found.
-     */
+    /** 지정한 이미지의 태그 목록을 조회한다. 미응답 또는 미발견 시 빈 리스트 반환. */
     public List<String> getTags(String imageName) {
         try {
             AdapterInputValidator.validatePathParam(imageName, "imageName");
@@ -106,9 +97,7 @@ public class RegistryAdapter {
         }
     }
 
-    /**
-     * Checks if the registry is reachable.
-     */
+    /** Docker Registry 연결 가능 여부를 확인한다. */
     public boolean isAvailable() {
         try {
             restTemplate.exchange(

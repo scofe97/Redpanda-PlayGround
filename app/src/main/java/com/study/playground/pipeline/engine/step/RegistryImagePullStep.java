@@ -19,11 +19,6 @@ public class RegistryImagePullStep implements PipelineStepExecutor {
     @Override
     public void execute(PipelineExecution execution, PipelineStep step) throws Exception {
         log.info("[Stub] RegistryImagePull: {}", step.getStepName());
-
-        if (step.getStepName() != null && step.getStepName().contains("[FAIL]")) {
-            throw new RuntimeException("Image pull failed (demo failure)");
-        }
-
         step.setLog("RegistryImagePull stub — not implemented yet");
     }
 

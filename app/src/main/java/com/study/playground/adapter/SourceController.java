@@ -18,16 +18,19 @@ public class SourceController {
     private final NexusAdapter nexusAdapter;
     private final RegistryAdapter registryAdapter;
 
+    /** GitLab 전체 저장소 목록을 조회한다. */
     @GetMapping("/git/repos")
     public ResponseEntity<List<GitLabProject>> getGitRepos() {
         return ResponseEntity.ok(gitLabAdapter.getProjects());
     }
 
+    /** 지정한 저장소의 브랜치 목록을 조회한다. */
     @GetMapping("/git/repos/{id}/branches")
     public ResponseEntity<List<GitLabBranch>> getRepoBranches(@PathVariable Long id) {
         return ResponseEntity.ok(gitLabAdapter.getBranches(id));
     }
 
+    /** Nexus에서 Maven 아티팩트를 검색한다. */
     @GetMapping("/nexus/artifacts")
     public ResponseEntity<List<NexusAsset>> searchNexusArtifacts(
             @RequestParam String groupId,
@@ -35,11 +38,13 @@ public class SourceController {
         return ResponseEntity.ok(nexusAdapter.searchComponents("maven-releases", groupId, artifactId, ""));
     }
 
+    /** Docker Registry의 전체 이미지 목록을 조회한다. */
     @GetMapping("/registry/images")
     public ResponseEntity<List<String>> listRegistryImages() {
         return ResponseEntity.ok(registryAdapter.listRepositories());
     }
 
+    /** 지정한 이미지의 태그 목록을 조회한다. */
     @GetMapping("/registry/images/{repo:.+}/tags")
     public ResponseEntity<List<String>> listImageTags(@PathVariable String repo) {
         return ResponseEntity.ok(registryAdapter.getTags(repo));

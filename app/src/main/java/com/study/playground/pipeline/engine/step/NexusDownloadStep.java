@@ -20,11 +20,6 @@ public class NexusDownloadStep implements PipelineStepExecutor {
     @Override
     public void execute(PipelineExecution execution, PipelineStep step) throws Exception {
         log.info("[Stub] NexusDownload: {}", step.getStepName());
-
-        if (step.getStepName() != null && step.getStepName().contains("[FAIL]")) {
-            throw new RuntimeException("Artifact download failed (demo failure)");
-        }
-
         step.setLog("NexusDownload stub — not implemented yet");
     }
 

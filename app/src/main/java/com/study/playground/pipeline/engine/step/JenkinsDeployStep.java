@@ -44,7 +44,6 @@ public class JenkinsDeployStep implements PipelineStepExecutor {
      * Jenkins 배포 Job을 Kafka 커맨드로 트리거하고 webhook 대기 상태로 전환한다.
      *
      * <p>스텝 이름에서 배포 대상 정보를 추출하여 Jenkins Job 파라미터로 전달한다.
-     * {@code [FAIL]} 마커는 DLQ(Dead Letter Queue) 데모를 위해 의도적으로 실패시킨다.
      *
      * @param execution 파이프라인 실행 컨텍스트 (실행 ID를 Jenkins 파라미터로 전달)
      * @param step      실행할 스텝 정보 (스텝 이름에서 배포 대상을 파싱)
@@ -56,12 +55,6 @@ public class JenkinsDeployStep implements PipelineStepExecutor {
 
         var stepName = step.getStepName();
 
-        // 데모: [FAIL] 마커 - DLQ 데모를 위한 배포 실패 시뮬레이션
-        if (stepName != null && stepName.contains("[FAIL]")) {
-            log.error("[Deploy] FAIL 마커 감지 - 의도적 실패 발생");
-            throw new RuntimeException("Deployment failed: connection refused to target server (demo failure)");
-        }
-
         if (!jenkinsAdapter.isAvailable()) {
             throw new RuntimeException("Jenkins 연결 불가: " + step.getStepName());
         }
@@ -71,8 +64,7 @@ public class JenkinsDeployStep implements PipelineStepExecutor {
         // 스텝 이름에서 배포 대상 정보 추출: "Deploy: egov-sample (main), my-image:latest"
         var deployTarget = "";
         if (stepName != null && stepName.contains("Deploy:")) {
-            deployTarget = stepName.substring(stepName.indexOf("Deploy:") + 7).trim()
-                    .replace("[FAIL]", "").trim();
+            deployTarget = stepName.substring(stepName.indexOf("Deploy:") + 7).trim();
         }
 
         var params = new HashMap<String, String>();

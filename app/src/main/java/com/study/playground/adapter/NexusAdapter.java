@@ -31,10 +31,7 @@ public class NexusAdapter {
         return toolRegistry.getActiveTool(ToolType.NEXUS);
     }
 
-    /**
-     * Searches for assets by groupId, artifactId, version.
-     * Returns list of NexusAsset. Returns empty list if Nexus is unavailable or artifact not found.
-     */
+    /** groupId, artifactId, version으로 아티팩트를 검색한다. Nexus 미응답 또는 미발견 시 빈 리스트 반환. */
     public List<NexusAsset> searchComponents(String repository, String groupId,
                                               String artifactId, String version) {
         try {
@@ -65,10 +62,7 @@ public class NexusAdapter {
         }
     }
 
-    /**
-     * Downloads an artifact by its direct download URL.
-     * Returns the byte array content, or null if unavailable.
-     */
+    /** 다운로드 URL로 아티팩트 바이너리를 다운로드한다. 실패 시 null 반환. */
     public byte[] downloadArtifact(String downloadUrl) {
         try {
             AdapterInputValidator.validateBaseUrl(downloadUrl, getTool().getUrl());
@@ -83,9 +77,7 @@ public class NexusAdapter {
         }
     }
 
-    /**
-     * Checks if Nexus is reachable.
-     */
+    /** Nexus 연결 가능 여부를 확인한다. */
     public boolean isAvailable() {
         try {
             restTemplate.exchange(

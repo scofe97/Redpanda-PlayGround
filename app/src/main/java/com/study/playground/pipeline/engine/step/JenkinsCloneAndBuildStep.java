@@ -58,13 +58,6 @@ public class JenkinsCloneAndBuildStep implements PipelineStepExecutor {
 
         String stepName = step.getStepName();
 
-        // 데모: [FAIL] 마커 - SAGA 데모를 위한 clone/build 실패 시뮬레이션
-        if (stepName != null && stepName.contains("[FAIL]")) {
-            log.error("[Real] FAIL 마커 감지 - 의도적 실패 발생: {}", stepName);
-            Thread.sleep(2000);
-            throw new RuntimeException("Git clone/build failed: authentication error (demo failure)");
-        }
-
         if (!jenkinsAdapter.isAvailable()) {
             throw new RuntimeException("Jenkins 연결 불가: " + step.getStepName());
         }
@@ -77,10 +70,7 @@ public class JenkinsCloneAndBuildStep implements PipelineStepExecutor {
         params.put("STEP_ORDER", String.valueOf(step.getStepOrder()));
 
         if (stepName != null && stepName.contains(":")) {
-            String raw = stepName.substring(stepName.indexOf(':') + 1)
-                    .trim()
-                    .replace("[FAIL]", "")
-                    .trim();
+            String raw = stepName.substring(stepName.indexOf(':') + 1).trim();
             String gitUrl = raw.contains("#")
                     ? raw.substring(0, raw.lastIndexOf('#'))
                     : raw;

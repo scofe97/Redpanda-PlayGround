@@ -27,9 +27,7 @@ public class JenkinsAdapter {
         return toolRegistry.getActiveTool(ToolType.JENKINS);
     }
 
-    /**
-     * Returns build info for a given job and build number (Query).
-     */
+    /** 지정한 Job과 빌드 번호의 빌드 정보를 조회한다. */
     public JenkinsBuildInfo getBuildInfo(String jobName, int buildNumber) {
         try {
             AdapterInputValidator.validatePathParam(jobName, "jobName");
@@ -47,9 +45,7 @@ public class JenkinsAdapter {
         }
     }
 
-    /**
-     * Returns the last build number for a job (Query).
-     */
+    /** Job의 마지막 빌드 번호를 조회한다. 실패 시 -1 반환. */
     public int getLastBuildNumber(String jobName) {
         try {
             AdapterInputValidator.validatePathParam(jobName, "jobName");
@@ -68,9 +64,7 @@ public class JenkinsAdapter {
         }
     }
 
-    /**
-     * Checks if Jenkins is reachable (Query).
-     */
+    /** Jenkins 연결 가능 여부를 확인한다. */
     public boolean isAvailable() {
         try {
             SupportTool tool = getTool();
@@ -85,9 +79,7 @@ public class JenkinsAdapter {
         }
     }
 
-    /**
-     * Returns the full console log for a given job and build number.
-     */
+    /** 지정한 Job과 빌드 번호의 콘솔 로그 전문을 조회한다. */
     public String getConsoleLog(String jobName, int buildNumber) {
         try {
             AdapterInputValidator.validatePathParam(jobName, "jobName");
