@@ -4,16 +4,21 @@
 # Jenkins URL은 메시지의 jenkinsUrl 필드를 사용한다 (support_tool에서 주입).
 # 인증: 메시지의 username/credential → Base64 Authorization 헤더.
 #       메시지에 인증 정보가 없으면 환경변수 JENKINS_TOKEN을 fallback으로 사용.
+#
+# input: kafka (sarama) — kafka_franz 대신 사용하는 이유는 extract_tracing_map
+#        지원을 위해서다. kafka_franz/redpanda input은 이 기능이 미구현이다.
+#        (PR #2836, 2024-09 생성, 미머지). 머지되면 kafka_franz로 복귀한다.
 # ============================================================================
 
 input:
-  kafka_franz:
-    seed_brokers:
+  kafka:
+    addresses:
       - redpanda:9092
     topics:
       - playground.pipeline.commands.jenkins
-    consumer_group: connect-jenkins-command-v6
+    consumer_group: connect-jenkins-command-v7
     start_from_oldest: true
+    extract_tracing_map: root = @
 
 pipeline:
   processors:
@@ -42,6 +47,7 @@ pipeline:
           root.step_order = meta("step_order")
           root.jenkins_url = meta("jenkins_url")
           root.jenkins_path = meta("jenkins_path")
+          root.traceparent = meta("traceparent")
 
     - branch:
         request_map: 'root = ""'
@@ -54,6 +60,7 @@ pipeline:
                 Authorization: '${! meta("jenkins_auth") }'
                 X-Execution-Id: '${! meta("execution_id") }'
                 X-Step-Order: '${! meta("step_order") }'
+                traceparent: '${! meta("traceparent") }'
               timeout: 15s
               successful_on: [200, 201, 202]
         result_map: |
