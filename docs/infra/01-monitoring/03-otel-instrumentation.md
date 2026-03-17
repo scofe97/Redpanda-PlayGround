@@ -854,26 +854,17 @@ sequenceDiagram
 
 ### 4-0-3. 구현 상세: EventPublisher (traceparent 캡처)
 
-`EventPublisher.publish()`는 비즈니스 로직이 호출하는 유일한 진입점이다. outbox INSERT 전에 현재 활성 스팬의 trace context를 W3C traceparent 형식으로 캡처한다.
+`EventPublisher.publish()`는 비즈니스 로직이 호출하는 유일한 진입점이다. outbox INSERT 전에 현재 활성 스팬의 trace context를 W3C traceparent 형식으로 캡처한다. 캡처/파싱 로직은 `TraceContextUtil`로 공통화되었다(상세: [11-e2e-trace-propagation.md §3-2](../../backend/patterns/11-e2e-trace-propagation.md)).
 
 ```java
-// EventPublisher.java
+// EventPublisher.java — TraceContextUtil로 공통화
 public void publish(String aggregateType, String aggregateId,
                     String eventType, byte[] payload,
                     String topic, String correlationId) {
     OutboxEvent event = OutboxEvent.of(aggregateType, aggregateId,
                                         eventType, payload, topic, correlationId);
-    event.setTraceParent(captureTraceParent());  // ← trace context를 DB에 저장
+    event.setTraceParent(TraceContextUtil.captureTraceParent());
     outboxMapper.insert(event);
-}
-
-private String captureTraceParent() {
-    SpanContext ctx = Span.current().getSpanContext();
-    if (!ctx.isValid()) {       // OTel Agent 없으면 invalid → null 반환
-        return null;
-    }
-    // W3C traceparent 형식: version-traceId(32hex)-spanId(16hex)-flags
-    return String.format("00-%s-%s-01", ctx.getTraceId(), ctx.getSpanId());
 }
 ```
 
@@ -1016,7 +1007,9 @@ graph TB
 
 수동 계측은 `EventPublisher.captureTraceParent()`와 `OutboxPoller.publishWithTraceContext()` 두 메서드뿐이다. 나머지는 모두 OTel Agent와 Connect tracer가 자동으로 처리한다.
 
-### 4-1. Jenkins webhook에서 트레이스가 끊기는 이유
+### 4-1. Jenkins webhook에서 트레이스가 끊기는 이유 (해결됨)
+
+> **해결 완료**: `pipeline_execution` 테이블에 `trace_parent`를 저장하고, webhook resume/timeout 시 복원하는 방식으로 전체 흐름을 하나의 trace로 연결했다. 구현 상세는 [11-e2e-trace-propagation.md](../../backend/patterns/11-e2e-trace-propagation.md)를 참조한다. 아래 내용은 수정 전 상태를 기록한 것이다.
 
 Outbox 패턴으로 HTTP → Kafka → Connect → Jenkins 호출까지는 하나의 트레이스로 연결된다. 하지만 Jenkins가 빌드 완료 후 webhook을 보낼 때는 **traceparent를 포함하지 않는다.** Jenkins는 OTel을 지원하지 않는 외부 시스템이므로, 여기서 트레이스가 끊긴다.
 
