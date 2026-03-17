@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.study.playground.preset.mapper.PresetEntryMapper">
+
+    <select id="findByPresetId" resultType="com.study.playground.preset.domain.PresetEntry">
+        SELECT e.id, e.preset_id, e.category, e.tool_id,
+               t.name AS tool_name, t.url AS tool_url, t.implementation AS tool_implementation
+        FROM preset_entry e
+        JOIN support_tool t ON e.tool_id = t.id
+        WHERE e.preset_id = #{presetId}
+    </select>
+
+    <insert id="insert" parameterType="com.study.playground.preset.domain.PresetEntry"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO preset_entry (preset_id, category, tool_id)
+        VALUES (#{presetId}, #{category}, #{toolId})
+    </insert>
+
+    <delete id="deleteByPresetId">
+        DELETE FROM preset_entry WHERE preset_id = #{presetId}
+    </delete>
+
+</mapper>
