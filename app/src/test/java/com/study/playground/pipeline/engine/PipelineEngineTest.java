@@ -96,7 +96,7 @@ class PipelineEngineTest {
         pipelineEngine.execute(execution);
 
         // Then - RUNNING 기록 후 SUCCESS 기록
-        verify(stepMapper).updateStatus(eq(1L), eq(StepStatus.RUNNING.name()), isNull(), isNull());
+        verify(stepMapper).updateStatus(eq(1L), eq(StepStatus.RUNNING.name()), isNull(), any(LocalDateTime.class));
         verify(stepMapper).updateStatus(
                 eq(1L), eq(StepStatus.SUCCESS.name()), any(), any(LocalDateTime.class));
     }
