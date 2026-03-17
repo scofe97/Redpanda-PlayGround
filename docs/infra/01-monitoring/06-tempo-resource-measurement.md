@@ -437,7 +437,49 @@ done
 
 Grafana 공식 사이징 가이드([docs/tempo/plan/size](https://grafana.com/docs/tempo/latest/set-up-for-tracing/setup-tempo/plan/size/))는 **수신 트레이스 데이터 MB/s** 단위로 컴포넌트별 리소스를 산정한다. spans/sec로 환산하면 평균 압축 스팬 크기가 200~500 bytes이므로, **1 MB/s ≈ 2,000~3,300 spans/sec**이다.
 
-### 8-1. 공식 컴포넌트별 사이징 (Microservices mode)
+### 8-1. Tempo 내부 컴포넌트 이해
+
+Tempo는 하나의 Go 바이너리 안에 5개의 내부 컴포넌트(역할)를 포함한다. 별도 프로세스가 아니라 **하나의 프로그램 안의 모듈**이다. 배포 모드에 따라 이 5개를 하나의 컨테이너에서 실행하거나(Monolithic), 각각 별도 컨테이너로 분리한다(Microservices).
+
+```mermaid
+graph TB
+    Client["Spring Boot / Connect<br/>(OTLP 스팬 전송)"] --> Dist
+
+    subgraph "Tempo 바이너리 (Monolithic = 하나의 컨테이너)"
+        Dist["Distributor<br/>접수 창구 — 스팬을 받아<br/>Ingester에 분배"]
+        Ing["Ingester<br/>임시 저장소 — WAL 기록,<br/>메모리 보관, 블록 플러시"]
+        Comp["Compactor<br/>정리반 — 작은 블록 합치기,<br/>오래된 블록 삭제"]
+        QF["Query-Frontend<br/>검색 로드밸런서 — 큰 쿼리를<br/>쪼개서 Querier에 분배"]
+        Q["Querier<br/>검색 엔진 — 블록에서<br/>트레이스 조회"]
+    end
+
+    Dist --> Ing
+    Ing --> Comp
+    QF --> Q
+    Q --> Ing
+
+    Grafana["Grafana<br/>(트레이스 조회)"] --> QF
+
+    style Dist fill:#e8f5e9,stroke:#388e3c,color:#333
+    style Ing fill:#fff3e0,stroke:#f57c00,color:#333
+    style Comp fill:#e3f2fd,stroke:#1976d2,color:#333
+    style QF fill:#f3e5f5,stroke:#7b1fa2,color:#333
+    style Q fill:#f3e5f5,stroke:#7b1fa2,color:#333
+```
+
+| 컴포넌트 | 역할 | 자원 특성 |
+|----------|------|----------|
+| **Distributor** | 클라이언트에서 스팬을 수신하여 해시 링 기반으로 Ingester에 분배 | CPU/메모리 가벼움 — 데이터를 잠깐 들고 넘길 뿐 |
+| **Ingester** | WAL에 기록하고 메모리에 보관하다가 조건 충족 시 블록으로 플러시 | **메모리 가장 민감** — OOM의 주범. WAL replay 시 메모리 급증 |
+| **Compactor** | 플러시된 작은 블록을 합쳐 큰 블록으로 만들고, 리텐션 초과 블록 삭제 | I/O 중심 — CPU/메모리는 적당, 디스크 읽기/쓰기 많음 |
+| **Query-Frontend** | Grafana의 검색 쿼리를 시간 범위별로 분할하여 Querier에 병렬 위임 | 쿼리 부하에 비례 |
+| **Querier** | 실제로 블록 파일을 읽어 트레이스를 찾아 반환 | 쿼리 복잡도와 블록 수에 비례 |
+
+**이 프로젝트(Monolithic)에서 왜 중요한가:** `docker stats playground-tempo`에 표시되는 메모리는 5개 역할의 합산이다. OOM이 발생할 때 "어떤 역할이 메모리를 많이 쓰는가?"를 알면 최적화 방향이 보인다. 256MB/512MB에서 OOM이 발생한 것은 **Ingester의 WAL replay** 때문이었다. Microservices 모드였다면 Ingester만 4GB로 올리고 나머지는 1GB로 유지할 수 있지만, Monolithic에서는 전체 컨테이너 limit을 올려야 한다.
+
+### 8-1-1. 공식 컴포넌트별 사이징 (Microservices mode)
+
+아래 표는 Microservices 모드로 배포할 때 각 컴포넌트를 **별도 컨테이너**로 분리한 경우의 리소스 권장값이다. Monolithic에서는 이 값을 직접 적용할 수 없지만, "메모리를 누가 많이 쓰는가"를 이해하는 데 유용하다.
 
 | 컴포넌트 | 레플리카 기준 | CPU | 메모리 | 비고 |
 |----------|-------------|-----|--------|------|
@@ -448,6 +490,20 @@ Grafana 공식 사이징 가이드([docs/tempo/plan/size](https://grafana.com/do
 | Compactor | 1 per 3~5 MB/s | 1 core | 4~20 GB | I/O bound |
 
 메모리 범위(4~20 GB)가 넓은 이유는 트레이스 구성(스팬 크기, 속성 밀도, 카디널리티)에 따라 실제 사용량이 크게 달라지기 때문이다. 공식 문서는 "Tempo is under continuous development. These requirements can change with each release"라고 명시한다.
+
+### 8-1-2. 배포 방식에 따른 자원 사용량 차이
+
+Tempo 프로세스 자체의 자원 사용량은 Docker Compose와 K8s에서 **동일**하다. 같은 설정, 같은 트래픽이면 Go 바이너리가 소비하는 CPU/메모리는 배포 방식과 무관하다. 차이가 나는 것은 인프라 오버헤드 쪽이다.
+
+| 항목 | Docker Compose (이 프로젝트) | K8s |
+|------|---------------------------|-----|
+| Tempo 자체 메모리 | 동일 | 동일 |
+| 메모리 limit 메커니즘 | `mem_limit` (cgroup v2) | `resources.limits.memory` (cgroup v2) |
+| OOM 동작 | Docker가 컨테이너 kill (exit 137), `restart: unless-stopped`로 재시작 | K8s가 Pod OOMKilled → 자동 재시작, 반복 시 CrashLoopBackOff |
+| 디스크 I/O | Docker volume (호스트 디렉토리) — WAL write 빠름 | PVC 종류에 따라 다름. hostPath는 동일, NFS/네트워크 스토리지는 느림 |
+| 오케스트레이션 오버헤드 | 없음 | kubelet, kube-proxy 등이 노드 레벨에서 소비 (Tempo와 무관) |
+
+이 문서의 측정값과 최적화 전략(WAL 튜닝, 리텐션, 노이즈 필터링 등)은 K8s에서도 그대로 적용 가능하다. 배포 방식보다 **WAL 크기, 스팬 수신률, 리텐션 설정**이 자원 사용량을 결정하는 핵심 변수다. K8s에서 주의할 점은 PVC가 네트워크 스토리지일 경우 WAL write/replay 성능이 저하될 수 있다는 것이다.
 
 ### 8-2. 공식 기본 설정값 (소스: `modules/overrides/config.go`)
 
