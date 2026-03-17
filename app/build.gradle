@@ -53,6 +53,8 @@ tasks.named('bootRun') {
     if (profile) {
         jvmArgs "-Dspring.profiles.active=${profile}"
     }
+    // OTel SDK autoconfigure 활성화 (application.yml이 아닌 JVM 프로퍼티로 전달해야 함)
+    jvmArgs "-Dotel.java.global-autoconfigure.enabled=true"
 }
 
 tasks.named('test') {

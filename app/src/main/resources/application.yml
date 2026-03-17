@@ -20,12 +20,20 @@ mybatis:
   mapper-locations: classpath:mapper/**/*.xml
   configuration:
     map-underscore-to-camel-case: true
-  type-aliases-package: com.study.playground.ticket.domain,com.study.playground.pipeline.domain,com.study.playground.common.outbox,com.study.playground.supporttool.domain,com.study.playground.connector.domain
+  type-aliases-package: com.study.playground.ticket.domain,com.study.playground.pipeline.domain,com.study.playground.common.outbox,com.study.playground.supporttool.domain,com.study.playground.connector.domain,com.study.playground.preset.domain
   type-handlers-package: com.study.playground.common.mybatis
 
 app:
   connect:
     url: ${CONNECT_URL:http://localhost:4195}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: method
+  api-docs:
+    path: /v3/api-docs
 
 springwolf:
   enabled: true
@@ -50,6 +58,9 @@ management:
       show-details: always
 
 otel:
+  java:
+    global-autoconfigure:
+      enabled: true
   service:
     name: redpanda-playground
   exporter:

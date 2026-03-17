@@ -1,35 +1,42 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-    <!-- 기존 콘솔 출력 유지 -->
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
     <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
 
-    <!-- Loki4j Appender — GCP 프로필에서만 활성화 (로컬에서는 Loki 미사용) -->
-    <springProfile name="gcp">
-        <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
-            <http>
-                <!-- 로컬 Alloy의 loki.source.api 엔드포인트 (Alloy 경유 → Loki) -->
-                <url>http://localhost:23100/loki/api/v1/push</url>
-                <connectionTimeoutMs>5000</connectionTimeoutMs>
-                <requestTimeoutMs>5000</requestTimeoutMs>
-            </http>
-            <format>
-                <label>
-                    <pattern>service_name=redpanda-playground,level=%level,logger=%logger{36},profile=gcp</pattern>
-                </label>
-                <message>
-                    <pattern>
-                        {"timestamp":"%d{yyyy-MM-dd'T'HH:mm:ss.SSS}","level":"%level","logger":"%logger{36}","thread":"%thread","traceId":"%mdc{traceId:-}","spanId":"%mdc{spanId:-}","message":"%message%n%exception"}
-                    </pattern>
-                </message>
-            </format>
-        </appender>
+    <!-- OTel MDC 주입 — CONSOLE을 감싸서 trace_id/span_id를 MDC에 자동 주입 -->
+    <appender name="OTEL_CONSOLE" class="io.opentelemetry.instrumentation.logback.mdc.v1_0.OpenTelemetryAppender">
+        <appender-ref ref="CONSOLE"/>
+    </appender>
+
+    <!-- Loki4j Appender — 항상 정의 (gcp 프로필에서만 root에 등록) -->
+    <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
+        <http>
+            <url>http://34.22.78.240:3100/loki/api/v1/push</url>
+            <connectionTimeoutMs>5000</connectionTimeoutMs>
+            <requestTimeoutMs>5000</requestTimeoutMs>
+        </http>
+        <format>
+            <label>
+                <pattern>service_name=redpanda-playground,level=%level,logger=%logger{36},profile=gcp</pattern>
+            </label>
+            <message>
+                <pattern>{"timestamp":"%d{yyyy-MM-dd'T'HH:mm:ss.SSS}","level":"%level","logger":"%logger{36}","thread":"%thread","traceId":"%mdc{trace_id:-}","spanId":"%mdc{span_id:-}","message":"%message%n%exception"}</pattern>
+            </message>
+        </format>
+    </appender>
+
+    <!-- 로컬 (gcp 프로필 아닐 때): 콘솔만 -->
+    <springProfile name="!gcp">
+        <root level="INFO">
+            <appender-ref ref="OTEL_CONSOLE"/>
+        </root>
     </springProfile>
 
-    <root level="INFO">
-        <appender-ref ref="CONSOLE"/>
-        <springProfile name="gcp">
+    <!-- GCP 프로필: 콘솔 + Loki -->
+    <springProfile name="gcp">
+        <root level="INFO">
+            <appender-ref ref="OTEL_CONSOLE"/>
             <appender-ref ref="LOKI"/>
-        </springProfile>
-    </root>
+        </root>
+    </springProfile>
 </configuration>
