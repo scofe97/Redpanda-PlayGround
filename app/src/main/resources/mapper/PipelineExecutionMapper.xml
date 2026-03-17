@@ -4,18 +4,18 @@
 <mapper namespace="com.study.playground.pipeline.mapper.PipelineExecutionMapper">
 
     <insert id="insert" parameterType="com.study.playground.pipeline.domain.PipelineExecution">
-        INSERT INTO pipeline_execution (id, ticket_id, status, started_at, created_at)
-        VALUES (#{id}, #{ticketId}, #{status}, #{startedAt}, NOW())
+        INSERT INTO pipeline_execution (id, ticket_id, status, started_at, trace_parent, created_at)
+        VALUES (#{id}, #{ticketId}, #{status}, #{startedAt}, #{traceParent}, NOW())
     </insert>
 
     <select id="findById" resultType="com.study.playground.pipeline.domain.PipelineExecution">
-        SELECT id, ticket_id, status, started_at, completed_at, error_message, created_at
+        SELECT id, ticket_id, status, started_at, completed_at, error_message, trace_parent, created_at
         FROM pipeline_execution
         WHERE id = #{id}
     </select>
 
     <select id="findLatestByTicketId" resultType="com.study.playground.pipeline.domain.PipelineExecution">
-        SELECT id, ticket_id, status, started_at, completed_at, error_message, created_at
+        SELECT id, ticket_id, status, started_at, completed_at, error_message, trace_parent, created_at
         FROM pipeline_execution
         WHERE ticket_id = #{ticketId}
         ORDER BY created_at DESC
@@ -23,7 +23,7 @@
     </select>
 
     <select id="findByTicketId" resultType="com.study.playground.pipeline.domain.PipelineExecution">
-        SELECT id, ticket_id, status, started_at, completed_at, error_message, created_at
+        SELECT id, ticket_id, status, started_at, completed_at, error_message, trace_parent, created_at
         FROM pipeline_execution
         WHERE ticket_id = #{ticketId}
         ORDER BY created_at DESC

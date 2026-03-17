@@ -1,5 +1,6 @@
 package com.study.playground.pipeline.engine;
 
+import com.study.playground.common.tracing.TraceContextUtil;
 import com.study.playground.pipeline.domain.*;
 import com.study.playground.pipeline.engine.step.*;
 import com.study.playground.pipeline.event.PipelineEventProducer;
@@ -13,6 +14,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 /**
  * 파이프라인 엔진 — 스텝 순차 실행과 SAGA 보상을 담당한다.
@@ -164,6 +166,18 @@ public class PipelineEngine {
             return;
         }
 
+        // 원래 trace에 연결하여 webhook resume 스팬을 생성한다
+        TraceContextUtil.executeWithRestoredTrace(
+                execution.getTraceParent()
+                , "PipelineEngine.resumeAfterWebhook"
+                , Map.of("pipeline.execution.id", executionId.toString()
+                        , "pipeline.step.order", String.valueOf(stepOrder))
+                , () -> doResumeAfterWebhook(execution, step, executionId, stepOrder, result, buildLog)
+        );
+    }
+
+    private void doResumeAfterWebhook(PipelineExecution execution, PipelineStep step
+            , UUID executionId, int stepOrder, String result, String buildLog) {
         // CAS: WAITING_WEBHOOK → SUCCESS/FAILED (타임아웃 체커와의 경쟁 조건 방지)
         boolean success = "SUCCESS".equalsIgnoreCase(result);
         var targetStatus = success ? StepStatus.SUCCESS.name() : StepStatus.FAILED.name();
@@ -230,6 +244,7 @@ public class PipelineEngine {
                 PipelineStatus.SUCCESS.name(),
                 LocalDateTime.now(),
                 null);
+
         eventProducer.publishExecutionCompleted(
                 execution,
                 com.study.playground.avro.common.PipelineStatus.SUCCESS,

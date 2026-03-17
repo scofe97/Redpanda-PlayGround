@@ -4,6 +4,7 @@ import com.study.playground.avro.pipeline.PipelineExecutionStartedEvent;
 import com.study.playground.common.dto.CommonErrorCode;
 import com.study.playground.common.exception.BusinessException;
 import com.study.playground.common.outbox.EventPublisher;
+import com.study.playground.common.tracing.TraceContextUtil;
 import com.study.playground.pipeline.domain.*;
 import com.study.playground.pipeline.dto.PipelineExecutionResponse;
 import com.study.playground.pipeline.mapper.PipelineExecutionMapper;
@@ -88,6 +89,7 @@ public class PipelineService {
         execution.setTicketId(ticketId);
         execution.setStatus(PipelineStatus.PENDING);
         execution.setStartedAt(LocalDateTime.now());
+        execution.setTraceParent(TraceContextUtil.captureTraceParent());
         executionMapper.insert(execution);
 
         // 단계

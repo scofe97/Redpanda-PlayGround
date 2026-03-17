@@ -41,6 +41,13 @@ public class PipelineExecution {
      */
     private String errorMessage;
 
+    /**
+     * W3C traceparent 문자열. 파이프라인 생성 시점의 OTel trace context를 저장한다.
+     * webhook 재개, 타임아웃 등 비동기 경로에서 원래 trace에 연결하기 위해 사용된다.
+     * 형식: 00-{traceId(32hex)}-{spanId(16hex)}-{flags(2hex)}
+     */
+    private String traceParent;
+
     /** 레코드 최초 생성 시각. DB에서 DEFAULT NOW()로 채워진다. */
     private LocalDateTime createdAt;
 

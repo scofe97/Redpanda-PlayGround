@@ -1,5 +1,6 @@
 package com.study.playground.common.outbox;
 
+import com.study.playground.common.tracing.TraceContextUtil;
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.trace.*;
 import io.opentelemetry.context.Context;
@@ -98,7 +99,7 @@ public class OutboxPoller {
      */
     private void publishWithTraceContext(ProducerRecord<String, byte[]> record
             , OutboxEvent event) throws Exception {
-        SpanContext parentContext = parseTraceParent(event.getTraceParent());
+        SpanContext parentContext = TraceContextUtil.parseTraceParent(event.getTraceParent());
         if (parentContext == null) {
             kafkaTemplate.send(record).get(5, TimeUnit.SECONDS);
             return;
@@ -113,6 +114,11 @@ public class OutboxPoller {
                 .startSpan();
 
         try (Scope ignored = span.makeCurrent()) {
+            // 수동 traceparent 헤더 삽입 — Spring Boot OTel Starter는 AOP 기반이라
+            // GlobalOpenTelemetry로 만든 span의 context를 KafkaTemplate.send()에 전파하지 못한다.
+            // K8s 환경에서 Java Agent를 사용하면 이 코드는 불필요해진다.
+            record.headers().add("traceparent"
+                    , TraceContextUtil.captureTraceParent().getBytes(StandardCharsets.UTF_8));
             kafkaTemplate.send(record).get(5, TimeUnit.SECONDS);
         } catch (Exception e) {
             span.setStatus(StatusCode.ERROR, e.getMessage());
@@ -121,26 +127,6 @@ public class OutboxPoller {
         } finally {
             span.end();
         }
-    }
-
-    /**
-     * W3C traceparent 문자열을 SpanContext로 파싱한다.
-     * 형식: 00-{traceId(32hex)}-{spanId(16hex)}-{flags(2hex)}
-     */
-    private SpanContext parseTraceParent(String traceParent) {
-        if (traceParent == null || traceParent.isEmpty()) {
-            return null;
-        }
-        String[] parts = traceParent.split("-");
-        if (parts.length < 4) {
-            return null;
-        }
-        return SpanContext.createFromRemoteParent(
-                parts[1]
-                , parts[2]
-                , TraceFlags.getSampled()
-                , TraceState.getDefault()
-        );
     }
 
     /**

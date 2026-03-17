@@ -55,6 +55,9 @@ tasks.named('bootRun') {
     }
     // OTel SDK autoconfigure 활성화 (application.yml이 아닌 JVM 프로퍼티로 전달해야 함)
     jvmArgs "-Dotel.java.global-autoconfigure.enabled=true"
+    // GlobalOpenTelemetry.getTracer()로 생성한 수동 스팬에도 서비스명 설정
+    // 이 설정이 없으면 수동 스팬이 unknown_service:java로 표시됨
+    jvmArgs "-Dotel.service.name=redpanda-playground"
 }
 
 tasks.named('test') {

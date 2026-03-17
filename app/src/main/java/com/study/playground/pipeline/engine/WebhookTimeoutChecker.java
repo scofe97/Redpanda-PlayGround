@@ -1,5 +1,6 @@
 package com.study.playground.pipeline.engine;
 
+import com.study.playground.common.tracing.TraceContextUtil;
 import com.study.playground.pipeline.domain.PipelineStep;
 import com.study.playground.pipeline.domain.PipelineStatus;
 import com.study.playground.pipeline.domain.PipelineStepType;
@@ -13,7 +14,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -75,21 +75,31 @@ public class WebhookTimeoutChecker {
 
             var execution = executionMapper.findById(step.getExecutionId());
             if (execution != null) {
-                execution.setSteps(stepMapper.findByExecutionId(step.getExecutionId()));
-                eventProducer.publishStepChanged(execution, step, StepStatus.FAILED);
+                // 원래 trace에 연결하여 timeout 스팬을 생성한다
+                final String timeoutErrorMsg = errorMsg;
+                TraceContextUtil.executeWithRestoredTrace(
+                        execution.getTraceParent()
+                        , "WebhookTimeoutChecker.timeout"
+                        , Map.of("pipeline.execution.id", execution.getId().toString()
+                                , "timeout.minutes", String.valueOf(TIMEOUT_MINUTES))
+                        , () -> {
+                            execution.setSteps(stepMapper.findByExecutionId(step.getExecutionId()));
+                            eventProducer.publishStepChanged(execution, step, StepStatus.FAILED);
 
-                sagaCompensator.compensate(execution, step.getStepOrder(), stepExecutors);
+                            sagaCompensator.compensate(execution, step.getStepOrder(), stepExecutors);
 
-                executionMapper.updateStatus(
-                        step.getExecutionId(),
-                        PipelineStatus.FAILED.name(),
-                        LocalDateTime.now(),
-                        errorMsg);
-                eventProducer.publishExecutionCompleted(
-                        execution,
-                        com.study.playground.avro.common.PipelineStatus.FAILED,
-                        0,
-                        errorMsg);
+                            executionMapper.updateStatus(
+                                    step.getExecutionId(),
+                                    PipelineStatus.FAILED.name(),
+                                    LocalDateTime.now(),
+                                    timeoutErrorMsg);
+                            eventProducer.publishExecutionCompleted(
+                                    execution,
+                                    com.study.playground.avro.common.PipelineStatus.FAILED,
+                                    0,
+                                    timeoutErrorMsg);
+                        }
+                );
             }
         }
 

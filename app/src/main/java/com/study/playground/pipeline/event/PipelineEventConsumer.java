@@ -20,6 +20,8 @@ import org.springframework.kafka.retrytopic.DltStrategy;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
 
+import io.opentelemetry.context.Context;
+
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import java.util.UUID;
@@ -57,11 +59,13 @@ public class PipelineEventConsumer {
      * 풀 크기를 4로 고정한 이유는 실습 환경에서 동시 실행 파이프라인 수를
      * 제한하여 리소스 경쟁을 줄이기 위해서다.
      */
-    private static final Executor PIPELINE_EXECUTOR = Executors.newFixedThreadPool(4, runnable -> {
-        var thread = new Thread(runnable, "pipeline-exec-" + THREAD_COUNTER.incrementAndGet());
-        thread.setDaemon(true);
-        return thread;
-    });
+    private static final Executor PIPELINE_EXECUTOR = Context.taskWrapping(
+            Executors.newFixedThreadPool(4, runnable -> {
+                var thread = new Thread(runnable, "pipeline-exec-" + THREAD_COUNTER.incrementAndGet());
+                thread.setDaemon(true);
+                return thread;
+            })
+    );
 
     private final PipelineEngine pipelineEngine;
     private final PipelineExecutionMapper executionMapper;
