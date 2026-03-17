@@ -4,39 +4,47 @@
 <mapper namespace="com.study.playground.supporttool.mapper.SupportToolMapper">
 
     <select id="findAll" resultType="com.study.playground.supporttool.domain.SupportTool">
-        SELECT id, tool_type, name, url, auth_type, username, credential, active, created_at, updated_at
+        SELECT id, category, implementation, name, url, auth_type, username, credential, active, created_at, updated_at
         FROM support_tool
-        ORDER BY tool_type, name
+        ORDER BY category, name
     </select>
 
     <select id="findById" resultType="com.study.playground.supporttool.domain.SupportTool">
-        SELECT id, tool_type, name, url, auth_type, username, credential, active, created_at, updated_at
+        SELECT id, category, implementation, name, url, auth_type, username, credential, active, created_at, updated_at
         FROM support_tool
         WHERE id = #{id}
     </select>
 
-    <select id="findActiveByToolType" resultType="com.study.playground.supporttool.domain.SupportTool">
-        SELECT id, tool_type, name, url, auth_type, username, credential, active, created_at, updated_at
+    <select id="findActiveByCategory" resultType="com.study.playground.supporttool.domain.SupportTool">
+        SELECT id, category, implementation, name, url, auth_type, username, credential, active, created_at, updated_at
         FROM support_tool
-        WHERE tool_type = #{toolType} AND active = true
+        WHERE category = #{category} AND active = true
         LIMIT 1
     </select>
 
+    <select id="findByCategory" resultType="com.study.playground.supporttool.domain.SupportTool">
+        SELECT id, category, implementation, name, url, auth_type, username, credential, active, created_at, updated_at
+        FROM support_tool
+        WHERE category = #{category}
+        ORDER BY name
+    </select>
+
     <insert id="insert" parameterType="com.study.playground.supporttool.domain.SupportTool" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO support_tool (tool_type, name, url, auth_type, username, credential, active, created_at, updated_at)
-        VALUES (#{toolType}, #{name}, #{url}, #{authType}, #{username}, #{credential}, #{active}, NOW(), NOW())
+        INSERT INTO support_tool (category, implementation, name, url, auth_type, username, credential, active, created_at, updated_at)
+        VALUES (#{category}, #{implementation}, #{name}, #{url}, #{authType}, #{username}, #{credential}, #{active}, NOW(), NOW())
     </insert>
 
     <update id="update" parameterType="com.study.playground.supporttool.domain.SupportTool">
         UPDATE support_tool
-        SET tool_type = #{toolType},
-            name = #{name},
-            url = #{url},
-            auth_type = #{authType},
-            username = #{username},
-            credential = #{credential},
-            active = #{active},
-            updated_at = NOW()
+        SET category       = #{category},
+            implementation = #{implementation},
+            name           = #{name},
+            url            = #{url},
+            auth_type      = #{authType},
+            username       = #{username},
+            credential     = #{credential},
+            active         = #{active},
+            updated_at     = NOW()
         WHERE id = #{id}
     </update>
 

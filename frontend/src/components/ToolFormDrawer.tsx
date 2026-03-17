@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import { useCreateTool, useUpdateTool, useTool } from '../hooks/useTools';
 
 const TOOL_CATEGORIES = [
-  { key: 'CI_CD', label: 'CI/CD', icon: 'build', types: ['JENKINS'] },
-  { key: 'ARTIFACT', label: 'Artifact', icon: 'inventory_2', types: ['GITLAB', 'NEXUS'] },
-  { key: 'REGISTRY', label: 'Registry', icon: 'deployed_code', types: ['REGISTRY'] },
+  { key: 'CI_CD_TOOL', label: 'CI/CD', icon: 'build', implementations: ['JENKINS', 'GOCD', 'GITHUB_ACTIONS'] },
+  { key: 'VCS', label: 'VCS', icon: 'source', implementations: ['GITLAB', 'GITHUB', 'BITBUCKET'] },
+  { key: 'LIBRARY', label: 'Library', icon: 'inventory_2', implementations: ['NEXUS', 'ARTIFACTORY'] },
+  { key: 'CONTAINER_REGISTRY', label: 'Registry', icon: 'deployed_code', implementations: ['HARBOR', 'DOCKER_REGISTRY', 'ECR'] },
+  { key: 'STORAGE', label: 'Storage', icon: 'cloud_upload', implementations: ['MINIO', 'S3'] },
+  { key: 'CLUSTER_APPLICATION', label: 'Cluster App', icon: 'hub', implementations: ['ARGOCD', 'FLUX'] },
 ] as const;
-
-const ALL_TOOL_TYPES = TOOL_CATEGORIES.flatMap((c) => c.types);
 
 interface ToolFormDrawerProps {
   isOpen: boolean;
@@ -21,8 +22,8 @@ export default function ToolFormDrawer({ isOpen, onClose, editToolId }: ToolForm
   const createTool = useCreateTool();
   const updateTool = useUpdateTool();
 
-  const [category, setCategory] = useState('CI_CD');
-  const [toolType, setToolType] = useState('JENKINS');
+  const [category, setCategory] = useState('CI_CD_TOOL');
+  const [implementation, setImplementation] = useState('JENKINS');
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
   const [username, setUsername] = useState('');
@@ -31,9 +32,8 @@ export default function ToolFormDrawer({ isOpen, onClose, editToolId }: ToolForm
 
   useEffect(() => {
     if (existing && isEdit) {
-      const cat = TOOL_CATEGORIES.find((c) => (c.types as readonly string[]).includes(existing.toolType));
-      setCategory(cat?.key ?? 'CI_CD');
-      setToolType(existing.toolType);
+      setCategory(existing.category);
+      setImplementation(existing.implementation);
       setName(existing.name);
       setUrl(existing.url);
       setUsername(existing.username || '');
@@ -44,8 +44,8 @@ export default function ToolFormDrawer({ isOpen, onClose, editToolId }: ToolForm
 
   useEffect(() => {
     if (!isOpen) {
-      setCategory('CI_CD');
-      setToolType('JENKINS');
+      setCategory('CI_CD_TOOL');
+      setImplementation('JENKINS');
       setName('');
       setUrl('');
       setUsername('');
@@ -55,20 +55,21 @@ export default function ToolFormDrawer({ isOpen, onClose, editToolId }: ToolForm
   }, [isOpen]);
 
   const selectedCategory = TOOL_CATEGORIES.find((c) => c.key === category);
-  const availableTypes = selectedCategory ? selectedCategory.types : ALL_TOOL_TYPES;
+  const availableImplementations = selectedCategory ? selectedCategory.implementations : [];
 
   const handleCategoryChange = (catKey: string) => {
     setCategory(catKey);
     const cat = TOOL_CATEGORIES.find((c) => c.key === catKey);
     if (cat) {
-      setToolType(cat.types[0]);
+      setImplementation(cat.implementations[0]);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const data = {
-      toolType,
+      category,
+      implementation,
       name,
       url,
       username: username || undefined,
@@ -133,13 +134,13 @@ export default function ToolFormDrawer({ isOpen, onClose, editToolId }: ToolForm
 
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">카테고리</label>
-                <div className="flex gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {TOOL_CATEGORIES.map((cat) => (
                     <button
                       key={cat.key}
                       type="button"
                       onClick={() => handleCategoryChange(cat.key)}
-                      className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold border transition-all ${
+                      className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border transition-all ${
                         category === cat.key
                           ? 'bg-primary/10 border-primary text-primary'
                           : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:border-slate-400'
@@ -153,15 +154,15 @@ export default function ToolFormDrawer({ isOpen, onClose, editToolId }: ToolForm
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">도구 유형</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">구현체</label>
                 <select
-                  value={toolType}
-                  onChange={(e) => setToolType(e.target.value)}
+                  value={implementation}
+                  onChange={(e) => setImplementation(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
                 >
-                  {availableTypes.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
+                  {availableImplementations.map((impl) => (
+                    <option key={impl} value={impl}>
+                      {impl}
                     </option>
                   ))}
                 </select>

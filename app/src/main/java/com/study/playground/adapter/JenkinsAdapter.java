@@ -2,7 +2,7 @@ package com.study.playground.adapter;
 
 import com.study.playground.adapter.dto.JenkinsBuildInfo;
 import com.study.playground.supporttool.domain.SupportTool;
-import com.study.playground.supporttool.domain.ToolType;
+import com.study.playground.supporttool.domain.ToolCategory;
 import com.study.playground.supporttool.service.ToolRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
@@ -24,7 +24,7 @@ public class JenkinsAdapter {
     }
 
     private SupportTool getTool() {
-        return toolRegistry.getActiveTool(ToolType.JENKINS);
+        return toolRegistry.getActiveTool(ToolCategory.CI_CD_TOOL);
     }
 
     /** 지정한 Job과 빌드 번호의 빌드 정보를 조회한다. */

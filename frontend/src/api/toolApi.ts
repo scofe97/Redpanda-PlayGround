@@ -2,20 +2,24 @@ import { api } from './client';
 
 export interface SupportTool {
   id: number;
-  toolType: string;
+  category: string;
+  implementation: string;
   name: string;
   url: string;
+  authType?: string;
   username?: string;
-  credential?: string;
+  hasCredential: boolean;
   active: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface SupportToolRequest {
-  toolType: string;
+  category: string;
+  implementation: string;
   name: string;
   url: string;
+  authType?: string;
   username?: string;
   credential?: string;
   active: boolean;

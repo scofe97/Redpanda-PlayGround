@@ -3,7 +3,7 @@ package com.study.playground.adapter;
 import com.study.playground.adapter.dto.GitLabBranch;
 import com.study.playground.adapter.dto.GitLabProject;
 import com.study.playground.supporttool.domain.SupportTool;
-import com.study.playground.supporttool.domain.ToolType;
+import com.study.playground.supporttool.domain.ToolCategory;
 import com.study.playground.supporttool.service.ToolRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
@@ -31,7 +31,7 @@ public class GitLabAdapter {
     }
 
     private SupportTool getTool() {
-        return toolRegistry.getActiveTool(ToolType.GITLAB);
+        return toolRegistry.getActiveTool(ToolCategory.VCS);
     }
 
     /** 전체 GitLab 프로젝트(저장소) 목록을 조회한다. 실패 시 빈 리스트 반환. */

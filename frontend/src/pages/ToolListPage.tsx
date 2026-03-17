@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { useToolList, useDeleteTool, useTestTool } from '../hooks/useTools';
 import ToolFormDrawer from '../components/ToolFormDrawer';
 
-const TOOL_CATEGORY_MAP: Record<string, { label: string; icon: string }> = {
-  JENKINS: { label: 'CI/CD', icon: 'build' },
-  GITLAB: { label: 'Artifact', icon: 'inventory_2' },
-  NEXUS: { label: 'Artifact', icon: 'inventory_2' },
-  REGISTRY: { label: 'Registry', icon: 'deployed_code' },
+const CATEGORY_DISPLAY: Record<string, { label: string; icon: string }> = {
+  CI_CD_TOOL: { label: 'CI/CD', icon: 'build' },
+  VCS: { label: 'VCS', icon: 'source' },
+  LIBRARY: { label: 'Library', icon: 'inventory_2' },
+  CONTAINER_REGISTRY: { label: 'Registry', icon: 'deployed_code' },
+  STORAGE: { label: 'Storage', icon: 'cloud_upload' },
+  CLUSTER_APPLICATION: { label: 'Cluster App', icon: 'hub' },
 };
 
 export default function ToolListPage() {
@@ -93,7 +95,7 @@ export default function ToolListPage() {
                   <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
                     <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">이름</th>
                     <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">카테고리</th>
-                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">유형</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">구현체</th>
                     <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">URL</th>
                     <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">활성</th>
                     <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">상태</th>
@@ -106,18 +108,20 @@ export default function ToolListPage() {
                       <td className="px-6 py-4 font-medium">{tool.name}</td>
                       <td className="px-6 py-4">
                         {(() => {
-                          const cat = TOOL_CATEGORY_MAP[tool.toolType];
+                          const cat = CATEGORY_DISPLAY[tool.category];
                           return cat ? (
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-primary/10 text-primary">
                               <span className="material-symbols-outlined text-xs">{cat.icon}</span>
                               {cat.label}
                             </span>
-                          ) : null;
+                          ) : (
+                            <span className="text-xs text-slate-400">{tool.category}</span>
+                          );
                         })()}
                       </td>
                       <td className="px-6 py-4">
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                          {tool.toolType}
+                          {tool.implementation}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">{tool.url}</td>

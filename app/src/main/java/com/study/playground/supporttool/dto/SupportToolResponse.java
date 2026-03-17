@@ -6,9 +6,11 @@ import java.time.LocalDateTime;
 
 public record SupportToolResponse(
         Long id,
-        String toolType,
+        String category,
+        String implementation,
         String name,
         String url,
+        String authType,
         String username,
         boolean hasCredential,
         boolean active,
@@ -18,9 +20,11 @@ public record SupportToolResponse(
     public static SupportToolResponse from(SupportTool tool) {
         return new SupportToolResponse(
                 tool.getId()
-                , tool.getToolType().name()
+                , tool.getCategory() != null ? tool.getCategory().name() : null
+                , tool.getImplementation() != null ? tool.getImplementation().name() : null
                 , tool.getName()
                 , tool.getUrl()
+                , tool.getAuthType() != null ? tool.getAuthType().name() : null
                 , tool.getUsername()
                 , tool.getCredential() != null && !tool.getCredential().isBlank()
                 , tool.isActive()

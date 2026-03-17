@@ -4,7 +4,8 @@ import com.study.playground.connector.client.ConnectStreamsClient;
 import com.study.playground.connector.domain.ConnectorConfig;
 import com.study.playground.connector.mapper.ConnectorConfigMapper;
 import com.study.playground.supporttool.domain.SupportTool;
-import com.study.playground.supporttool.domain.ToolType;
+import com.study.playground.supporttool.domain.ToolCategory;
+import com.study.playground.supporttool.domain.ToolImplementation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
@@ -12,8 +13,8 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -23,38 +24,48 @@ public class ConnectorManager {
     private final ConnectorConfigMapper connectorConfigMapper;
     private final ConnectStreamsClient connectStreamsClient;
 
-    private static final Map<ToolType, String> COMMAND_TEMPLATES = Map.of(
-            ToolType.JENKINS, "connect-templates/jenkins-command.yaml",
-            ToolType.GITLAB, "connect-templates/gitlab-command.yaml",
-            ToolType.NEXUS, "connect-templates/nexus-command.yaml"
+    private static final Map<ToolImplementation, String> COMMAND_TEMPLATES = Map.of(
+            ToolImplementation.JENKINS, "connect-templates/jenkins-command.yaml",
+            ToolImplementation.GITLAB, "connect-templates/gitlab-command.yaml",
+            ToolImplementation.NEXUS, "connect-templates/nexus-command.yaml"
+    );
+
+    /** 커넥터 생성이 불필요한 카테고리. CONTAINER_REGISTRY는 HTTP 브릿지가 필요 없다. */
+    private static final Set<ToolCategory> SKIP_CATEGORIES = Set.of(
+            ToolCategory.CONTAINER_REGISTRY,
+            ToolCategory.STORAGE
     );
 
     private static final String WEBHOOK_TEMPLATE = "connect-templates/webhook-inbound.yaml";
 
     public void createConnectors(SupportTool tool) {
-        if (tool.getToolType() == ToolType.REGISTRY) {
-            log.debug("REGISTRY 타입은 커넥터 생성 스킵: {}", tool.getName());
+        if (SKIP_CATEGORIES.contains(tool.getCategory())) {
+            log.debug("{} 카테고리는 커넥터 생성 스킵: {}", tool.getCategory(), tool.getName());
             return;
         }
 
-        String toolType = tool.getToolType().name().toLowerCase();
-        String toolId = String.valueOf(tool.getId());
-        String webhookStreamId = toolType + "-" + toolId + "-webhook";
-        String commandStreamId = toolType + "-" + toolId + "-command";
+        var implName = tool.getImplementation().name().toLowerCase();
+        var toolId = String.valueOf(tool.getId());
+        var webhookStreamId = implName + "-" + toolId + "-webhook";
+        var commandStreamId = implName + "-" + toolId + "-command";
 
         // 1. Webhook 커넥터
-        String webhookYaml = loadAndReplace(WEBHOOK_TEMPLATE, tool);
-        boolean webhookOk = connectStreamsClient.registerStream(webhookStreamId, webhookYaml);
+        var webhookYaml = loadAndReplace(WEBHOOK_TEMPLATE, tool);
+        var webhookOk = connectStreamsClient.registerStream(webhookStreamId, webhookYaml);
         if (!webhookOk) {
             throw new RuntimeException("Webhook 커넥터 등록 실패: " + webhookStreamId);
         }
 
         // 2. Command 커넥터
-        String commandTemplate = COMMAND_TEMPLATES.get(tool.getToolType());
-        String commandYaml = loadAndReplace(commandTemplate, tool);
-        boolean commandOk = connectStreamsClient.registerStream(commandStreamId, commandYaml);
+        var commandTemplate = COMMAND_TEMPLATES.get(tool.getImplementation());
+        if (commandTemplate == null) {
+            log.debug("커맨드 템플릿이 없는 구현체: {}", implName);
+            saveConfig(webhookStreamId, tool.getId(), webhookYaml, "INBOUND");
+            return;
+        }
+        var commandYaml = loadAndReplace(commandTemplate, tool);
+        var commandOk = connectStreamsClient.registerStream(commandStreamId, commandYaml);
         if (!commandOk) {
-            // 보상 삭제: webhook 롤백
             connectStreamsClient.deleteStream(webhookStreamId);
             throw new RuntimeException("Command 커넥터 등록 실패 (webhook 롤백 완료): " + commandStreamId);
         }
@@ -67,8 +78,8 @@ public class ConnectorManager {
     }
 
     public void deleteConnectors(Long toolId) {
-        List<ConnectorConfig> configs = connectorConfigMapper.findByToolId(toolId);
-        for (ConnectorConfig config : configs) {
+        var configs = connectorConfigMapper.findByToolId(toolId);
+        for (var config : configs) {
             connectStreamsClient.deleteStream(config.getStreamId());
         }
         connectorConfigMapper.deleteByToolId(toolId);
@@ -76,16 +87,16 @@ public class ConnectorManager {
     }
 
     public void restoreConnectors() {
-        List<ConnectorConfig> configs = connectorConfigMapper.findAll();
+        var configs = connectorConfigMapper.findAll();
         if (configs.isEmpty()) {
             log.info("복원할 커넥터 없음");
             return;
         }
 
-        int success = 0;
-        int fail = 0;
-        for (ConnectorConfig config : configs) {
-            boolean ok = connectStreamsClient.registerStream(config.getStreamId(), config.getYamlConfig());
+        var success = 0;
+        var fail = 0;
+        for (var config : configs) {
+            var ok = connectStreamsClient.registerStream(config.getStreamId(), config.getYamlConfig());
             if (ok) {
                 success++;
             } else {
@@ -97,10 +108,11 @@ public class ConnectorManager {
 
     private String loadAndReplace(String templatePath, SupportTool tool) {
         try {
-            ClassPathResource resource = new ClassPathResource(templatePath);
-            String template = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            var resource = new ClassPathResource(templatePath);
+            var template = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            var implName = tool.getImplementation().name().toLowerCase();
             return template
-                    .replace("${TOOL_TYPE}", tool.getToolType().name().toLowerCase())
+                    .replace("${TOOL_TYPE}", implName)
                     .replace("${TOOL_ID}", String.valueOf(tool.getId()))
                     .replace("${TOOL_URL}", tool.getUrl())
                     .replace("${TOOL_USERNAME}", tool.getUsername() != null ? tool.getUsername() : "")
@@ -111,7 +123,7 @@ public class ConnectorManager {
     }
 
     private void saveConfig(String streamId, Long toolId, String yamlConfig, String direction) {
-        ConnectorConfig config = new ConnectorConfig();
+        var config = new ConnectorConfig();
         config.setStreamId(streamId);
         config.setToolId(toolId);
         config.setYamlConfig(yamlConfig);

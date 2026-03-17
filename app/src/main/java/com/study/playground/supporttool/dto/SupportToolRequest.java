@@ -9,11 +9,14 @@ import lombok.Setter;
 @Setter
 public class SupportToolRequest {
     @NotNull
-    private String toolType;
+    private String category;
+    @NotNull
+    private String implementation;
     @NotBlank
     private String name;
     @NotBlank
     private String url;
+    private String authType;
     private String username;
     private String credential;
     private boolean active = true;

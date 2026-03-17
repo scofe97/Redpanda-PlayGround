@@ -3,7 +3,7 @@ package com.study.playground.adapter;
 import com.study.playground.adapter.dto.RegistryCatalog;
 import com.study.playground.adapter.dto.RegistryTagList;
 import com.study.playground.supporttool.domain.SupportTool;
-import com.study.playground.supporttool.domain.ToolType;
+import com.study.playground.supporttool.domain.ToolCategory;
 import com.study.playground.supporttool.service.ToolRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
@@ -28,7 +28,7 @@ public class RegistryAdapter {
     }
 
     private SupportTool getTool() {
-        return toolRegistry.getActiveTool(ToolType.REGISTRY);
+        return toolRegistry.getActiveTool(ToolCategory.CONTAINER_REGISTRY);
     }
 
     /** 레지스트리에 해당 이미지:태그가 존재하는지 확인한다. imageName 형식: "repo/image" 또는 "image". */

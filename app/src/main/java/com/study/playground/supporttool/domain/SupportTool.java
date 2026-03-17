@@ -9,7 +9,8 @@ import java.time.LocalDateTime;
 @Setter
 public class SupportTool {
     private Long id;
-    private ToolType toolType;
+    private ToolCategory category;
+    private ToolImplementation implementation;
     private String name;
     private String url;
     private AuthType authType;

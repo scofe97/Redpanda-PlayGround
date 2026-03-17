@@ -3,7 +3,7 @@ package com.study.playground.adapter;
 import com.study.playground.adapter.dto.NexusAsset;
 import com.study.playground.adapter.dto.NexusSearchResponse;
 import com.study.playground.supporttool.domain.SupportTool;
-import com.study.playground.supporttool.domain.ToolType;
+import com.study.playground.supporttool.domain.ToolCategory;
 import com.study.playground.supporttool.service.ToolRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
@@ -28,7 +28,7 @@ public class NexusAdapter {
     }
 
     private SupportTool getTool() {
-        return toolRegistry.getActiveTool(ToolType.NEXUS);
+        return toolRegistry.getActiveTool(ToolCategory.LIBRARY);
     }
 
     /** groupId, artifactId, version으로 아티팩트를 검색한다. Nexus 미응답 또는 미발견 시 빈 리스트 반환. */
