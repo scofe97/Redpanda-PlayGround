@@ -148,36 +148,64 @@ otel:
 
 GCP에서는 Spring Boot가 Server 2에서 실행되고 Alloy가 Server 3에서 실행되므로, `localhost` 대신 Server 3의 외부 IP로 직접 전송한다. `service.name`과 `protocol`은 기본 프로필 값을 그대로 상속한다.
 
+**build.gradle — OTel autoconfigure 활성화 (JVM arg)**
+
+```groovy
+tasks.named('bootRun') {
+    // OTel SDK autoconfigure 활성화
+    // application.yml의 otel.java.global-autoconfigure.enabled는 OTel SDK가 읽지 못한다.
+    // OTel SDK는 JVM 시스템 프로퍼티(-D)만 인식하므로 build.gradle에서 직접 전달해야 한다.
+    jvmArgs "-Dotel.java.global-autoconfigure.enabled=true"
+}
+```
+
+이 설정이 없으면 앱 로그에 `AutoConfiguredOpenTelemetrySdk found on classpath but automatic configuration is disabled`가 출력되고, MDC에 traceId가 주입되지 않는다.
+
 **logback-spring.xml — traceId가 로그에 묶이는 원리**
 
 ```xml
-<!-- gcp 프로필에서만 Loki4j Appender 활성화 -->
+<!-- OTel Logback MDC — CONSOLE을 감싸서 MDC에 trace_id/span_id 자동 주입 -->
+<appender name="OTEL_CONSOLE"
+          class="io.opentelemetry.instrumentation.logback.mdc.v1_0.OpenTelemetryAppender">
+    <appender-ref ref="CONSOLE"/>
+</appender>
+
+<!-- Loki4j — 항상 정의 (gcp 프로필에서만 root에 등록) -->
+<appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
+    <http>
+        <url>http://localhost:23100/loki/api/v1/push</url>
+    </http>
+    <format>
+        <message>
+            <pattern>{"traceId":"%mdc{trace_id:-}","spanId":"%mdc{span_id:-}",...}</pattern>
+        </message>
+    </format>
+</appender>
+
+<!-- 프로필별 root 분기 — springProfile을 root 안에 넣으면 appender-ref가 인식 안 됨 -->
+<springProfile name="!gcp">
+    <root level="INFO">
+        <appender-ref ref="OTEL_CONSOLE"/>
+    </root>
+</springProfile>
 <springProfile name="gcp">
-    <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
-        <http>
-            <!-- Alloy의 loki.source.api 엔드포인트 (포트 23100) -->
-            <url>http://localhost:23100/loki/api/v1/push</url>
-        </http>
-        <format>
-            <label>
-                <pattern>service_name=redpanda-playground,level=%level</pattern>
-            </label>
-            <message>
-                <pattern>{"timestamp":"...","traceId":"%mdc{traceId:-}","spanId":"%mdc{spanId:-}",...}</pattern>
-            </message>
-        </format>
-    </appender>
+    <root level="INFO">
+        <appender-ref ref="OTEL_CONSOLE"/>
+        <appender-ref ref="LOKI"/>
+    </root>
 </springProfile>
 ```
 
-traceId가 로그에 포함되는 과정은 다음과 같다:
+traceId가 로그에 포함되는 과정:
 
-1. OTel Spring Boot Starter가 HTTP 요청 처리 시 MDC에 `traceId`와 `spanId`를 자동 주입한다
-2. Logback이 `%mdc{traceId}`로 MDC 값을 꺼내 JSON 로그 메시지에 포함한다
-3. Loki4j Appender가 이 JSON 로그를 Alloy(`localhost:23100`)로 push한다
-4. Alloy가 받은 로그를 Loki로 전달한다
+1. `build.gradle`의 `-Dotel.java.global-autoconfigure.enabled=true`로 OTel SDK가 `TracerProvider`를 초기화한다
+2. `OpenTelemetryAppender`가 로그 이벤트 발생 시 현재 스팬의 `trace_id`와 `span_id`를 MDC에 주입한다
+3. Logback이 `%mdc{trace_id}`로 MDC 값을 꺼내 JSON 로그 메시지에 포함한다
+4. Loki4j Appender가 이 JSON 로그를 Loki API 호환 엔드포인트로 push한다
 
-`localhost:23100`을 사용하는 이유는 Alloy 컨테이너의 `loki.source.api`가 포트 3100에서 리스닝하고, Docker가 `23100:3100`으로 매핑하기 때문이다. 직접 Loki(`localhost:23100` 대신 `loki:3100`)로 보내지 않는 이유는 "모든 텔레메트리는 Alloy를 거친다"는 단일 수집 지점 원칙을 유지하기 위해서다.
+> **MDC 키 이름 주의**: OTel Starter는 `trace_id`/`span_id`(밑줄)를 사용한다. `traceId`/`spanId`(카멜케이스)로 적으면 빈 값이 나온다.
+
+> **logback-spring.xml 구조 주의**: `<root>` 안에 `<springProfile>`을 넣어서 `<appender-ref>`를 분기하면 인식되지 않는다. 반드시 `<springProfile>`로 `<root>` 자체를 분기해야 한다.
 
 ---
 
