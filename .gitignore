@@ -30,3 +30,6 @@ docker/data/
 
 # OTel Java Agent
 lib/
+
+# Helm local overrides (contains secrets/IPs)
+infra/**/values-local.yaml

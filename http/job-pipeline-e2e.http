@@ -1,0 +1,363 @@
+### =============================================================
+### Job/Pipeline E2E 테스트 — Redpanda 이벤트 흐름 검증
+### =============================================================
+###
+### 사전 조건:
+###   터미널 1: make infra-all
+###   터미널 2: make backend-local
+###   터미널 3: sh http/monitor-redpanda.sh  (선택)
+###
+### 실행 순서: 위에서 아래로 순서대로 실행
+### 각 요청의 응답에서 id 값을 변수로 사용
+### =============================================================
+
+@host = http://localhost:8070
+
+### -----------------------------------------------------------
+### Phase 1a: Job 10개 생성
+### -----------------------------------------------------------
+
+### 1. git-clone-build (BUILD)
+POST {{host}}/api/jobs
+Content-Type: application/json
+
+{
+  "jobName": "git-clone-build",
+  "jobType": "BUILD"
+}
+
+> {%
+  client.global.set("gitCloneBuildId", response.body.data.id);
+%}
+
+### 2. maven-build (BUILD)
+POST {{host}}/api/jobs
+Content-Type: application/json
+
+{
+  "jobName": "maven-build",
+  "jobType": "BUILD"
+}
+
+> {%
+  client.global.set("mavenBuildId", response.body.data.id);
+%}
+
+### 3. gradle-build (BUILD)
+POST {{host}}/api/jobs
+Content-Type: application/json
+
+{
+  "jobName": "gradle-build",
+  "jobType": "BUILD"
+}
+
+> {%
+  client.global.set("gradleBuildId", response.body.data.id);
+%}
+
+### 4. npm-build (BUILD)
+POST {{host}}/api/jobs
+Content-Type: application/json
+
+{
+  "jobName": "npm-build",
+  "jobType": "BUILD"
+}
+
+> {%
+  client.global.set("npmBuildId", response.body.data.id);
+%}
+
+### 5. docker-image-build (BUILD)
+POST {{host}}/api/jobs
+Content-Type: application/json
+
+{
+  "jobName": "docker-image-build",
+  "jobType": "BUILD"
+}
+
+> {%
+  client.global.set("dockerImageBuildId", response.body.data.id);
+%}
+
+### 6. k8s-deploy-dev (DEPLOY)
+POST {{host}}/api/jobs
+Content-Type: application/json
+
+{
+  "jobName": "k8s-deploy-dev",
+  "jobType": "DEPLOY"
+}
+
+> {%
+  client.global.set("k8sDeployDevId", response.body.data.id);
+%}
+
+### 7. k8s-deploy-staging (DEPLOY)
+POST {{host}}/api/jobs
+Content-Type: application/json
+
+{
+  "jobName": "k8s-deploy-staging",
+  "jobType": "DEPLOY"
+}
+
+> {%
+  client.global.set("k8sDeployStagingId", response.body.data.id);
+%}
+
+### 8. k8s-deploy-prod (DEPLOY)
+POST {{host}}/api/jobs
+Content-Type: application/json
+
+{
+  "jobName": "k8s-deploy-prod",
+  "jobType": "DEPLOY"
+}
+
+> {%
+  client.global.set("k8sDeployProdId", response.body.data.id);
+%}
+
+### 9. nexus-upload (DEPLOY)
+POST {{host}}/api/jobs
+Content-Type: application/json
+
+{
+  "jobName": "nexus-upload",
+  "jobType": "DEPLOY"
+}
+
+> {%
+  client.global.set("nexusUploadId", response.body.data.id);
+%}
+
+### 10. registry-pull (BUILD)
+POST {{host}}/api/jobs
+Content-Type: application/json
+
+{
+  "jobName": "registry-pull",
+  "jobType": "BUILD"
+}
+
+> {%
+  client.global.set("registryPullId", response.body.data.id);
+%}
+
+### -----------------------------------------------------------
+### 검증: Job 목록 조회 (10건 확인)
+### -----------------------------------------------------------
+
+### Job 전체 목록
+GET {{host}}/api/jobs
+
+### -----------------------------------------------------------
+### Phase 1b: Pipeline 3개 생성 + Job 매핑
+### -----------------------------------------------------------
+
+### Pipeline 1: "CI/CD Full" (선형: maven-build → docker-image-build → k8s-deploy-dev → k8s-deploy-staging)
+POST {{host}}/api/pipelines
+Content-Type: application/json
+
+{
+  "name": "CI/CD Full",
+  "description": "Maven 빌드 → Docker 이미지 → Dev 배포 → Staging 배포 (선형)"
+}
+
+> {%
+  client.global.set("pipeline1Id", response.body.data.id);
+%}
+
+### Pipeline 1: Job 매핑 (선형 DAG)
+PUT {{host}}/api/pipelines/{{pipeline1Id}}/mappings
+Content-Type: application/json
+
+[
+  {
+    "jobId": {{mavenBuildId}},
+    "executionOrder": 1,
+    "dependsOnJobIds": []
+  },
+  {
+    "jobId": {{dockerImageBuildId}},
+    "executionOrder": 2,
+    "dependsOnJobIds": [{{mavenBuildId}}]
+  },
+  {
+    "jobId": {{k8sDeployDevId}},
+    "executionOrder": 3,
+    "dependsOnJobIds": [{{dockerImageBuildId}}]
+  },
+  {
+    "jobId": {{k8sDeployStagingId}},
+    "executionOrder": 4,
+    "dependsOnJobIds": [{{k8sDeployDevId}}]
+  }
+]
+
+### Pipeline 2: "Multi-Build Fan-out" (DAG: gradle+npm → nexus → k8s-deploy-prod)
+POST {{host}}/api/pipelines
+Content-Type: application/json
+
+{
+  "name": "Multi-Build Fan-out",
+  "description": "Gradle/NPM 병렬 빌드 → Nexus 업로드 → Prod 배포 (DAG Fan-out)"
+}
+
+> {%
+  client.global.set("pipeline2Id", response.body.data.id);
+%}
+
+### Pipeline 2: Job 매핑 (Fan-out DAG)
+PUT {{host}}/api/pipelines/{{pipeline2Id}}/mappings
+Content-Type: application/json
+
+[
+  {
+    "jobId": {{gradleBuildId}},
+    "executionOrder": 1,
+    "dependsOnJobIds": []
+  },
+  {
+    "jobId": {{npmBuildId}},
+    "executionOrder": 1,
+    "dependsOnJobIds": []
+  },
+  {
+    "jobId": {{nexusUploadId}},
+    "executionOrder": 2,
+    "dependsOnJobIds": [{{gradleBuildId}}, {{npmBuildId}}]
+  },
+  {
+    "jobId": {{k8sDeployProdId}},
+    "executionOrder": 3,
+    "dependsOnJobIds": [{{nexusUploadId}}]
+  }
+]
+
+### Pipeline 3: "Quick Deploy" (부분 선형: git-clone-build → registry-pull → k8s-deploy-dev)
+POST {{host}}/api/pipelines
+Content-Type: application/json
+
+{
+  "name": "Quick Deploy",
+  "description": "Git Clone → Registry Pull → Dev 배포 (빠른 배포)"
+}
+
+> {%
+  client.global.set("pipeline3Id", response.body.data.id);
+%}
+
+### Pipeline 3: Job 매핑 (선형)
+PUT {{host}}/api/pipelines/{{pipeline3Id}}/mappings
+Content-Type: application/json
+
+[
+  {
+    "jobId": {{gitCloneBuildId}},
+    "executionOrder": 1,
+    "dependsOnJobIds": []
+  },
+  {
+    "jobId": {{registryPullId}},
+    "executionOrder": 2,
+    "dependsOnJobIds": [{{gitCloneBuildId}}]
+  },
+  {
+    "jobId": {{k8sDeployDevId}},
+    "executionOrder": 3,
+    "dependsOnJobIds": [{{registryPullId}}]
+  }
+]
+
+### -----------------------------------------------------------
+### 검증: Pipeline 목록 조회 (3건 + Job 매핑 확인)
+### -----------------------------------------------------------
+
+### Pipeline 전체 목록
+GET {{host}}/api/pipelines
+
+### Pipeline 1 상세 (Job 4개 매핑 확인)
+GET {{host}}/api/pipelines/{{pipeline1Id}}
+
+### Pipeline 2 상세 (Job 4개, Fan-out 확인)
+GET {{host}}/api/pipelines/{{pipeline2Id}}
+
+### Pipeline 3 상세 (Job 3개 매핑 확인)
+GET {{host}}/api/pipelines/{{pipeline3Id}}
+
+### -----------------------------------------------------------
+### Phase 1c: 실행 테스트
+### -----------------------------------------------------------
+
+### Job 단독 실행: maven-build
+POST {{host}}/api/jobs/{{mavenBuildId}}/execute
+
+> {%
+  client.global.set("jobExecId", response.body.data.executionId);
+%}
+
+### Pipeline 1 실행: CI/CD Full (선형)
+POST {{host}}/api/pipelines/{{pipeline1Id}}/execute
+
+> {%
+  client.global.set("pipeline1ExecId", response.body.data.executionId);
+%}
+
+### Pipeline 2 실행: Multi-Build Fan-out (DAG)
+POST {{host}}/api/pipelines/{{pipeline2Id}}/execute
+
+> {%
+  client.global.set("pipeline2ExecId", response.body.data.executionId);
+%}
+
+### Pipeline 3 실행: Quick Deploy (부분 선형)
+POST {{host}}/api/pipelines/{{pipeline3Id}}/execute
+
+> {%
+  client.global.set("pipeline3ExecId", response.body.data.executionId);
+%}
+
+### -----------------------------------------------------------
+### Phase 3: 검증
+### -----------------------------------------------------------
+
+### 검증 1: Job 전체 목록 (10건)
+GET {{host}}/api/jobs
+
+### 검증 2: Pipeline 전체 목록 (3건)
+GET {{host}}/api/pipelines
+
+### -----------------------------------------------------------
+### SSE 실시간 추적 (브라우저 또는 curl로 확인)
+### -----------------------------------------------------------
+
+### Pipeline 1 SSE 이벤트 스트림
+### curl -N "http://localhost:8080/api/pipelines/executions/{{pipeline1ExecId}}/events"
+
+### Pipeline 2 SSE 이벤트 스트림
+### curl -N "http://localhost:8080/api/pipelines/executions/{{pipeline2ExecId}}/events"
+
+### -----------------------------------------------------------
+### Cleanup (필요 시)
+### -----------------------------------------------------------
+
+### Pipeline 삭제
+# DELETE {{host}}/api/pipelines/{{pipeline1Id}}
+# DELETE {{host}}/api/pipelines/{{pipeline2Id}}
+# DELETE {{host}}/api/pipelines/{{pipeline3Id}}
+
+### Job 삭제
+# DELETE {{host}}/api/jobs/{{gitCloneBuildId}}
+# DELETE {{host}}/api/jobs/{{mavenBuildId}}
+# DELETE {{host}}/api/jobs/{{gradleBuildId}}
+# DELETE {{host}}/api/jobs/{{npmBuildId}}
+# DELETE {{host}}/api/jobs/{{dockerImageBuildId}}
+# DELETE {{host}}/api/jobs/{{k8sDeployDevId}}
+# DELETE {{host}}/api/jobs/{{k8sDeployStagingId}}
+# DELETE {{host}}/api/jobs/{{k8sDeployProdId}}
+# DELETE {{host}}/api/jobs/{{nexusUploadId}}
+# DELETE {{host}}/api/jobs/{{registryPullId}}
