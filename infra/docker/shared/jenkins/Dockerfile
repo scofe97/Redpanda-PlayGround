@@ -8,6 +8,7 @@ ENV JAVA_OPTS="-Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8 -Djenkins.install.
 # Pipeline + CasC 플러그인 (PoC)
 RUN jenkins-plugin-cli --plugins \
     configuration-as-code \
+    cloudbees-folder \
     job-dsl \
     workflow-job \
     workflow-cps \

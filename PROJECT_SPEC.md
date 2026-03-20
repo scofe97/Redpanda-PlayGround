@@ -249,9 +249,10 @@ redpanda-playground/
 │       └── supporttool/     # 지원 도구 도메인
 ├── frontend/                # React 프론트엔드
 ├── connect/                 # Redpanda Connect YAML 설정
-├── docker/                  # Docker 설정 및 셋업 스크립트
-├── docker-compose.yml       # 핵심 인프라
-└── docker-compose.infra.yml # 외부 도구
+├── infra/                   # 인프라 (Docker, K8s, 문서)
+│   ├── docker/              # Docker Compose, 스크립트
+│   ├── k8s/                 # Kubernetes Helm 설정
+│   └── docs/                # 인프라 문서
 ```
 
 ### 모듈 경계 원칙

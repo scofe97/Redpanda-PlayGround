@@ -448,8 +448,8 @@ curl http://localhost:4195/streams  # 동적 스트림 사라짐
 ## 참조
 
 - **HTTP→Kafka 브릿지 기본 개념**: `docs/#6-redpanda-connect`
-- **Streams 모드 + REST API 기술 상세**: `docs/infra/03-connect-streams.md`
-- **정적 파이프라인 YAML**: `docker/connect/jenkins-webhook.yaml`, `gitlab-webhook.yaml`, `jenkins-command.yaml`
+- **Streams 모드 + REST API 기술 상세**: `infra/docs/03-connect-streams.md`
+- **정적 파이프라인 YAML**: `infra/docker/shared/connect/jenkins-webhook.yaml`, `gitlab-webhook.yaml`, `jenkins-command.yaml`
 - **지원도구 CRUD**: `SupportToolService.java`
 - **구현 소스**: `connector/` 패키지 (domain, mapper, client, service)
 

@@ -10,7 +10,7 @@
 
 Alloy가 Docker 소켓(`/var/run/docker.sock`)을 통해 `playground-*` 컨테이너의 로그를 자동 수집하여 Loki로 전송한다. 별도 설정 없이 컨테이너가 기동되면 로그가 쌓인다.
 
-설정 파일: `docker/shared/monitoring/alloy-config.alloy` (로컬), `docker/deploy/server-*/monitoring/alloy-config.alloy` (GCP)
+설정 파일: `infra/docker/shared/monitoring/alloy-config.alloy` (로컬), `infra/docker/deploy/server-*/monitoring/alloy-config.alloy` (GCP)
 
 주의사항:
 - **GitLab 제외**: GitLab은 로그량이 과도하여(~1MB/s) Loki 인제스트 제한을 초과하므로 수집 대상에서 drop했다. GCP에서는 Server 2 Alloy sidecar의 relabel에서 drop한다.
@@ -73,7 +73,7 @@ Alloy가 15초 간격으로 4개 타겟을 스크래핑하고, `prometheus.remot
 
 GCP에서는 Server 1 Alloy sidecar가 Redpanda/Connect 메트릭을 스크래핑한 후 Server 3 Prometheus로 remote_write한다. Spring Boot 메트릭은 로컬 전용이다(GCP에서 원격 스크래핑 미설정).
 
-설정 파일: `docker/shared/monitoring/alloy-config.alloy` (로컬), `docker/deploy/server-1/monitoring/alloy-config.alloy` (GCP)
+설정 파일: `infra/docker/shared/monitoring/alloy-config.alloy` (로컬), `infra/docker/deploy/server-1/monitoring/alloy-config.alloy` (GCP)
 
 ---
 
@@ -152,7 +152,7 @@ count(vectorized_cluster_partition_leader == 1)
 ### 로컬 환경
 
 ```
-docker/
+infra/docker/
 ├── local/
 │   ├── .env                              # 포트/버전 환경변수
 │   ├── docker-compose.yml                # Core (Redpanda, Console, Connect)
@@ -177,7 +177,7 @@ docker/
 ### GCP 환경 (self-contained)
 
 ```
-docker/deploy/
+infra/docker/deploy/
 ├── server-1/                             # Redpanda + DB + Connect + Alloy sidecar
 │   ├── .env
 │   ├── docker-compose.yml

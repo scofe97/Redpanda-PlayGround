@@ -388,6 +388,6 @@ AlertManager를 이 프로젝트에 실제로 도입할 때 필요한 작업 목
 ## 참조
 
 - [05-dashboards-and-alerts.md](./05-dashboards-and-alerts.md) — 기존 9개 알림 규칙 정의 및 Grafana Alerting 언급
-- [prometheus-rules.yml](../../../docker/shared/monitoring/prometheus-rules.yml) — 실제 규칙 파일 (로컬)
+- [prometheus-rules.yml](../../../infra/docker/shared/monitoring/prometheus-rules.yml) — 실제 규칙 파일 (로컬)
 - [Prometheus Alerting 공식 문서](https://prometheus.io/docs/alerting/latest/overview/)
 - [AlertManager Configuration 공식 문서](https://prometheus.io/docs/alerting/latest/configuration/)

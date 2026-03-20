@@ -11,24 +11,24 @@ help: ## 사용 가능한 명령어 목록
 # === Infrastructure ===
 
 infra: ## Core 인프라 시작 (Redpanda, Console, Connect — 네트워크 생성)
-	cd docker && docker compose up -d
+	cd infra/docker/local && docker compose up -d
 
 db: ## PostgreSQL 시작
-	cd docker && docker compose -f docker-compose.db.yml up -d
+	cd infra/docker/local && docker compose -f docker-compose.db.yml up -d
 
 nexus: ## Nexus + Registry 시작 (로컬)
-	cd docker && docker compose -f docker-compose.nexus.yml up -d
+	cd infra/docker/local && docker compose -f docker-compose.nexus.yml up -d
 
 infra-all: infra db nexus ## 로컬 인프라 전체 시작 (Jenkins/GitLab은 GCP)
 
 infra-down: ## 로컬 인프라 전체 중지 (Jenkins/GitLab은 GCP에서 직접 관리)
-	cd docker && docker compose down \
+	cd infra/docker/local && docker compose down \
 		&& docker compose -f docker-compose.db.yml down 2>/dev/null || true \
 		&& docker compose -f docker-compose.nexus.yml down 2>/dev/null || true \
 		&& docker compose -f docker-compose.monitoring.yml down 2>/dev/null || true
 
 infra-logs: ## 인프라 로그 확인 (실시간)
-	cd docker && docker compose logs -f
+	cd infra/docker/local && docker compose logs -f
 
 # === Backend ===
 
@@ -89,10 +89,10 @@ app: ## 프론트엔드 앱 열기
 # === Monitoring ===
 
 monitoring: ## 모니터링 스택 시작 (Grafana, Loki, Tempo, Alloy, Prometheus)
-	cd docker && docker compose -f docker-compose.monitoring.yml up -d
+	cd infra/docker/local && docker compose -f docker-compose.monitoring.yml up -d
 
 monitoring-down: ## 모니터링 스택 중지
-	cd docker && docker compose -f docker-compose.monitoring.yml down
+	cd infra/docker/local && docker compose -f docker-compose.monitoring.yml down
 
 grafana: ## Grafana 열기
 	open http://localhost:23000
@@ -100,16 +100,16 @@ grafana: ## Grafana 열기
 # === Middleware Setup ===
 
 setup-gitlab: ## GitLab에 egov-sample + portal-app 프로젝트 등록
-	bash docker/scripts/setup-gitlab.sh
+	bash infra/docker/shared/scripts/setup-gitlab.sh
 
 setup-nexus: ## Nexus에 egov-sample WAR 업로드
-	bash docker/scripts/setup-nexus.sh
+	bash infra/docker/shared/scripts/setup-nexus.sh
 
 setup-registry: ## Registry에 egov-sample 이미지 push
-	bash docker/scripts/setup-registry.sh
+	bash infra/docker/shared/scripts/setup-registry.sh
 
 setup-jenkins: ## Jenkins에 배포 Job 생성
-	bash docker/scripts/setup-jenkins.sh
+	bash infra/docker/shared/scripts/setup-jenkins.sh
 
 setup-all: setup-gitlab setup-nexus setup-registry setup-jenkins ## 전체 미들웨어 셋업
 	@echo "✅ All middleware setup complete"
@@ -117,7 +117,7 @@ setup-all: setup-gitlab setup-nexus setup-registry setup-jenkins ## 전체 미�
 # === Demo ===
 
 demo-deploy: ## 복합 소스 티켓 생성 + 파이프라인 실행 + 결과 확인
-	bash docker/scripts/demo-deploy.sh
+	bash infra/docker/shared/scripts/demo-deploy.sh
 
 demo-full: infra-all setup-all backend ## 풀 데모 (인프라+셋업+백엔드)
 	@echo "Frontend: make frontend (별도 터미널)"

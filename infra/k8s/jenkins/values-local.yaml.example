@@ -1,0 +1,12 @@
+# ============================================================================
+# 로컬/환경별 오버라이드 (커밋하지 않음)
+# ============================================================================
+# 사용법: cp values-local.yaml.example values-local.yaml && vi values-local.yaml
+#
+# Jenkins URL을 변경하려면 values.yaml의 system-config > unclassified.location.url 수정.
+# JCasC configScripts 키 충돌 방지를 위해 여기서 별도 configScript를 추가하지 않는다.
+# ============================================================================
+
+controller:
+  admin:
+    password: "admin"

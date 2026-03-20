@@ -131,7 +131,7 @@ erDiagram
 
 | 버전 | 테이블 | 설명 |
 |------|--------|------|
-| V1 | `ticket`, `ticket_source` | 티켓 + 소스 관리. CASCADE 삭제. `uuid-ossp` 확장 필요 (`docker/init-db/01-init.sql`에서 설정) |
+| V1 | `ticket`, `ticket_source` | 티켓 + 소스 관리. CASCADE 삭제. `uuid-ossp` 확장 필요 (`infra/docker/shared/init-db/01-init.sql`에서 설정) |
 | V2 | `pipeline_execution`, `pipeline_step` | 파이프라인 실행 이력. UUID PK (`gen_random_uuid()`) |
 | V3 | `outbox_event` | Transactional Outbox. 부분 인덱스 |
 | V4 | `processed_event` | 멱등성 보장. 복합 PK |
@@ -481,7 +481,7 @@ flowchart TD
 
 ### 흐름 4: Webhook 수신 (Break-and-Resume)
 
-Jenkins Job 완료 시 webhook 콜백이 Redpanda Connect(포트 4197)를 거쳐 Kafka로 전달되고, Consumer가 파이프라인을 재개한다. Spring 애플리케이션에는 HTTP webhook 엔드포인트가 없으며, Redpanda Connect(`docker/connect/jenkins-webhook.yaml`)가 HTTP→Kafka 브릿지 역할을 한다. 커맨드 방향(App→Jenkins)도 마찬가지로 Connect(`docker/connect/jenkins-command.yaml`)가 Kafka→HTTP 브릿지 역할을 한다.
+Jenkins Job 완료 시 webhook 콜백이 Redpanda Connect(포트 4197)를 거쳐 Kafka로 전달되고, Consumer가 파이프라인을 재개한다. Spring 애플리케이션에는 HTTP webhook 엔드포인트가 없으며, Redpanda Connect(`infra/docker/shared/connect/jenkins-webhook.yaml`)가 HTTP→Kafka 브릿지 역할을 한다. 커맨드 방향(App→Jenkins)도 마찬가지로 Connect(`infra/docker/shared/connect/jenkins-command.yaml`)가 Kafka→HTTP 브릿지 역할을 한다.
 
 ```mermaid
 flowchart LR

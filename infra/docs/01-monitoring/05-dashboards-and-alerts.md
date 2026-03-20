@@ -310,7 +310,7 @@ container_memory_usage_bytes{name=~"playground-.*"}
 
 ### 3-2. 알림 규칙 파일
 
-Prometheus 알림 규칙은 `monitoring/prometheus-rules.yml`에 정의하고, `prometheus.yml`의 `rule_files`에서 로드한다. docker-compose에서 `/etc/prometheus/rules/alerts.yml`로 마운트된다. 로컬은 `docker/shared/monitoring/prometheus-rules.yml`, GCP는 `docker/deploy/server-3/monitoring/prometheus-rules.yml`에 위치한다.
+Prometheus 알림 규칙은 `monitoring/prometheus-rules.yml`에 정의하고, `prometheus.yml`의 `rule_files`에서 로드한다. docker-compose에서 `/etc/prometheus/rules/alerts.yml`로 마운트된다. 로컬은 `infra/docker/shared/monitoring/prometheus-rules.yml`, GCP는 `infra/docker/deploy/server-3/monitoring/prometheus-rules.yml`에 위치한다.
 
 **`monitoring/prometheus-rules.yml`:**
 ```yaml
@@ -489,12 +489,12 @@ providers:
 ### 5-3. docker-compose.monitoring.yml에 마운트 추가
 
 ```yaml
-# 로컬: docker/local/docker-compose.monitoring.yml
+# 로컬: infra/docker/local/docker-compose.monitoring.yml
 grafana:
   volumes:
     - ../shared/monitoring/grafana/provisioning:/etc/grafana/provisioning
 
-# GCP: docker/deploy/server-3/docker-compose.yml
+# GCP: infra/docker/deploy/server-3/docker-compose.yml
 grafana:
   volumes:
     - ./monitoring/grafana/provisioning:/etc/grafana/provisioning

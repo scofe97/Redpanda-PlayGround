@@ -1,0 +1,114 @@
+/**
+ * ============================================================
+ *  Redpanda Playground - 빌드 파이프라인
+ * ============================================================
+ *  GIT_URL이 전달되면 실제 git clone + 소스 분석을 수행하고,
+ *  없으면 시뮬레이션(sleep)으로 동작한다.
+ *
+ *  - 웹훅 콜백: 빌드 완료 시 Redpanda Connect로 결과 전송
+ *  - 파라미터: EXECUTION_ID, STEP_ORDER, GIT_URL, BRANCH
+ * ============================================================
+ */
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'EXECUTION_ID', defaultValue: '', description: '파이프라인 실행 ID (Spring에서 자동 전달)')
+        string(name: 'STEP_ORDER', defaultValue: '1', description: '현재 스텝 순서 (Spring에서 자동 전달)')
+        string(name: 'GIT_URL', defaultValue: '', description: 'Git repository URL')
+        string(name: 'BRANCH', defaultValue: 'main', description: 'Git branch')
+    }
+
+    stages {
+        stage('Init') {
+            steps {
+                echo '============================================'
+                echo '  [TEST PIPELINE] Redpanda Playground Build'
+                echo '============================================'
+                echo "Execution ID : ${params.EXECUTION_ID}"
+                echo "Step Order   : ${params.STEP_ORDER}"
+                echo "GIT_URL      : ${params.GIT_URL ?: '(simulation)'}"
+                echo "BRANCH       : ${params.BRANCH}"
+                echo "Build Number : ${env.BUILD_NUMBER}"
+                echo "Workspace    : ${env.WORKSPACE}"
+                echo '--------------------------------------------'
+            }
+        }
+
+        stage('Git Clone') {
+            steps {
+                script {
+                    if (params.GIT_URL) {
+                        echo "[REAL] Git Clone: ${params.GIT_URL} (branch: ${params.BRANCH})"
+                        sh 'rm -rf project'
+                        def cloneUrl = params.GIT_URL
+                        def gitToken = env.GITLAB_TOKEN
+                        if (gitToken && cloneUrl.startsWith('http')) {
+                            cloneUrl = cloneUrl.replaceFirst('http(s?)://', "http\$1://oauth2:${gitToken}@")
+                        }
+                        sh "git clone -b ${params.BRANCH} ${cloneUrl} project"
+                        sh 'ls -la project/'
+                    } else {
+                        echo '[SIM] Git Clone - 소스 코드 체크아웃 시뮬레이션'
+                        sleep 2
+                        echo '  > Git Clone 완료'
+                    }
+                }
+            }
+        }
+
+        stage('Build') {
+            steps {
+                script {
+                    if (params.GIT_URL) {
+                        echo '[REAL] 프로젝트 파일 분석'
+                        sh 'find project/ -type f | head -20'
+                        sh 'find project/ -type f -name "*.java" -o -name "*.md" | head -10 | xargs wc -l 2>/dev/null || echo "Source analysis complete"'
+                    } else {
+                        echo '[SIM] Build - 프로젝트 빌드 시뮬레이션'
+                        sleep 3
+                        echo '  > Build 완료 (42 classes compiled)'
+                    }
+                }
+            }
+        }
+
+        stage('Test') {
+            steps {
+                script {
+                    if (params.GIT_URL) {
+                        echo '[REAL] 테스트 (소스 구조 검증)'
+                        sh 'find project/ -type f | wc -l'
+                    } else {
+                        echo '[SIM] Test - 단위/통합 테스트 시뮬레이션'
+                        sleep 2
+                        echo '  > Test 완료 (15 tests passed, 0 failed)'
+                    }
+                }
+            }
+        }
+
+        stage('Package') {
+            steps {
+                script {
+                    if (params.GIT_URL) {
+                        echo '[REAL] 패키징 완료 (소스 분석 기반)'
+                    } else {
+                        echo '[SIM] Package - 아티팩트 패키징 시뮬레이션'
+                        sleep 1
+                        echo '  > Package 완료 (playground-app:latest)'
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo '============================================'
+            echo '  [TEST PIPELINE] 빌드 종료'
+            echo "  결과: ${currentBuild.currentResult}"
+            echo '============================================'
+        }
+    }
+}

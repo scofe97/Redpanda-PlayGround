@@ -1,0 +1,68 @@
+/**
+ * ============================================================
+ *  Redpanda Playground - 배포 파이프라인
+ * ============================================================
+ *  DEPLOY_TARGET이 전달되면 배포 대상 정보를 출력하고,
+ *  없으면 시뮬레이션으로 동작한다.
+ *  실제 배포는 수행하지 않음 (PoC).
+ *
+ *  - 웹훅 콜백: 배포 완료 시 Redpanda Connect로 결과 전송
+ *  - 파라미터: EXECUTION_ID, STEP_ORDER, DEPLOY_TARGET
+ * ============================================================
+ */
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'EXECUTION_ID', defaultValue: '', description: '파이프라인 실행 ID (Spring에서 자동 전달)')
+        string(name: 'STEP_ORDER', defaultValue: '1', description: '현재 스텝 순서 (Spring에서 자동 전달)')
+        string(name: 'DEPLOY_TARGET', defaultValue: '', description: 'Deploy target info')
+    }
+
+    stages {
+        stage('Init') {
+            steps {
+                echo '============================================'
+                echo '  [TEST PIPELINE] Redpanda Playground Deploy'
+                echo '============================================'
+                echo "Execution ID  : ${params.EXECUTION_ID}"
+                echo "Step Order    : ${params.STEP_ORDER}"
+                echo "Deploy Target : ${params.DEPLOY_TARGET ?: '(unknown)'}"
+                echo "Build Number  : ${env.BUILD_NUMBER}"
+                echo '--------------------------------------------'
+            }
+        }
+
+        stage('Pre-Deploy Check') {
+            steps {
+                echo "[CD] 배포 대상: ${params.DEPLOY_TARGET ?: 'unknown'}"
+                echo '[CD] Pre-Deploy Check 완료'
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                echo '============================================'
+                echo '  배포 대상 파일/아티팩트:'
+                echo "  ${params.DEPLOY_TARGET ?: 'N/A'}"
+                echo '============================================'
+                echo '[CD] 실제 배포는 수행하지 않음 (PoC)'
+            }
+        }
+
+        stage('Verify') {
+            steps {
+                echo '[CD] 배포 검증 완료 (시뮬레이션)'
+            }
+        }
+    }
+
+    post {
+        always {
+            echo '============================================'
+            echo '  [TEST PIPELINE] 배포 종료'
+            echo "  결과: ${currentBuild.currentResult}"
+            echo '============================================'
+        }
+    }
+}

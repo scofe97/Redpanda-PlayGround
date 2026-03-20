@@ -224,7 +224,7 @@ redpanda-connect streams --chilled \
   /etc/connect/gitlab-webhook.yaml
 ```
 
-설정 파일: `docker/connect/observability.yaml`
+설정 파일: `infra/docker/shared/connect/observability.yaml`
 
 streams 모드에서 tracer 설정을 파이프라인 YAML에 넣으면 `field tracer not recognised` 경고가 발생한다. 반드시 `-o` 플래그 파일에만 넣어야 한다.
 
@@ -369,7 +369,7 @@ GCP 환경에서도 Connect는 동일하게 `alloy:4318`을 사용한다. Server
 
 Alloy는 "앱은 OTLP만 알면 된다" 원칙의 핵심이다. 로그, 트레이스, 메트릭 세 가지 신호가 모두 Alloy를 거쳐 각 백엔드(Loki, Tempo, Prometheus)로 라우팅된다. `alloy-config.alloy` 파일의 각 블록을 데이터 흐름별로 설명한다.
 
-설정 파일: `docker/shared/monitoring/alloy-config.alloy` (로컬 개발 기준, 전체 기능 포함)
+설정 파일: `infra/docker/shared/monitoring/alloy-config.alloy` (로컬 개발 기준, 전체 기능 포함)
 
 > **shared vs deploy**: `shared/`는 로컬 docker-compose 개발용 설정으로, 하나의 Alloy가 모든 수집 기능을 담당한다. GCP `deploy/` 환경은 서버 3대에 역할이 분산되어 각 서버의 Alloy가 필요한 블록만 포함한다. 이 문서는 `shared/` 기준으로 전체 기능을 설명하고, 환경별 차이는 아래 테이블을 참조한다.
 

@@ -60,7 +60,7 @@ flowchart LR
 | SAGA Orchestrator 패턴 | [04-patterns.md](04-patterns.md#saga-orchestrator) |
 | Break-and-Resume 패턴 | [04-patterns.md](04-patterns.md#break-and-resume) |
 | Redpanda Connect 브릿지 | [04-patterns.md](04-patterns.md#redpanda-connect) |
-| 인프라 개요 | [../infra/01-project-overview.md](../infra/01-project-overview.md) |
+| 인프라 개요 | [../../infra/docs/01-project-overview.md](../../infra/docs/01-project-overview.md) |
 
 ---
 
@@ -634,9 +634,9 @@ flowchart LR
     style K2 fill:#f3e5f5,stroke:#6a1b9a,color:#333
 ```
 
-**HTTP → Kafka** (`docker/connect/jenkins-webhook.yaml`): Jenkins의 POST 웹훅을 수신해서 `playground.webhook.inbound` 토픽에 발행한다. 원본 페이로드를 `{ webhookSource: "JENKINS", payload: {...}, headers: {...} }` 형태로 감싸서 소스 식별이 가능하게 만든다.
+**HTTP → Kafka** (`infra/docker/shared/connect/jenkins-webhook.yaml`): Jenkins의 POST 웹훅을 수신해서 `playground.webhook.inbound` 토픽에 발행한다. 원본 페이로드를 `{ webhookSource: "JENKINS", payload: {...}, headers: {...} }` 형태로 감싸서 소스 식별이 가능하게 만든다.
 
-**Kafka → HTTP** (`docker/connect/jenkins-command.yaml`): `playground.pipeline.commands` 토픽에서 `JENKINS_BUILD_COMMAND` 이벤트를 소비해서 Jenkins REST API(`POST /job/{jobName}/buildWithParameters`)를 호출한다. Bloblang 필터로 이벤트 타입을 걸러내고, Basic Auth로 Jenkins에 인증한다.
+**Kafka → HTTP** (`infra/docker/shared/connect/jenkins-command.yaml`): `playground.pipeline.commands` 토픽에서 `JENKINS_BUILD_COMMAND` 이벤트를 소비해서 Jenkins REST API(`POST /job/{jobName}/buildWithParameters`)를 호출한다. Bloblang 필터로 이벤트 타입을 걸러내고, Basic Auth로 Jenkins에 인증한다.
 
 Connect 브릿지의 설계 결정에 대한 자세한 내용은 [04-patterns.md](04-patterns.md#redpanda-connect)를 참조한다.
 
@@ -753,8 +753,8 @@ WebhookTimeoutChecker(Pipeline 도메인에 위치)가 WAITING_WEBHOOK 상태의
 | Consumer | `WebhookEventConsumer` | `playground.webhook.inbound` 소비, 웹훅 소스별 핸들러 라우팅, 재시도 + DLT |
 | Handler | `handler/JenkinsWebhookHandler` | 페이로드 파싱, 멱등성 체크, 빌드 로그 조회, PipelineEngine 재개 호출 |
 | DTO | `dto/JenkinsWebhookPayload` | Jenkins 콜백 데이터 (record): executionId, stepOrder, jobName, buildNumber, result, duration, url |
-| Config | `docker/connect/jenkins-webhook.yaml` | HTTP → Kafka 브릿지 설정 |
-| Config | `docker/connect/jenkins-command.yaml` | Kafka → HTTP 브릿지 설정 (커맨드 방향) |
+| Config | `infra/docker/shared/connect/jenkins-webhook.yaml` | HTTP → Kafka 브릿지 설정 |
+| Config | `infra/docker/shared/connect/jenkins-command.yaml` | Kafka → HTTP 브릿지 설정 (커맨드 방향) |
 
 #### 타 도메인 연결점
 
