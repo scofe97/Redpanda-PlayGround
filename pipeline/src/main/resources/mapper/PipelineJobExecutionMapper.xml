@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.study.playground.pipeline.mapper.PipelineJobExecutionMapper">
+
+    <insert id="insertBatch">
+        INSERT INTO pipeline_job_execution (execution_id, job_order, job_type, job_name, job_id, status)
+        VALUES
+        <foreach collection="jobExecutions" item="je" separator=",">
+            (#{executionId}, #{je.jobOrder}, #{je.jobType}, #{je.jobName}, #{je.jobId}, 'PENDING')
+        </foreach>
+    </insert>
+
+    <select id="findByExecutionId" resultType="com.study.playground.pipeline.domain.PipelineJobExecution">
+        SELECT id, execution_id, job_order, job_type, job_name, job_id, status, log, started_at, completed_at
+        FROM pipeline_job_execution
+        WHERE execution_id = #{executionId}
+        ORDER BY job_order
+    </select>
+
+    <update id="updateStatus">
+        UPDATE pipeline_job_execution
+        SET status = #{status},
+            log = #{log},
+            started_at = CASE
+                WHEN #{status} = 'RUNNING' AND started_at IS NULL THEN NOW()
+                ELSE started_at
+            END,
+            completed_at = #{completedAt}
+        WHERE id = #{id}
+    </update>
+
+    <select id="findByExecutionIdAndJobOrder" resultType="com.study.playground.pipeline.domain.PipelineJobExecution">
+        SELECT id, execution_id, job_order, job_type, job_name, job_id, status, log, started_at, completed_at
+        FROM pipeline_job_execution
+        WHERE execution_id = #{executionId} AND job_order = #{jobOrder}
+    </select>
+
+    <select id="findWaitingWebhookOlderThan" resultType="com.study.playground.pipeline.domain.PipelineJobExecution">
+        SELECT id, execution_id, job_order, job_type, job_name, job_id, status, log, started_at, completed_at
+        FROM pipeline_job_execution
+        WHERE status = 'WAITING_WEBHOOK'
+          AND started_at &lt; NOW() - INTERVAL '1 minute' * #{minutes}
+    </select>
+
+    <update id="updateStatusIfCurrent">
+        UPDATE pipeline_job_execution
+        SET status = #{newStatus},
+            log = #{log},
+            completed_at = #{completedAt}
+        WHERE id = #{id}
+          AND status = #{expectedStatus}
+    </update>
+
+</mapper>

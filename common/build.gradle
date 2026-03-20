@@ -1,0 +1,18 @@
+plugins {
+    id 'java-library'
+}
+
+dependencies {
+    // MyBatis (ProcessedEventMapper 등에서 @Mapper 사용)
+    api 'org.mybatis.spring.boot:mybatis-spring-boot-starter:3.0.3'
+
+    // Spring Web (GlobalExceptionHandler에서 @RestControllerAdvice 사용)
+    compileOnly 'org.springframework.boot:spring-boot-starter-web'
+
+    // Validation
+    compileOnly 'org.springframework.boot:spring-boot-starter-validation'
+
+    // Lombok
+    compileOnly 'org.projectlombok:lombok:1.18.42'
+    annotationProcessor 'org.projectlombok:lombok:1.18.42'
+}

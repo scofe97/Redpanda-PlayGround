@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: 8070
 
 spring:
   config:
@@ -17,10 +17,10 @@ spring:
     baseline-on-migrate: true
 
 mybatis:
-  mapper-locations: classpath:mapper/**/*.xml
+  mapper-locations: classpath*:mapper/**/*.xml
   configuration:
     map-underscore-to-camel-case: true
-  type-aliases-package: com.study.playground.ticket.domain,com.study.playground.pipeline.domain,com.study.playground.common.outbox,com.study.playground.supporttool.domain,com.study.playground.connector.domain,com.study.playground.preset.domain
+  type-aliases-package: com.study.playground.ticket.domain,com.study.playground.pipeline.domain,com.study.playground.kafka.outbox,com.study.playground.supporttool.domain,com.study.playground.connector.domain,com.study.playground.preset.domain
   type-handlers-package: com.study.playground.common.mybatis
 
 app:
@@ -75,9 +75,16 @@ otel:
 logging:
   level:
     com.study.playground: DEBUG
-    com.study.playground.common.outbox.OutboxMapper: INFO
+    com.study.playground.kafka.outbox.OutboxMapper: INFO
     com.study.playground.pipeline.mapper.PipelineStepMapper.findWaitingWebhookStepsOlderThan: INFO
     org.apache.kafka: WARN
     org.mybatis: DEBUG
     org.mybatis.spring.SqlSessionUtils: INFO
     org.mybatis.spring.transaction.SpringManagedTransaction: INFO
+
+outbox:
+  batch-size: 50
+  poll-interval-ms: 500
+  max-retries: 5
+  cleanup-retention-days: 7
+  cleanup-cron: "0 0 3 * * *"

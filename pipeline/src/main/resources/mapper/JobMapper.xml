@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.study.playground.pipeline.mapper.JobMapper">
+
+    <resultMap id="jobResultMap" type="com.study.playground.pipeline.domain.PipelineJob">
+        <id     property="id"                   column="id"/>
+        <result property="pipelineDefinitionId" column="pipeline_definition_id"/>
+        <result property="jobName"              column="job_name"/>
+        <result property="jobType"              column="job_type"/>
+        <result property="executionOrder"       column="execution_order"/>
+        <result property="presetId"             column="preset_id"/>
+        <result property="presetName"           column="preset_name"/>
+        <result property="configJson"           column="config_json"/>
+        <result property="jenkinsScript"       column="jenkins_script"/>
+        <result property="jenkinsStatus"       column="jenkins_status"/>
+        <result property="createdAt"            column="created_at"/>
+    </resultMap>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO pipeline_job (pipeline_definition_id, job_name, job_type, execution_order, preset_id, config_json, jenkins_script, jenkins_status, created_at)
+        VALUES (NULL, #{jobName}, #{jobType}, NULL, #{presetId}, #{configJson}, #{jenkinsScript}, COALESCE(#{jenkinsStatus}, 'PENDING'), NOW())
+    </insert>
+
+    <select id="findById" resultMap="jobResultMap">
+        SELECT
+            pj.id
+            , pj.pipeline_definition_id
+            , pj.job_name
+            , pj.job_type
+            , pj.execution_order
+            , pj.preset_id
+            , mp.name AS preset_name
+            , pj.config_json
+            , pj.jenkins_script
+            , pj.jenkins_status
+            , pj.created_at
+        FROM pipeline_job pj
+        LEFT JOIN middleware_preset mp ON mp.id = pj.preset_id
+        WHERE pj.id = #{id}
+    </select>
+
+    <select id="findAll" resultMap="jobResultMap">
+        SELECT
+            pj.id
+            , pj.pipeline_definition_id
+            , pj.job_name
+            , pj.job_type
+            , pj.execution_order
+            , pj.preset_id
+            , mp.name AS preset_name
+            , pj.config_json
+            , pj.jenkins_script
+            , pj.jenkins_status
+            , pj.created_at
+        FROM pipeline_job pj
+        LEFT JOIN middleware_preset mp ON mp.id = pj.preset_id
+        ORDER BY pj.created_at DESC
+    </select>
+
+    <select id="findByIds" resultMap="jobResultMap">
+        SELECT
+            pj.id
+            , pj.pipeline_definition_id
+            , pj.job_name
+            , pj.job_type
+            , pj.execution_order
+            , pj.preset_id
+            , mp.name AS preset_name
+            , pj.config_json
+            , pj.jenkins_script
+            , pj.jenkins_status
+            , pj.created_at
+        FROM pipeline_job pj
+        LEFT JOIN middleware_preset mp ON mp.id = pj.preset_id
+        WHERE pj.id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+    <update id="update">
+        UPDATE pipeline_job
+        SET
+            job_name       = #{jobName}
+            , job_type       = #{jobType}
+            , preset_id      = #{presetId}
+            , config_json    = #{configJson}
+            , jenkins_script = #{jenkinsScript}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateJenkinsStatus">
+        UPDATE pipeline_job
+        SET jenkins_status = #{jenkinsStatus}
+        WHERE id = #{id}
+    </update>
+
+    <select id="findByJenkinsStatus" resultMap="jobResultMap">
+        SELECT
+            pj.id
+            , pj.pipeline_definition_id
+            , pj.job_name
+            , pj.job_type
+            , pj.execution_order
+            , pj.preset_id
+            , mp.name AS preset_name
+            , pj.config_json
+            , pj.jenkins_script
+            , pj.jenkins_status
+            , pj.created_at
+        FROM pipeline_job pj
+        LEFT JOIN middleware_preset mp ON mp.id = pj.preset_id
+        WHERE pj.jenkins_status = #{jenkinsStatus}
+    </select>
+
+    <delete id="delete">
+        DELETE FROM pipeline_job_dependency
+        WHERE job_id = #{id}
+           OR depends_on_job_id = #{id};
+
+        DELETE FROM pipeline_job
+        WHERE id = #{id}
+    </delete>
+
+</mapper>

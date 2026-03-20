@@ -3,12 +3,12 @@ package com.study.playground.pipeline.service;
 import com.study.playground.avro.pipeline.PipelineExecutionStartedEvent;
 import com.study.playground.common.dto.CommonErrorCode;
 import com.study.playground.common.exception.BusinessException;
-import com.study.playground.common.outbox.EventPublisher;
-import com.study.playground.common.tracing.TraceContextUtil;
+import com.study.playground.kafka.outbox.EventPublisher;
+import com.study.playground.kafka.tracing.TraceContextUtil;
 import com.study.playground.pipeline.domain.*;
 import com.study.playground.pipeline.dto.PipelineExecutionResponse;
 import com.study.playground.pipeline.mapper.PipelineExecutionMapper;
-import com.study.playground.pipeline.mapper.PipelineStepMapper;
+import com.study.playground.pipeline.mapper.PipelineJobExecutionMapper;
 import com.study.playground.ticket.domain.Ticket;
 import com.study.playground.ticket.domain.TicketSource;
 import com.study.playground.ticket.domain.TicketStatus;
@@ -35,7 +35,7 @@ public class PipelineService {
     private final TicketMapper ticketMapper;
     private final TicketSourceMapper ticketSourceMapper;
     private final PipelineExecutionMapper executionMapper;
-    private final PipelineStepMapper stepMapper;
+    private final PipelineJobExecutionMapper jobExecutionMapper;
     private final EventPublisher eventPublisher;
     private final AvroSerializer avroSerializer;
 
@@ -50,8 +50,8 @@ public class PipelineService {
         if (execution == null) {
             throw new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND, "파이프라인 실행 이력이 없습니다");
         }
-        List<PipelineStep> steps = stepMapper.findByExecutionId(execution.getId());
-        return PipelineExecutionResponse.from(execution, steps);
+        List<PipelineJobExecution> jobExecutions = jobExecutionMapper.findByExecutionId(execution.getId());
+        return PipelineExecutionResponse.from(execution, jobExecutions);
     }
 
     @Transactional(readOnly = true)
@@ -59,8 +59,8 @@ public class PipelineService {
         List<PipelineExecution> executions = executionMapper.findByTicketId(ticketId);
         return executions.stream()
                 .map(e -> {
-                    List<PipelineStep> steps = stepMapper.findByExecutionId(e.getId());
-                    return PipelineExecutionResponse.from(e, steps);
+                    List<PipelineJobExecution> jobExecutions = jobExecutionMapper.findByExecutionId(e.getId());
+                    return PipelineExecutionResponse.from(e, jobExecutions);
                 })
                 .toList();
     }
@@ -93,18 +93,19 @@ public class PipelineService {
         executionMapper.insert(execution);
 
         // 단계
-        List<PipelineStep> steps = buildSteps(sources);
-        stepMapper.insertBatch(execution.getId(), steps);
+        List<PipelineJobExecution> jobExecutions = buildJobExecutions(sources);
+        jobExecutionMapper.insertBatch(execution.getId(), jobExecutions);
 
         // Outbox INSERT → Kafka 발행은 OutboxPoller가 수행
-        List<String> stepNameList = steps.stream()
-                .map(PipelineStep::getStepName)
+        List<String> jobNameList = jobExecutions.stream()
+                .map(PipelineJobExecution::getJobName)
                 .toList();
 
         PipelineExecutionStartedEvent event = PipelineExecutionStartedEvent.newBuilder()
                 .setExecutionId(execution.getId().toString())
                 .setTicketId(ticketId)
-                .setSteps(stepNameList)
+                .setPipelineDefinitionId(null)
+                .setSteps(jobNameList)
                 .build();
 
         // 아웃박스 DB 생성
@@ -119,8 +120,8 @@ public class PipelineService {
         return PipelineExecutionResponse.accepted(execution);
     }
 
-    private List<PipelineStep> buildSteps(List<TicketSource> sources) {
-        List<PipelineStep> steps = new ArrayList<>();
+    private List<PipelineJobExecution> buildJobExecutions(List<TicketSource> sources) {
+        List<PipelineJobExecution> jobExecutions = new ArrayList<>();
         int order = 1;
 
         for (TicketSource source : sources) {
@@ -128,17 +129,15 @@ public class PipelineService {
                 case GIT -> {
                     String repoUrl = source.getRepoUrl() != null ? source.getRepoUrl() : "";
                     String branch = source.getBranch() != null ? source.getBranch() : "main";
-                    steps.add(createStep(order++, PipelineStepType.GIT_CLONE,
-                            "Clone: " + repoUrl + "#" + branch));
-                    steps.add(createStep(order++, PipelineStepType.BUILD,
+                    jobExecutions.add(createJobExecution(order++, PipelineJobType.BUILD,
                             "Build: " + repoUrl + "#" + branch));
                 }
                 case NEXUS -> {
-                    steps.add(createStep(order++, PipelineStepType.ARTIFACT_DOWNLOAD,
+                    jobExecutions.add(createJobExecution(order++, PipelineJobType.ARTIFACT_DOWNLOAD,
                             "Download: " + source.getArtifactCoordinate()));
                 }
                 case HARBOR -> {
-                    steps.add(createStep(order++, PipelineStepType.IMAGE_PULL,
+                    jobExecutions.add(createJobExecution(order++, PipelineJobType.IMAGE_PULL,
                             "Pull: " + source.getImageName()));
                 }
             }
@@ -155,17 +154,17 @@ public class PipelineService {
                     case HARBOR -> s.getImageName() != null ? s.getImageName() : "";
                 })
                 .collect(Collectors.joining(", "));
-        steps.add(createStep(order, PipelineStepType.DEPLOY, "Deploy: " + deployTarget));
-        return steps;
+        jobExecutions.add(createJobExecution(order, PipelineJobType.DEPLOY, "Deploy: " + deployTarget));
+        return jobExecutions;
     }
 
-    private PipelineStep createStep(int order, PipelineStepType type, String name) {
-        PipelineStep step = new PipelineStep();
-        step.setStepOrder(order);
-        step.setStepType(type);
-        step.setStepName(name);
-        step.setStatus(StepStatus.PENDING);
-        return step;
+    private PipelineJobExecution createJobExecution(int order, PipelineJobType type, String name) {
+        PipelineJobExecution je = new PipelineJobExecution();
+        je.setJobOrder(order);
+        je.setJobType(type);
+        je.setJobName(name);
+        je.setStatus(JobExecutionStatus.PENDING);
+        return je;
     }
 
 }

@@ -9,6 +9,13 @@ dependencies {
     api 'org.apache.avro:avro:1.12.1'
     api 'io.github.springwolf:springwolf-kafka:1.21.0'
     api 'io.github.springwolf:springwolf-ui:1.21.0'
+
+    // Outbox: MyBatis + TX + Metrics
+    api 'org.mybatis.spring.boot:mybatis-spring-boot-starter:3.0.3'
+    api 'org.springframework:spring-tx'
+    api 'io.micrometer:micrometer-core'
+    compileOnly 'io.opentelemetry:opentelemetry-api'
+
     implementation 'io.confluent:kafka-avro-serializer:7.6.0'
     implementation 'org.springframework.boot:spring-boot-starter'
     compileOnly 'org.projectlombok:lombok:1.18.42'

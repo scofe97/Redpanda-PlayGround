@@ -35,7 +35,6 @@ public class SupportToolService {
 
     private static final Map<ToolImplementation, String> HEALTH_PATHS = Map.of(
             ToolImplementation.JENKINS, "/api/json",
-            ToolImplementation.GOCD, "/go/api/version",
             ToolImplementation.GITLAB, "/api/v4/version",
             ToolImplementation.GITHUB, "/api/v3",
             ToolImplementation.NEXUS, "/service/rest/v1/status",

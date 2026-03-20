@@ -1,5 +1,6 @@
 package com.study.playground.webhook.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 /**
@@ -11,13 +12,16 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
  * ignoreUnknown=true를 설정하는 이유는 Jenkins 플러그인 버전에 따라
  * 예상 밖 필드(artifacts, changeSets 등)가 추가될 수 있기 때문이다.
  * 알 수 없는 필드 때문에 역직렬화가 실패하면 파이프라인 전체가 멈추게 된다.
+ *
+ * {@code @JsonAlias}로 snake_case도 수용하는 이유는 Jenkinsfile에서 curl로 전송하는 JSON이
+ * snake_case를 사용하기 때문이다.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record JenkinsWebhookPayload(
-        String executionId,
-        Integer stepOrder,
-        String jobName,
-        Integer buildNumber,
+        @JsonAlias("execution_id") String executionId,
+        @JsonAlias("step_order") Integer stepOrder,
+        @JsonAlias({"name", "job_name"}) String jobName,
+        @JsonAlias("build_number") Integer buildNumber,
         String result,
         Long duration,
         String url

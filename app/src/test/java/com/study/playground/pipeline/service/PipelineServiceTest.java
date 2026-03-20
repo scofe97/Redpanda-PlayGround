@@ -1,13 +1,13 @@
 package com.study.playground.pipeline.service;
 
 import com.study.playground.common.exception.BusinessException;
-import com.study.playground.common.outbox.EventPublisher;
+import com.study.playground.kafka.outbox.EventPublisher;
 import com.study.playground.kafka.serialization.AvroSerializer;
 import com.study.playground.kafka.topic.Topics;
 import com.study.playground.pipeline.domain.PipelineStatus;
 import com.study.playground.pipeline.dto.PipelineExecutionResponse;
 import com.study.playground.pipeline.mapper.PipelineExecutionMapper;
-import com.study.playground.pipeline.mapper.PipelineStepMapper;
+import com.study.playground.pipeline.mapper.PipelineJobExecutionMapper;
 import com.study.playground.ticket.domain.Ticket;
 import com.study.playground.ticket.domain.TicketSource;
 import com.study.playground.ticket.domain.TicketStatus;
@@ -34,7 +34,7 @@ class PipelineServiceTest {
     @Mock private TicketMapper ticketMapper;
     @Mock private TicketSourceMapper ticketSourceMapper;
     @Mock private PipelineExecutionMapper executionMapper;
-    @Mock private PipelineStepMapper stepMapper;
+    @Mock private PipelineJobExecutionMapper jobExecutionMapper;
     @Mock private EventPublisher eventPublisher;
     @Mock private AvroSerializer avroSerializer;
 
@@ -76,7 +76,7 @@ class PipelineServiceTest {
         assertThat(response.status()).isEqualTo(PipelineStatus.PENDING.name());
         verify(ticketMapper).update(argThat(t -> t.getStatus() == TicketStatus.DEPLOYING));
         verify(executionMapper).insert(any());
-        verify(stepMapper).insertBatch(any(), anyList());
+        verify(jobExecutionMapper).insertBatch(any(), anyList());
         verify(eventPublisher).publish(eq("PIPELINE"), any(), eq("PIPELINE_EXECUTION_STARTED"), any(), eq(Topics.PIPELINE_CMD_EXECUTION), any());
     }
 
@@ -104,8 +104,8 @@ class PipelineServiceTest {
     }
 
     @Test
-    @DisplayName("GIT 소스일 때 GIT_CLONE + BUILD + DEPLOY 3개 스텝 생성")
-    void GIT소스_스텝3개_생성() {
+    @DisplayName("GIT 소스일 때 BUILD + DEPLOY 2개 Job 생성")
+    void GIT소스_Job2개_생성() {
         // Given
         when(ticketMapper.findById(1L)).thenReturn(ticket);
         when(ticketSourceMapper.findByTicketId(1L)).thenReturn(List.of(createSource(SourceType.GIT)));
@@ -113,8 +113,8 @@ class PipelineServiceTest {
         // When
         pipelineService.startPipeline(1L);
 
-        // Then - GIT_CLONE + BUILD + DEPLOY = 3 steps
-        verify(stepMapper).insertBatch(any(), argThat(steps -> steps.size() == 3));
+        // Then - BUILD + DEPLOY = 2 job executions
+        verify(jobExecutionMapper).insertBatch(any(), argThat(steps -> steps.size() == 2));
     }
 
     @Test
@@ -128,6 +128,6 @@ class PipelineServiceTest {
         pipelineService.startPipeline(1L);
 
         // Then - ARTIFACT_DOWNLOAD + DEPLOY = 2 steps
-        verify(stepMapper).insertBatch(any(), argThat(steps -> steps.size() == 2));
+        verify(jobExecutionMapper).insertBatch(any(), argThat(steps -> steps.size() == 2));
     }
 }

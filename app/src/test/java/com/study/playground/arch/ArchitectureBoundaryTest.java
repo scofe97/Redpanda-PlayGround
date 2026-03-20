@@ -37,7 +37,7 @@ class ArchitectureBoundaryTest {
             classes().that().haveSimpleNameEndingWith("Mapper")
                     .and().resideInAPackage("..mapper..")
                     .should().onlyBeAccessed().byClassesThat()
-                    .resideInAnyPackage("..service..", "..mapper..", "..event..", "..engine..");
+                    .resideInAnyPackage("..service..", "..mapper..", "..event..", "..engine..", "..jenkins..", "..reconciler..");
 
     @ArchTest
     static final ArchRule no_cycles =

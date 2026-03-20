@@ -1,5 +1,6 @@
 package com.study.playground.adapter;
 
+import com.study.playground.pipeline.adapter.AdapterInputValidator;
 import com.study.playground.adapter.dto.RegistryCatalog;
 import com.study.playground.adapter.dto.RegistryTagList;
 import com.study.playground.supporttool.domain.SupportTool;

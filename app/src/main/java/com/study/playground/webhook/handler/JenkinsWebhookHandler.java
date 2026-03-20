@@ -2,7 +2,7 @@ package com.study.playground.webhook.handler;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.study.playground.adapter.JenkinsAdapter;
+import com.study.playground.pipeline.adapter.JenkinsAdapter;
 import com.study.playground.common.idempotency.ProcessedEvent;
 import com.study.playground.common.idempotency.ProcessedEventMapper;
 import com.study.playground.pipeline.engine.PipelineEngine;

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.study.playground.kafka.outbox.OutboxMapper">
+
+    <insert id="insert" parameterType="OutboxEvent" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO outbox_event (aggregate_type, aggregate_id, event_type, payload, topic, status, created_at, retry_count, correlation_id, trace_parent)
+        VALUES (#{aggregateType}, #{aggregateId}, #{eventType}, #{payload}, #{topic}, #{status}, NOW(), #{retryCount}, #{correlationId}, #{traceParent})
+    </insert>
+
+    <select id="findPendingEvents" resultType="OutboxEvent">
+        SELECT id, aggregate_type, aggregate_id, event_type, payload, topic, status,
+               created_at, sent_at, retry_count, correlation_id, trace_parent, next_retry_at
+        FROM outbox_event
+        WHERE status = 'PENDING'
+          AND (next_retry_at IS NULL OR next_retry_at &lt;= NOW())
+        ORDER BY created_at
+        LIMIT #{limit}
+        FOR UPDATE SKIP LOCKED
+    </select>
+
+    <update id="batchMarkAsSent">
+        UPDATE outbox_event
+        SET status = 'SENT', sent_at = NOW()
+        WHERE id IN
+        <foreach item="id" collection="ids" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </update>
+
+    <update id="incrementRetryAndSetNextRetryAt">
+        UPDATE outbox_event
+        SET retry_count = retry_count + 1, next_retry_at = #{nextRetryAt}
+        WHERE id = #{id}
+    </update>
+
+    <update id="markAsDead">
+        UPDATE outbox_event
+        SET status = 'DEAD'
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteOlderThan">
+        DELETE FROM outbox_event
+        WHERE status = 'SENT' AND sent_at &lt; #{before}
+    </delete>
+
+    <select id="countPending" resultType="int">
+        SELECT COUNT(*) FROM outbox_event WHERE status = 'PENDING'
+    </select>
+
+</mapper>

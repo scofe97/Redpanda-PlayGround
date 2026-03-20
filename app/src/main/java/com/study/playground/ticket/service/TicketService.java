@@ -4,7 +4,7 @@ import com.study.playground.avro.ticket.TicketCreatedEvent;
 import com.study.playground.common.audit.AuditEventPublisher;
 import com.study.playground.common.dto.CommonErrorCode;
 import com.study.playground.common.exception.BusinessException;
-import com.study.playground.common.outbox.EventPublisher;
+import com.study.playground.kafka.outbox.EventPublisher;
 import com.study.playground.kafka.serialization.AvroSerializer;
 import com.study.playground.kafka.topic.Topics;
 import com.study.playground.ticket.domain.Ticket;

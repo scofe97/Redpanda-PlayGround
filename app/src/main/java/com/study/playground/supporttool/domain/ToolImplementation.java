@@ -7,7 +7,6 @@ package com.study.playground.supporttool.domain;
 public enum ToolImplementation {
     // CI_CD_TOOL
     JENKINS,
-    GOCD,
     GITHUB_ACTIONS,
 
     // CONTAINER_REGISTRY

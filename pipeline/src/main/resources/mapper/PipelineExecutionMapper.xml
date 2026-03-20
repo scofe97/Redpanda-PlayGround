@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.study.playground.pipeline.mapper.PipelineExecutionMapper">
+
+    <insert id="insert" parameterType="com.study.playground.pipeline.domain.PipelineExecution">
+        INSERT INTO pipeline_execution (id, ticket_id, pipeline_definition_id, status, started_at, trace_parent, created_at)
+        VALUES (#{id}, #{ticketId}, #{pipelineDefinitionId}, #{status}, #{startedAt}, #{traceParent}, NOW())
+    </insert>
+
+    <select id="findById" resultType="com.study.playground.pipeline.domain.PipelineExecution">
+        SELECT id, ticket_id, pipeline_definition_id, status, started_at, completed_at, error_message, trace_parent, created_at
+        FROM pipeline_execution
+        WHERE id = #{id}
+    </select>
+
+    <select id="findLatestByTicketId" resultType="com.study.playground.pipeline.domain.PipelineExecution">
+        SELECT id, ticket_id, pipeline_definition_id, status, started_at, completed_at, error_message, trace_parent, created_at
+        FROM pipeline_execution
+        WHERE ticket_id = #{ticketId}
+        ORDER BY created_at DESC
+        LIMIT 1
+    </select>
+
+    <select id="findByTicketId" resultType="com.study.playground.pipeline.domain.PipelineExecution">
+        SELECT id, ticket_id, pipeline_definition_id, status, started_at, completed_at, error_message, trace_parent, created_at
+        FROM pipeline_execution
+        WHERE ticket_id = #{ticketId}
+        ORDER BY created_at DESC
+    </select>
+
+    <select id="findByPipelineDefinitionId" resultType="com.study.playground.pipeline.domain.PipelineExecution">
+        SELECT id, ticket_id, pipeline_definition_id, status, started_at, completed_at, error_message, trace_parent, created_at
+        FROM pipeline_execution
+        WHERE pipeline_definition_id = #{pipelineDefinitionId}
+        ORDER BY created_at DESC
+    </select>
+
+    <update id="updateStatus">
+        UPDATE pipeline_execution
+        SET status = #{status},
+            completed_at = #{completedAt},
+            error_message = #{errorMessage}
+        WHERE id = #{id}
+    </update>
+
+</mapper>

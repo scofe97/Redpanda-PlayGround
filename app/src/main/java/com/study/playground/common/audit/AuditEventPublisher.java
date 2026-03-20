@@ -1,7 +1,7 @@
 package com.study.playground.common.audit;
 
 import com.study.playground.avro.audit.AuditEvent;
-import com.study.playground.common.outbox.EventPublisher;
+import com.study.playground.kafka.outbox.EventPublisher;
 import com.study.playground.kafka.serialization.AvroSerializer;
 import com.study.playground.kafka.topic.Topics;
 import lombok.RequiredArgsConstructor;
