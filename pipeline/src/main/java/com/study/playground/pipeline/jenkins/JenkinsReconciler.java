@@ -37,8 +37,7 @@ public class JenkinsReconciler {
     /**
      * 60초 주기로 desired state(DB)와 actual state(Jenkins)를 비교한다.
      */
-    // TODO: Reconciler가 buildConfigXml의 parameters를 포함하지 않는 문제 해결 후 재활성화
-    // @Scheduled(fixedDelay = 60_000, initialDelay = 30_000)
+    @Scheduled(fixedDelay = 60_000, initialDelay = 30_000)
     public void reconcile() {
         if (!jenkinsAdapter.isAvailable()) {
             log.debug("Jenkins 미연결 — reconciliation 건너뜀");
