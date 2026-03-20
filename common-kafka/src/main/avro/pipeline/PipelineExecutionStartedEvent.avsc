@@ -4,7 +4,8 @@
   "namespace": "com.study.playground.avro.pipeline",
   "fields": [
     {"name": "executionId", "type": "string"},
-    {"name": "ticketId", "type": "long"},
-    {"name": "steps", "type": {"type": "array", "items": "string"}}
+    {"name": "ticketId", "type": ["null", "long"], "default": null},
+    {"name": "steps", "type": {"type": "array", "items": "string"}},
+    {"name": "pipelineDefinitionId", "type": ["null", "long"], "default": null}
   ]
 }

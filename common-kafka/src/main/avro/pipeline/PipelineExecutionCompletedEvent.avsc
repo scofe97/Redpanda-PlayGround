@@ -4,7 +4,7 @@
   "namespace": "com.study.playground.avro.pipeline",
   "fields": [
     {"name": "executionId", "type": "string"},
-    {"name": "ticketId", "type": "long"},
+    {"name": "ticketId", "type": ["null", "long"], "default": null},
     {"name": "status", "type": "com.study.playground.avro.common.PipelineStatus"},
     {"name": "durationMs", "type": "long"},
     {"name": "errorMessage", "type": ["null", "string"], "default": null}

@@ -4,10 +4,11 @@
   "namespace": "com.study.playground.avro.pipeline",
   "fields": [
     {"name": "executionId", "type": "string"},
-    {"name": "ticketId", "type": "long"},
+    {"name": "ticketId", "type": ["null", "long"], "default": null},
     {"name": "stepName", "type": "string"},
     {"name": "stepType", "type": "string"},
     {"name": "status", "type": "string"},
-    {"name": "log", "type": ["null", "string"], "default": null}
+    {"name": "log", "type": ["null", "string"], "default": null},
+    {"name": "jobId", "type": ["null", "long"], "default": null}
   ]
 }

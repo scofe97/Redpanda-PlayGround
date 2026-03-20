@@ -4,12 +4,13 @@
   "namespace": "com.study.playground.avro.pipeline",
   "fields": [
     {"name": "executionId", "type": "string"},
-    {"name": "ticketId", "type": "long"},
+    {"name": "ticketId", "type": ["null", "long"], "default": null},
     {"name": "stepOrder", "type": "int"},
     {"name": "jenkinsUrl", "type": "string"},
     {"name": "jobName", "type": "string"},
     {"name": "username", "type": ["null", "string"], "default": null},
     {"name": "credential", "type": ["null", "string"], "default": null},
-    {"name": "params", "type": {"type": "map", "values": "string"}}
+    {"name": "params", "type": {"type": "map", "values": "string"}},
+    {"name": "jobId", "type": ["null", "long"], "default": null}
   ]
 }
