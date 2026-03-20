@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useCreateTool, useUpdateTool, useTool } from '../hooks/useTools';
 
 const TOOL_CATEGORIES = [
-  { key: 'CI_CD_TOOL', label: 'CI/CD', icon: 'build', implementations: ['JENKINS', 'GOCD', 'GITHUB_ACTIONS'] },
+  { key: 'CI_CD_TOOL', label: 'CI/CD', icon: 'build', implementations: ['JENKINS', 'GITHUB_ACTIONS'] },
   { key: 'VCS', label: 'VCS', icon: 'source', implementations: ['GITLAB', 'GITHUB', 'BITBUCKET'] },
   { key: 'LIBRARY', label: 'Library', icon: 'inventory_2', implementations: ['NEXUS', 'ARTIFACTORY'] },
   { key: 'CONTAINER_REGISTRY', label: 'Registry', icon: 'deployed_code', implementations: ['HARBOR', 'DOCKER_REGISTRY', 'ECR'] },

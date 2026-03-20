@@ -5,6 +5,10 @@ import TicketListPage from './pages/TicketListPage';
 import TicketCreatePage from './pages/TicketCreatePage';
 import TicketDetailPage from './pages/TicketDetailPage';
 import ToolListPage from './pages/ToolListPage';
+import JobListPage from './pages/JobListPage';
+import JobDetailPage from './pages/JobDetailPage';
+import PipelineListPage from './pages/PipelineListPage';
+import PipelineDetailPage from './pages/PipelineDetailPage';
 
 export default function App() {
   const { pathname } = useLocation();
@@ -20,6 +24,10 @@ export default function App() {
             <Route path="/tickets/new" element={<TicketCreatePage />} />
             <Route path="/tickets/:id" element={<TicketDetailPage />} />
             <Route path="/tools" element={<ToolListPage />} />
+            <Route path="/jobs" element={<JobListPage />} />
+            <Route path="/jobs/:id" element={<JobDetailPage />} />
+            <Route path="/pipelines" element={<PipelineListPage />} />
+            <Route path="/pipelines/:id" element={<PipelineDetailPage />} />
           </Routes>
         </ErrorBoundary>
       </main>

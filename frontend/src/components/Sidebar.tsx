@@ -6,6 +6,8 @@ interface SidebarProps {
 
 const navItems = [
   { to: '/tickets', icon: 'confirmation_number', label: '티켓' },
+  { to: '/jobs', icon: 'work', label: 'Job' },
+  { to: '/pipelines', icon: 'account_tree', label: '파이프라인' },
   { to: '/tools', icon: 'construction', label: '도구' },
 ];
 
