@@ -23,7 +23,7 @@ export default function DagStatusEdge({
   const isCompensating = edgeData?.toStatus === 'COMPENSATED';
 
   return (
-    <g className={isCompensating ? 'dag-edge-compensating' : undefined}>
+    <g className={isCompensating ? 'dag-edge-compensating' : ''}>
       <BaseEdge
         id={id}
         path={edgePath}

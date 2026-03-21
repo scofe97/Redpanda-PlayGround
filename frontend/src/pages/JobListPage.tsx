@@ -1,12 +1,6 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useJobList, useCreateJob, useDeleteJob, useExecuteJob, useRetryJenkinsProvision } from '../hooks/useJobs';
-import { usePresetList } from '../hooks/usePipelineDefinition';
-
-const JOB_TYPES = [
-  { value: 'BUILD', label: '빌드' },
-  { value: 'DEPLOY', label: '배포' },
-];
+import { useNavigate, Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import { useJobList, useDeleteJob, useExecuteJob, useRetryJenkinsProvision } from '../hooks/useJobs';
 
 const JOB_TYPE_LABEL: Record<string, string> = {
   BUILD: '빌드',
@@ -20,44 +14,12 @@ const JENKINS_STATUS_BADGE: Record<string, { icon: string; label: string; classN
   DELETING: { icon: 'delete_sweep', label: '삭제 중', className: 'text-slate-500 bg-slate-50 dark:bg-slate-800' },
 };
 
-const DEFAULT_SCRIPTS: Record<string, string> = {
-  BUILD: `pipeline {
-    agent any
-    stages {
-        stage('Build') {
-            steps {
-                echo 'Building...'
-            }
-        }
-    }
-}`,
-  DEPLOY: `pipeline {
-    agent any
-    stages {
-        stage('Deploy') {
-            steps {
-                echo 'Deploying...'
-            }
-        }
-    }
-}`,
-};
-
 export default function JobListPage() {
   const navigate = useNavigate();
   const { data: jobs, isLoading, error } = useJobList();
-  const { data: presets } = usePresetList();
-  const createJob = useCreateJob();
   const deleteJob = useDeleteJob();
   const executeJob = useExecuteJob();
   const retryProvision = useRetryJenkinsProvision();
-
-  const [showCreate, setShowCreate] = useState(false);
-  const [jobName, setJobName] = useState('');
-  const [jobType, setJobType] = useState('BUILD');
-  const [presetId, setPresetId] = useState<number | undefined>();
-  const [configJson, setConfigJson] = useState('');
-  const [jenkinsScript, setJenkinsScript] = useState(DEFAULT_SCRIPTS.BUILD);
 
   if (isLoading) {
     return (
@@ -78,56 +40,31 @@ export default function JobListPage() {
     );
   }
 
-  const resetForm = () => {
-    setJobName('');
-    setJobType('BUILD');
-    setPresetId(undefined);
-    setConfigJson('');
-    setJenkinsScript(DEFAULT_SCRIPTS.BUILD);
-  };
-
-  const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!jobName.trim() || !presetId) return;
-    try {
-      await createJob.mutateAsync({
-        jobName: jobName.trim(),
-        jobType,
-        presetId,
-        configJson: configJson.trim() || undefined,
-        jenkinsScript: jenkinsScript.trim() || undefined,
-      });
-      setShowCreate(false);
-      resetForm();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to create job');
-    }
-  };
-
   const handleDelete = async (id: number, name: string) => {
     if (!window.confirm(`"${name}" Job을 삭제하시겠습니까?`)) return;
     try {
       await deleteJob.mutateAsync(id);
+      toast.success('삭제되었습니다');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete job');
+      toast.error(err instanceof Error ? err.message : 'Failed to delete job');
     }
   };
 
   const handleExecute = async (id: number) => {
     try {
       await executeJob.mutateAsync({ id });
-      alert('실행이 시작되었습니다');
+      toast.success('실행이 시작되었습니다');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to execute job');
+      toast.error(err instanceof Error ? err.message : 'Failed to execute job');
     }
   };
 
   const handleRetryProvision = async (id: number) => {
     try {
       await retryProvision.mutateAsync(id);
-      alert('Jenkins 등록을 재시도합니다');
+      toast.success('Jenkins 등록을 재시도합니다');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to retry provision');
+      toast.error(err instanceof Error ? err.message : 'Failed to retry provision');
     }
   };
 
@@ -136,118 +73,14 @@ export default function JobListPage() {
       {/* Title & Action */}
       <div className="flex items-end justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Job 관리</h2>
-        <button
-          onClick={() => setShowCreate(true)}
+        <Link
+          to="/jobs/new"
           className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-lg font-bold text-sm transition-all shadow-sm"
         >
           <span className="material-symbols-outlined text-[20px]">add</span>
           새 Job
-        </button>
+        </Link>
       </div>
-
-      {/* Create Modal */}
-      {showCreate && (
-        <>
-          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40" onClick={() => { setShowCreate(false); resetForm(); }} />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <form
-              onSubmit={handleCreate}
-              className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto"
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <span className="material-symbols-outlined text-primary">add_circle</span>
-                <h3 className="text-lg font-bold">새 Job</h3>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">이름</label>
-                <input
-                  value={jobName}
-                  onChange={(e) => setJobName(e.target.value)}
-                  required
-                  maxLength={100}
-                  placeholder="예: build-backend"
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
-                  autoFocus
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">타입</label>
-                <select
-                  value={jobType}
-                  onChange={(e) => {
-                    const newType = e.target.value;
-                    setJobType(newType);
-                    if (Object.values(DEFAULT_SCRIPTS).includes(jenkinsScript)) {
-                      setJenkinsScript(DEFAULT_SCRIPTS[newType] || DEFAULT_SCRIPTS.BUILD);
-                    }
-                  }}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
-                >
-                  {JOB_TYPES.map((t) => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">프리셋</label>
-                <select
-                  value={presetId ?? ''}
-                  onChange={(e) => setPresetId(e.target.value ? Number(e.target.value) : undefined)}
-                  required
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
-                >
-                  <option value="">프리셋 선택</option>
-                  {presets?.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Jenkinsfile 스크립트</label>
-                <textarea
-                  value={jenkinsScript}
-                  onChange={(e) => setJenkinsScript(e.target.value)}
-                  rows={10}
-                  placeholder={DEFAULT_SCRIPTS[jobType] || DEFAULT_SCRIPTS.BUILD}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-mono resize-none leading-relaxed"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Config JSON (선택)</label>
-                <textarea
-                  value={configJson}
-                  onChange={(e) => setConfigJson(e.target.value)}
-                  rows={3}
-                  placeholder='{"key": "value"}'
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-mono resize-none"
-                />
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => { setShowCreate(false); resetForm(); }}
-                  className="flex-1 px-4 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 font-bold rounded-lg text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                >
-                  취소
-                </button>
-                <button
-                  type="submit"
-                  disabled={!jobName.trim() || !presetId || createJob.isPending}
-                  className="flex-1 px-4 py-2.5 bg-primary text-white font-bold rounded-lg text-sm hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {createJob.isPending ? '생성 중...' : '생성'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </>
-      )}
 
       {/* Table Card */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">

@@ -11,7 +11,9 @@ export interface DagJobNodeData {
 function formatDuration(start?: string, end?: string): string | null {
   if (!start) return null;
   const s = new Date(start).getTime();
+  if (isNaN(s)) return null;
   const e = end ? new Date(end).getTime() : Date.now();
+  if (isNaN(e)) return null;
   const sec = Math.round((e - s) / 1000);
   if (sec < 60) return `${sec}s`;
   return `${Math.floor(sec / 60)}m ${sec % 60}s`;

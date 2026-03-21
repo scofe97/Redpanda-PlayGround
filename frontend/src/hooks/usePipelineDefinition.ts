@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { pipelineDefinitionApi, CreatePipelineRequest, UpdateMappingsRequest } from '../api/pipelineDefinitionApi';
-import { presetApi } from '../api/presetApi';
+import { presetApi, PresetRequest } from '../api/presetApi';
 
 export function usePipelineDefinitionList() {
   return useQuery({
@@ -21,6 +21,41 @@ export function usePresetList() {
   return useQuery({
     queryKey: ['presets'],
     queryFn: () => presetApi.list(),
+  });
+}
+
+export function usePreset(id: number) {
+  return useQuery({
+    queryKey: ['preset', id],
+    queryFn: () => presetApi.get(id),
+    enabled: id > 0,
+  });
+}
+
+export function useCreatePreset() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: PresetRequest) => presetApi.create(data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['presets'] }),
+  });
+}
+
+export function useUpdatePreset() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: PresetRequest }) => presetApi.update(id, data),
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['preset', id] });
+      queryClient.invalidateQueries({ queryKey: ['presets'] });
+    },
+  });
+}
+
+export function useDeletePreset() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => presetApi.delete(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['presets'] }),
   });
 }
 

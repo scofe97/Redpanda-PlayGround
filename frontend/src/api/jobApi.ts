@@ -1,6 +1,6 @@
 import { api } from './client';
 
-import type { ParameterSchema } from './pipelineDefinitionApi';
+import type { ParameterSchema, PipelineExecutionResponse } from './pipelineDefinitionApi';
 
 export interface Job {
   id: number;
@@ -35,4 +35,5 @@ export const jobApi = {
   execute: (id: number, params?: Record<string, string>) =>
     api.post<void>(`/jobs/${id}/execute`, params ? { params } : undefined),
   retryProvision: (id: number) => api.post<void>(`/jobs/${id}/retry-provision`),
+  getExecutions: (id: number) => api.get<PipelineExecutionResponse[]>(`/jobs/${id}/executions`),
 };

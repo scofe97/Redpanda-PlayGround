@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { useCreateTool, useUpdateTool, useTool } from '../hooks/useTools';
 
 const TOOL_CATEGORIES = [
@@ -83,8 +84,9 @@ export default function ToolFormDrawer({ isOpen, onClose, editToolId }: ToolForm
         await createTool.mutateAsync(data);
       }
       onClose();
+      toast.success('저장되었습니다');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to save tool');
+      toast.error(err instanceof Error ? err.message : 'Failed to save tool');
     }
   };
 

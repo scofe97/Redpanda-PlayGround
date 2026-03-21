@@ -24,7 +24,10 @@ export default function LiveDagGraph({ jobs, execution }: LiveDagGraphProps) {
     );
   }
 
-  const isCompensating = execution?.jobExecutions?.some((je) => je.status === 'COMPENSATED') ?? false;
+  // 실행이 진행 중(RUNNING/PENDING)이면서 COMPENSATED Job이 있을 때만 배너 표시
+  const isStillRunning = execution?.status === 'RUNNING' || execution?.status === 'PENDING';
+  const hasCompensated = execution?.jobExecutions?.some((je) => je.status === 'COMPENSATED') ?? false;
+  const isCompensating = isStillRunning && hasCompensated;
 
   return (
     <div className="relative">
@@ -32,6 +35,12 @@ export default function LiveDagGraph({ jobs, execution }: LiveDagGraphProps) {
         <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 px-3 py-1.5 bg-orange-50 dark:bg-orange-900/30 border border-orange-300 dark:border-orange-700 rounded-lg flex items-center gap-2">
           <span className="material-symbols-outlined text-orange-500 text-sm">warning</span>
           <span className="text-xs font-medium text-orange-600 dark:text-orange-400">SAGA 보상 처리 중...</span>
+        </div>
+      )}
+      {!isStillRunning && hasCompensated && (
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 px-3 py-1.5 bg-orange-50 dark:bg-orange-900/30 border border-orange-300 dark:border-orange-700 rounded-lg flex items-center gap-2">
+          <span className="material-symbols-outlined text-orange-500 text-sm">undo</span>
+          <span className="text-xs font-medium text-orange-600 dark:text-orange-400">SAGA 보상 처리 완료</span>
         </div>
       )}
       <div className="h-[400px] w-full">

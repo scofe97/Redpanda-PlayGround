@@ -1,4 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { useTicket, useDeleteTicket } from '../hooks/useTickets';
 import { usePipelineLatest, useStartPipeline } from '../hooks/usePipeline';
 import { useSSE } from '../hooks/useSSE';
@@ -81,7 +82,7 @@ export default function TicketDetailPage() {
     try {
       await startPipeline.mutateAsync(ticketId);
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed to start pipeline');
+      toast.error(e instanceof Error ? e.message : 'Failed to start pipeline');
     }
   };
 
@@ -91,7 +92,7 @@ export default function TicketDetailPage() {
       await deleteTicket.mutateAsync(ticketId);
       navigate('/tickets');
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed to delete ticket');
+      toast.error(e instanceof Error ? e.message : 'Failed to delete ticket');
     }
   };
 
@@ -101,6 +102,14 @@ export default function TicketDetailPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={() => navigate('/tickets')}
+              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-500"
+              title="목록으로"
+            >
+              <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+            </button>
             <div className="p-3 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
               <span className="material-symbols-outlined text-primary text-3xl">confirmation_number</span>
             </div>
@@ -200,6 +209,14 @@ export default function TicketDetailPage() {
 
           {/* Right Column: Log area (placeholder) */}
           <div className="lg:col-span-2">
+            {(!pipeline || !pipeline.steps.some((s) => s.log)) && (
+              <div className="flex items-center justify-center h-64 text-slate-400">
+                <div className="text-center">
+                  <span className="material-symbols-outlined text-[48px] mb-2">terminal</span>
+                  <p className="text-sm">파이프라인을 실행하면 로그가 표시됩니다.</p>
+                </div>
+              </div>
+            )}
             {pipeline && pipeline.steps.some((s) => s.log) && (
               <div className="bg-slate-950 rounded-xl border border-slate-800 shadow-xl overflow-hidden flex flex-col min-h-[400px]">
                 <div className="bg-slate-900 px-4 py-2 border-b border-slate-800 flex items-center gap-2">

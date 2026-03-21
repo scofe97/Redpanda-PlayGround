@@ -48,6 +48,7 @@ export interface PipelineJobMappingRequest {
 export interface CreatePipelineRequest {
   name: string;
   description?: string;
+  failurePolicy?: string;
 }
 
 export interface UpdateMappingsRequest {
@@ -61,6 +62,7 @@ export interface PipelineExecutionResponse {
   completedAt?: string;
   errorMessage?: string;
   parameters?: Record<string, string> | null;
+  context?: Record<string, string> | null;
   jobExecutions?: JobExecutionResponse[];
 }
 

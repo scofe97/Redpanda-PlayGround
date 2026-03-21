@@ -57,3 +57,11 @@ export function useRetryJenkinsProvision() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['jobs'] }),
   });
 }
+
+export function useJobExecutions(jobId: number) {
+  return useQuery({
+    queryKey: ['job-executions', jobId],
+    queryFn: () => jobApi.getExecutions(jobId),
+    refetchInterval: 5000,
+  });
+}

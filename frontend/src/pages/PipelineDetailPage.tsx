@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
+import toast from 'react-hot-toast';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   usePipelineDefinition,
@@ -9,7 +10,6 @@ import {
 } from '../hooks/usePipelineDefinition';
 import type { PipelineJobResponse, PipelineJobMappingRequest } from '../api/pipelineDefinitionApi';
 import StatusBadge from '../components/StatusBadge';
-import DagGraph from '../components/DagGraph';
 import LiveDagGraph from '../components/LiveDagGraph';
 import JobSelector, { PipelineJobMappingLocal } from '../components/JobSelector';
 import PipelineExecutionPanel from '../components/PipelineExecutionPanel';
@@ -51,24 +51,36 @@ export default function PipelineDetailPage() {
   const [showJobSelector, setShowJobSelector] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [showParamModal, setShowParamModal] = useState(false);
-  const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
+  // 'none' = 사용자가 명시적으로 해제, null = 자동 선택
+  const [selectedExecutionId, setSelectedExecutionId] = useState<string | 'none' | null>(null);
 
   const { data: executions } = usePipelineExecutions(isValidId ? pipelineId : -1);
-  const selectedExecution = useMemo(
-    () => executions?.find((e) => e.executionId === selectedExecutionId)
-    , [executions, selectedExecutionId]
-  );
 
-  // RUNNING/PENDING 실행이 있으면 자동 선택
-  useEffect(() => {
-    if (!executions || selectedExecutionId) return;
+  // 동기적으로 선택된 실행 결정 (깜빡임 방지)
+  const selectedExecution = useMemo(() => {
+    if (!executions || executions.length === 0) return undefined;
+    if (selectedExecutionId === 'none') return undefined;
+
+    // 사용자가 명시적으로 선택한 경우
+    if (selectedExecutionId) {
+      return executions.find((e) => e.executionId === selectedExecutionId);
+    }
+
+    // 자동 선택: RUNNING 우선, 없으면 최신 실행
     const running = executions.find(
       (e) => e.status === 'RUNNING' || e.status === 'PENDING' || e.status === 'WAITING_WEBHOOK'
     );
-    if (running) {
-      setSelectedExecutionId(running.executionId);
-    }
+    if (running) return running;
+
+    const sorted = [...executions].sort((a, b) => {
+      const ta = a.startedAt ? new Date(a.startedAt).getTime() : 0;
+      const tb = b.startedAt ? new Date(b.startedAt).getTime() : 0;
+      return tb - ta;
+    });
+    return sorted[0];
   }, [executions, selectedExecutionId]);
+
+  const effectiveSelectedId = selectedExecution?.executionId ?? null;
 
   const serverMappings = useMemo(
     () => (pipeline?.jobs ? toMappingLocals(pipeline.jobs) : []),
@@ -77,7 +89,7 @@ export default function PipelineDetailPage() {
 
   const mappings = localMappings ?? serverMappings;
 
-  // DagGraph는 PipelineJobLocal[] 형태를 기대하므로 변환
+  // LiveDagGraph는 PipelineJobLocal[] 형태를 기대하므로 변환
   const dagJobs = mappings.map((m) => ({
     id: m.jobId,
     jobName: m.jobName,
@@ -151,8 +163,9 @@ export default function PipelineDetailPage() {
       });
       setLocalMappings(null);
       setIsDirty(false);
+      toast.success('매핑이 저장되었습니다');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to save mappings');
+      toast.error(err instanceof Error ? err.message : 'Failed to save mappings');
     }
   };
 
@@ -181,8 +194,9 @@ export default function PipelineDetailPage() {
       setShowParamModal(false);
       // 실행 후 자동 선택을 위해 초기화 → useEffect가 RUNNING 실행을 잡아줌
       setSelectedExecutionId(null);
+      toast.success('실행이 시작되었습니다');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to execute pipeline');
+      toast.error(err instanceof Error ? err.message : 'Failed to execute pipeline');
     }
   };
 
@@ -200,7 +214,7 @@ export default function PipelineDetailPage() {
       await deletePipeline.mutateAsync(pipelineId);
       navigate('/pipelines');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete pipeline');
+      toast.error(err instanceof Error ? err.message : 'Failed to delete pipeline');
     }
   };
 
@@ -210,6 +224,14 @@ export default function PipelineDetailPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={() => navigate('/pipelines')}
+              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-500"
+              title="목록으로"
+            >
+              <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+            </button>
             <div className="p-3 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
               <span className="material-symbols-outlined text-primary text-3xl">account_tree</span>
             </div>
@@ -255,6 +277,10 @@ export default function PipelineDetailPage() {
                   </div>
                 )}
                 <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">실패 정책</label>
+                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{pipeline.failurePolicy || 'STOP_ALL'}</p>
+                </div>
+                <div>
                   <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Job 수</label>
                   <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{mappings.length}개</p>
                 </div>
@@ -267,7 +293,8 @@ export default function PipelineDetailPage() {
               onExecute={handleExecuteClick}
               isPending={executePipeline.isPending}
               onSelectExecution={setSelectedExecutionId}
-              selectedExecutionId={selectedExecutionId}
+              selectedExecutionId={effectiveSelectedId}
+              rawSelectedExecutionId={selectedExecutionId}
             />
 
             {showParamModal && (
@@ -377,7 +404,7 @@ export default function PipelineDetailPage() {
                 <h3 className="font-bold">DAG 그래프</h3>
                 {selectedExecution && (
                   <button
-                    onClick={() => setSelectedExecutionId(null)}
+                    onClick={() => setSelectedExecutionId('none')}
                     className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 flex items-center gap-1"
                   >
                     <span className="material-symbols-outlined text-[14px]">close</span>
@@ -386,11 +413,7 @@ export default function PipelineDetailPage() {
                 )}
               </div>
               <div className="p-5">
-                {selectedExecution ? (
-                  <LiveDagGraph jobs={dagJobs} execution={selectedExecution} />
-                ) : (
-                  <DagGraph jobs={dagJobs} />
-                )}
+                <LiveDagGraph jobs={dagJobs} execution={selectedExecution} />
               </div>
             </div>
           </div>
