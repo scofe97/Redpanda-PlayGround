@@ -71,6 +71,7 @@ export interface JobExecutionResponse {
   jobType: string;
   status: string;
   log?: string;
+  retryCount: number;
   startedAt?: string;
   completedAt?: string;
 }

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "@xyflow/react/dist/base.css";
 
 @theme {
   --color-primary: #0052cc;
@@ -6,3 +7,26 @@
   --color-background-dark: #0f1723;
   --font-family-display: "Inter", "Pretendard", system-ui, sans-serif;
 }
+
+/* DAG 엣지 - 보상 역방향 애니메이션 */
+@keyframes dash-reverse {
+  to { stroke-dashoffset: 24; }
+}
+.dag-edge-compensating path {
+  stroke-dasharray: 8 4;
+  animation: dash-reverse 0.5s linear infinite;
+}
+
+/* DAG 노드 - RUNNING pulse */
+@keyframes node-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(59, 130, 246, 0); }
+}
+.dag-node-running { animation: node-pulse 2s ease-in-out infinite; }
+
+/* DAG 노드 - COMPENSATED pulse */
+@keyframes node-pulse-orange {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(249, 115, 22, 0); }
+}
+.dag-node-compensated { animation: node-pulse-orange 2s ease-in-out infinite; }

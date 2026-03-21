@@ -1,14 +1,16 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   usePipelineDefinition,
   useUpdatePipelineMappings,
   useExecutePipeline,
   useDeletePipelineDefinition,
+  usePipelineExecutions,
 } from '../hooks/usePipelineDefinition';
 import type { PipelineJobResponse, PipelineJobMappingRequest } from '../api/pipelineDefinitionApi';
 import StatusBadge from '../components/StatusBadge';
 import DagGraph from '../components/DagGraph';
+import LiveDagGraph from '../components/LiveDagGraph';
 import JobSelector, { PipelineJobMappingLocal } from '../components/JobSelector';
 import PipelineExecutionPanel from '../components/PipelineExecutionPanel';
 import ParameterInputModal from '../components/ParameterInputModal';
@@ -49,6 +51,24 @@ export default function PipelineDetailPage() {
   const [showJobSelector, setShowJobSelector] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [showParamModal, setShowParamModal] = useState(false);
+  const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
+
+  const { data: executions } = usePipelineExecutions(isValidId ? pipelineId : -1);
+  const selectedExecution = useMemo(
+    () => executions?.find((e) => e.executionId === selectedExecutionId)
+    , [executions, selectedExecutionId]
+  );
+
+  // RUNNING/PENDING 실행이 있으면 자동 선택
+  useEffect(() => {
+    if (!executions || selectedExecutionId) return;
+    const running = executions.find(
+      (e) => e.status === 'RUNNING' || e.status === 'PENDING' || e.status === 'WAITING_WEBHOOK'
+    );
+    if (running) {
+      setSelectedExecutionId(running.executionId);
+    }
+  }, [executions, selectedExecutionId]);
 
   const serverMappings = useMemo(
     () => (pipeline?.jobs ? toMappingLocals(pipeline.jobs) : []),
@@ -159,6 +179,8 @@ export default function PipelineDetailPage() {
     try {
       await executePipeline.mutateAsync({ id: pipelineId, params });
       setShowParamModal(false);
+      // 실행 후 자동 선택을 위해 초기화 → useEffect가 RUNNING 실행을 잡아줌
+      setSelectedExecutionId(null);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to execute pipeline');
     }
@@ -244,6 +266,8 @@ export default function PipelineDetailPage() {
               pipelineId={pipelineId}
               onExecute={handleExecuteClick}
               isPending={executePipeline.isPending}
+              onSelectExecution={setSelectedExecutionId}
+              selectedExecutionId={selectedExecutionId}
             />
 
             {showParamModal && (
@@ -349,11 +373,24 @@ export default function PipelineDetailPage() {
 
             {/* DAG Graph */}
             <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-              <div className="p-5 border-b border-slate-100 dark:border-slate-800">
+              <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
                 <h3 className="font-bold">DAG 그래프</h3>
+                {selectedExecution && (
+                  <button
+                    onClick={() => setSelectedExecutionId(null)}
+                    className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 flex items-center gap-1"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">close</span>
+                    실행 보기 해제
+                  </button>
+                )}
               </div>
               <div className="p-5">
-                <DagGraph jobs={dagJobs} />
+                {selectedExecution ? (
+                  <LiveDagGraph jobs={dagJobs} execution={selectedExecution} />
+                ) : (
+                  <DagGraph jobs={dagJobs} />
+                )}
               </div>
             </div>
           </div>

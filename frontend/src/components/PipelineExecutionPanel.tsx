@@ -1,10 +1,43 @@
+import { useState } from 'react';
 import { usePipelineExecutions } from '../hooks/usePipelineDefinition';
 import type { PipelineExecutionResponse } from '../api/pipelineDefinitionApi';
+
+function CopyableId({ id, label }: { id: string; label?: string }) {
+  const [copied, setCopied] = useState(false);
+  const short = id.slice(0, 8);
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    await navigator.clipboard.writeText(id);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <button
+      onClick={handleCopy}
+      title={`${label ? label + ': ' : ''}${id}\n클릭하여 복사`}
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-mono text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+    >
+      {copied ? (
+        <span className="text-emerald-500 flex items-center gap-1">
+          <span className="material-symbols-outlined text-[12px]">check</span>
+          복사됨
+        </span>
+      ) : (
+        <>
+          <span className="material-symbols-outlined text-[12px] text-slate-400">content_copy</span>
+          {short}...
+        </>
+      )}
+    </button>
+  );
+}
 
 interface PipelineExecutionPanelProps {
   pipelineId: number;
   onExecute: () => void;
   isPending: boolean;
+  onSelectExecution?: (executionId: string | null) => void;
+  selectedExecutionId?: string | null;
 }
 
 const EXECUTION_STATUS_BADGE: Record<string, { icon: string; label: string; className: string }> = {
@@ -32,15 +65,19 @@ function formatTime(iso?: string) {
   return new Date(iso).toLocaleString();
 }
 
-function ExecutionCard({ execution, defaultOpen }: { execution: PipelineExecutionResponse; defaultOpen?: boolean }) {
+function ExecutionCard({ execution, defaultOpen, isSelected, onSelect }: { execution: PipelineExecutionResponse; defaultOpen?: boolean; isSelected?: boolean; onSelect?: () => void }) {
   const jobs = execution.jobExecutions ?? [];
 
+  const handleSummaryClick = () => {
+    onSelect?.();
+  };
+
   return (
-    <details open={defaultOpen} className="group bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-      <summary className="flex items-center justify-between px-4 py-3 cursor-pointer list-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+    <details open={defaultOpen} className={`group bg-slate-50 dark:bg-slate-800/50 rounded-lg border overflow-hidden ${isSelected ? 'border-l-4 border-l-primary border-primary/50' : 'border-slate-200 dark:border-slate-700'}`}>
+      <summary onClick={handleSummaryClick} className="flex items-center justify-between px-4 py-3 cursor-pointer list-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
         <div className="flex items-center gap-3 min-w-0">
           <StatusBadge status={execution.status} />
-          <span className="text-xs font-mono text-slate-500 truncate">{execution.executionId}</span>
+          <CopyableId id={execution.executionId} label="Execution ID" />
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
           <span className="text-[11px] text-slate-400">{formatTime(execution.startedAt)}</span>
@@ -86,7 +123,13 @@ function ExecutionCard({ execution, defaultOpen }: { execution: PipelineExecutio
                       <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{job.jobName}</span>
                       <StatusBadge status={job.status} />
                     </div>
-                    <p className="text-[11px] text-slate-400 uppercase mt-0.5">{job.jobType}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-[10px] text-slate-400 uppercase">{job.jobType}</span>
+                      <span className="text-[10px] text-slate-400">ID: {job.id}</span>
+                      {job.retryCount > 0 && (
+                        <span className="text-[10px] text-amber-500 font-medium">retry: {job.retryCount}</span>
+                      )}
+                    </div>
                     {job.startedAt && (
                       <p className="text-[11px] text-slate-400 mt-1">
                         {formatTime(job.startedAt)}
@@ -108,7 +151,7 @@ function ExecutionCard({ execution, defaultOpen }: { execution: PipelineExecutio
   );
 }
 
-export default function PipelineExecutionPanel({ pipelineId, onExecute, isPending }: PipelineExecutionPanelProps) {
+export default function PipelineExecutionPanel({ pipelineId, onExecute, isPending, onSelectExecution, selectedExecutionId }: PipelineExecutionPanelProps) {
   const { data: executions, isLoading } = usePipelineExecutions(pipelineId);
 
   const sorted = executions
@@ -154,7 +197,12 @@ export default function PipelineExecutionPanel({ pipelineId, onExecute, isPendin
         ) : latest ? (
           <div className="space-y-2">
             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">최근 실행</p>
-            <ExecutionCard execution={latest} defaultOpen />
+            <ExecutionCard
+              execution={latest}
+              defaultOpen
+              isSelected={selectedExecutionId === latest.executionId}
+              onSelect={() => onSelectExecution?.(selectedExecutionId === latest.executionId ? null : latest.executionId)}
+            />
           </div>
         ) : null}
 
@@ -164,7 +212,12 @@ export default function PipelineExecutionPanel({ pipelineId, onExecute, isPendin
             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">이전 실행 이력</p>
             <div className="space-y-2">
               {history.map((ex) => (
-                <ExecutionCard key={ex.executionId} execution={ex} />
+                <ExecutionCard
+                  key={ex.executionId}
+                  execution={ex}
+                  isSelected={selectedExecutionId === ex.executionId}
+                  onSelect={() => onSelectExecution?.(selectedExecutionId === ex.executionId ? null : ex.executionId)}
+                />
               ))}
             </div>
           </div>
