@@ -97,6 +97,116 @@ Phase 2에서 구현한 DAG 엔진의 프로덕션 견고성과 기능 완성도
 
 **SKIP_DOWNSTREAM 핵심:** 실패한 Job의 전이적 하위(successor graph BFS)만 SKIP한다. RUNNING 중인 Job은 건드리지 않고, 완료 후 `onJobCompleted()`에서 재평가한다. 독립 브랜치는 계속 실행된다. diamond DAG에서 한 브랜치가 실패해도 다른 브랜치가 계속 진행될 수 있어 전체 실행 시간을 절약한다.
 
+### SAGA 보상 처리 상세
+
+실패 정책이 보상 흐름을 트리거하는 과정과, 현재 구현의 동작 범위 및 한계를 정리한다.
+
+#### 보상 흐름
+
+`finalizeExecution()`에서 `state.hasFailure()`가 true이면 보상 흐름에 진입한다.
+
+```
+finalizeExecution(executionId, state)
+  ├── state.hasFailure() == true
+  │     ├── completedJobIdsInReverseTopologicalOrder()
+  │     │     BFS 위상 정렬 → 역순 (leaf → root)
+  │     │     대상: completedJobIds 전체 (필터링 없음)
+  │     │
+  │     └── compensateDag(execution, reverseJobIds, state)
+  │           for each jobId in reverseJobIds:
+  │             1. jobExecution 조회 (status == SUCCESS인 것만 진행)
+  │             2. executor.compensate(execution, je) 호출
+  │             3. 상태를 COMPENSATED로 변경 + 이벤트 발행
+  │             4. 실패 시 COMPENSATION_FAILED 기록 + MANUAL INTERVENTION 로그
+  │
+  └── state.hasFailure() == false
+        → SUCCESS 처리 (보상 없음)
+```
+
+`compensateDag()` 코드 (`DagExecutionCoordinator.java:668-697`):
+
+```java
+for (Long jobId : reverseJobIds) {
+    var je = jobExecutionMapper.findByExecutionIdAndJobOrder(execution.getId(), jobOrder);
+    if (je == null || je.getStatus() != JobExecutionStatus.SUCCESS) continue;
+
+    try {
+        executor.compensate(execution, je);           // default no-op
+        jobExecutionMapper.updateStatus(je.getId()
+                , JobExecutionStatus.COMPENSATED.name()
+                , "Compensated after DAG saga rollback", ...);
+    } catch (Exception e) {
+        // COMPENSATION_FAILED → MANUAL INTERVENTION REQUIRED
+    }
+}
+```
+
+#### 보상 범위: 어떤 Job이 보상 대상이 되는가
+
+현재 구현은 **`completedJobIds` 전체**를 보상 대상으로 취급한다. Job 단위로 보상 필요 여부를 구분하는 메커니즘은 없다.
+
+**예시: `1→2→3→4→5` 체인에서 Job 4 실패 시**
+
+```
+Job 1: SUCCESS → COMPENSATED (executor.compensate() 호출, default no-op)
+Job 2: SUCCESS → COMPENSATED (executor.compensate() 호출, default no-op)
+Job 3: SUCCESS → COMPENSATED (executor.compensate() 호출, default no-op)
+Job 4: FAILED  → 그대로 유지
+Job 5: SKIPPED → PENDING이었으므로 SKIPPED 처리
+```
+
+보상 순서는 역방향 위상 순서(3→2→1)를 따른다. 실제 `PipelineJobExecutor.compensate()`는 default no-op이므로 부수효과 롤백은 일어나지 않고, DB 상태만 COMPENSATED로 변경된다.
+
+**FailurePolicy별 보상 범위 차이:**
+
+| 정책 | RUNNING job 처리 | PENDING job 처리 | 보상 대상 |
+|------|-----------------|-----------------|----------|
+| STOP_ALL | 완료 대기 | 전부 SKIP | 모든 completed (성공한 것) |
+| SKIP_DOWNSTREAM | 유지 | 실패 job 하위만 SKIP | 모든 completed (독립 브랜치 포함) |
+| FAIL_FAST | 유지 | 전부 즉시 SKIP | 모든 completed |
+
+SKIP_DOWNSTREAM에서 독립 브랜치가 성공하면 해당 브랜치 Job도 completed에 포함되어 보상 대상이 된다. 보상이 필요 없는 읽기 전용 Job이라도 COMPENSATED로 마킹된다.
+
+#### executor.compensate()의 no-op 설계
+
+`PipelineJobExecutor` 인터페이스의 `compensate()`는 default no-op으로 제공된다:
+
+```java
+default void compensate(PipelineExecution execution
+        , PipelineJobExecution jobExecution) throws Exception {
+    // 기본값은 no-op — 부수효과를 되돌려야 하는 Job에서 오버라이드
+}
+```
+
+이 설계의 의도는 "읽기 전용이거나 멱등한 Job은 기본 구현을 그대로 사용하고, 부수효과를 되돌려야 하는 Job만 오버라이드한다"는 것이다. 그러나 no-op 여부와 무관하게 **모든 completed job이 COMPENSATED 상태로 전환**된다는 점에서, UI에서는 실제 롤백이 일어나지 않은 Job도 "보상 처리됨"으로 표시된다.
+
+#### 보상 실패 처리
+
+`executor.compensate()` 호출 중 예외가 발생하면:
+1. 해당 Job은 `FAILED` 상태로 전환 (COMPENSATED가 아님)
+2. 로그 메시지: `"COMPENSATION_FAILED: " + e.getMessage()`
+3. `[DAG-SAGA] Compensation FAILED for job: {} - MANUAL INTERVENTION REQUIRED` 경고 로그
+4. **자동 재시도 없음** — 수동 개입 필요
+
+현재는 보상 실패 시 알림(Slack, 이메일 등)이 없으므로, 운영 환경에서는 로그 모니터링이 필수다.
+
+#### 현재 한계와 개선 방향
+
+**한계:**
+- per-job 보상 필요 여부를 구분할 수 없다. BUILD(빌드 아티팩트 생성)와 같이 부수효과가 있는 Job과, 읽기 전용 검증 Job이 동일하게 COMPENSATED 처리된다.
+- UI에서 "보상 처리됨" 표시가 실제 롤백 여부를 반영하지 못한다.
+- 보상 범위를 제한할 수 없다(예: "이 Job은 보상 불필요" 설정).
+
+**개선안:**
+
+| 방안 | 설명 | 장점 | 단점 |
+|------|------|------|------|
+| A. `CompensationPolicy` enum | Job 정의에 `NONE`/`CUSTOM` 설정. NONE이면 compensate() 호출 안 하고 SUCCESS 유지 | DB 수준 설정, 유연함 | 스키마 변경 필요 |
+| B. `isCompensatable()` 메서드 | executor 인터페이스에 `default boolean isCompensatable() { return false; }` 추가. true인 executor만 보상 | 코드만 변경, 스키마 불변 | Job 타입 단위 제어 (인스턴스 단위 불가) |
+| C. 혼합 | B로 executor 기본 판단 + A로 per-job 오버라이드 | 최대 유연성 | 복잡도 증가 |
+
+현재 단계에서는 모든 Job이 BUILD 타입이고 Jenkins에 위임하므로 실질적 차이가 없다. Job 타입이 다양해지면(DEPLOY, IMPORT, ARTIFACT_DOWNLOAD 등) 개선이 필요하다.
+
 ---
 
 ## Feature #5: 부분 재시작

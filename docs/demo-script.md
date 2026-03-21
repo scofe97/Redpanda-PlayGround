@@ -25,7 +25,7 @@ docker ps | grep connect
 - Redpanda: localhost:29092 접속 가능
 - PostgreSQL: localhost:25432 접속 가능
 - Schema Registry: localhost:28081/ui
-- Redpanda Connect: localhost:4197 (Jenkins webhook 수신)
+- Redpanda Connect: localhost:4195 (Jenkins webhook 수신: /webhook/jenkins)
 - Jenkins: localhost:29080 (데모 7에 필요)
 
 > **네트워크**: 모든 컨테이너는 `playground-net` 공유 네트워크에서 통신합니다.
@@ -358,7 +358,7 @@ curl -u admin:9615 http://localhost:29080/api/json
    - Jenkins UI (http://localhost:29080) 에서 빌드 진행 확인
    - Job 완료 시 post 블록에서 webhook 전송:
      ```
-     Sending webhook to playground-connect:4197/webhook/jenkins
+     Sending webhook to playground-connect:4195/jenkins-webhook/webhook/jenkins
      ```
    - Redpanda Console에서 `playground.webhook.inbound` 토픽에 메시지 도착 확인
 
@@ -388,7 +388,7 @@ curl -u admin:9615 http://localhost:29080/api/json
 flowchart LR
     A["Engine<br/>triggerBuild"] -->|"fire-and-forget"| B["Jenkins Job"]
     A -->|"WAITING_WEBHOOK"| C["스레드 해제"]
-    B -->|"post curl"| D["Redpanda Connect<br/>:4197"]
+    B -->|"post curl"| D["Redpanda Connect<br/>:4195"]
     D -->|"Kafka produce"| E["webhook.inbound"]
     E -->|"consume"| F["WebhookHandler"]
     F -->|"resumeAfterWebhook"| G["Engine<br/>다음 스텝 재개"]

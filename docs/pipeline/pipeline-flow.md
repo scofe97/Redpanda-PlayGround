@@ -96,7 +96,7 @@ graph TB
 
     subgraph connect["Redpanda Connect"]
         R[jenkins-command<br>→ Jenkins REST API]
-        S[jenkins-webhook<br>HTTP :4197 수신]
+        S[jenkins-webhook<br>HTTP :4195/jenkins-webhook/webhook/jenkins 수신]
     end
 
     subgraph jenkins["Jenkins"]
@@ -676,7 +676,7 @@ graph TB
     end
 
     subgraph http_recv["② HTTP 수신"]
-        B["http_server<br>0.0.0.0:4197<br>/webhook/jenkins<br>POST only, timeout 5s"]
+        B["http_server<br>공유 포트 4195<br>/webhook/jenkins<br>POST only, timeout 5s"]
     end
 
     subgraph transform["③ Bloblang 정규화"]
@@ -694,7 +694,7 @@ graph TB
         E["kafka_franz<br>playground.webhook.inbound<br>key = webhookSource<br>retry 5회, 500ms → 10s"]
     end
 
-    A -->|"HTTP POST :4197"| B
+    A -->|"HTTP POST :4195"| B
     B --> C1 --> C2 --> C3 --> C4
     C4 --> E
     B -->|"처리 실패"| D
@@ -714,7 +714,7 @@ Bloblang mapping 프로세서가 Jenkins의 원본 HTTP 요청을 표준 웹훅 
 {
   "_request": "POST /webhook/jenkins HTTP/1.1",
   "_headers": {
-    "Host": "connect:4197",
+    "Host": "connect:4195",
     "Content-Type": "application/json",
     "X-Jenkins-Job": "clone-and-build"
   },

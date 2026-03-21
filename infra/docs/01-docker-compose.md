@@ -90,11 +90,11 @@ docker logs playground-jenkins
 
 ### cloudflared 터널 (GCP → 로컬 역방향)
 
-Jenkins 빌드 완료 후 webhook callback을 로컬 Connect(`localhost:4197`)로 보내야 하는데, GCP에서 로컬 머신에 직접 접근할 수 없다. `cloudflared`로 임시 터널을 생성하여 해결한다.
+Jenkins 빌드 완료 후 webhook callback을 로컬 Connect(`localhost:4195`)로 보내야 하는데, GCP에서 로컬 머신에 직접 접근할 수 없다. `cloudflared`로 임시 터널을 생성하여 해결한다.
 
 ```bash
 # 로컬에서 터널 시작 (Connect webhook 포트 노출)
-cloudflared tunnel --url http://localhost:4197 &
+cloudflared tunnel --url http://localhost:4195 &
 
 # 출력에서 터널 URL 확인 (예: https://xxx-yyy.trycloudflare.com)
 ```

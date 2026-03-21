@@ -128,7 +128,7 @@ TPS(CI/CD 플랫폼)에서 사용하는 이벤트 기반 아키텍처 패턴을 
   [Redpanda :29092]             [PostgreSQL :25432]
   │  6개 토픽                     8개 테이블
   │
-  [Redpanda Connect :24195/4197]
+  [Redpanda Connect :24195]
   │  HTTP↔Kafka 브릿지
   │
   [Jenkins :29080] [GitLab :29180] [Nexus :28881] [Registry :25050]
@@ -142,7 +142,7 @@ TPS(CI/CD 플랫폼)에서 사용하는 이벤트 기반 아키텍처 패턴을 
 |--------|--------|------|--------|------|
 | redpanda | redpanda:v24.3.1 | 29092, 28081, 29644 | - | 메시지 브로커 + Schema Registry + Admin |
 | console | console:v2.8.0 | 28080 | 256M | 토픽/메시지 모니터링 UI |
-| connect | connect:4.43.0 | 24195, 4197 | 128M | HTTP↔Kafka 브릿지 |
+| connect | connect:4.43.0 | 24195 | 128M | HTTP↔Kafka 브릿지 |
 | postgres | postgres:16-alpine | 25432 | 256M | 메인 DB |
 
 > 상세: [infra/01-docker-compose.md](infra/01-docker-compose.md)
@@ -151,7 +151,7 @@ TPS(CI/CD 플랫폼)에서 사용하는 이벤트 기반 아키텍처 패턴을 
 
 | 방향 | 흐름 | 미들웨어 |
 |------|------|---------|
-| **Event (외부→앱)** | Jenkins/GitLab → Connect HTTP :4197 → `playground.webhook.inbound` → WebhookEventConsumer | Connect가 HTTP→Kafka 변환 |
+| **Event (외부→앱)** | Jenkins/GitLab → Connect HTTP :4195 → `playground.webhook.inbound` → WebhookEventConsumer | Connect가 HTTP→Kafka 변환 |
 | **Command (앱→외부)** | PipelineEngine → Outbox → `playground.pipeline.commands` → Connect → Jenkins REST | Connect가 Kafka→HTTP 변환 |
 | **Query (앱→외부)** | ToolRegistry → Jenkins/GitLab/Nexus REST API 직접 호출 | 미들웨어 없음 (동기) |
 | **Domain Event** | TicketService → Outbox → `playground.ticket.events` → PipelineEngine | Outbox 폴러가 DB→Kafka 변환 |
@@ -295,7 +295,7 @@ make frontend
 | Webhook 타임아웃 | 5분 | WebhookTimeoutChecker.TIMEOUT_MINUTES |
 | 타임아웃 체크 주기 | 30초 | WebhookTimeoutChecker @Scheduled fixedDelay |
 | Docker 네트워크 | playground-net | docker-compose.yml |
-| Connect webhook 엔드포인트 | :4197/webhook/jenkins | jenkins-webhook.yaml |
+| Connect webhook 엔드포인트 | :4195/jenkins-webhook/webhook/jenkins | jenkins-webhook.yaml |
 | Connect jenkins-command | kafka → http://jenkins:8080 | jenkins-command.yaml |
 
 ---

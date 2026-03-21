@@ -38,7 +38,7 @@ post {
         script {
             def result = currentBuild.result ?: 'SUCCESS'
             sh """
-                curl -s -X POST http://redpanda-connect:4197/webhook \
+                curl -s -X POST http://redpanda-connect:4195/jenkins-webhook/webhook/jenkins \
                   -H 'Content-Type: application/json' \
                   -d '{"ticketId":"${params.TICKET_ID}","result":"${result}"}'
             """

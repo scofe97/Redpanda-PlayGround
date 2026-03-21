@@ -42,8 +42,8 @@ flowchart LR
 
 | 파일 | 방향 | 역할 |
 |------|------|------|
-| `jenkins-webhook.yaml` | HTTP → Kafka | Jenkins webhook을 `:4197/webhook/jenkins`로 수신하여 `playground.webhook.inbound` 토픽에 발행 |
-| `gitlab-webhook.yaml` | HTTP → Kafka | GitLab webhook을 `:4196/webhook/gitlab`로 수신하여 같은 토픽에 발행 |
+| `jenkins-webhook.yaml` | HTTP → Kafka | Jenkins webhook을 `:4195/jenkins-webhook/webhook/jenkins`로 수신하여 `playground.webhook.inbound` 토픽에 발행 |
+| `gitlab-webhook.yaml` | HTTP → Kafka | GitLab webhook을 `:4195/gitlab-webhook/webhook/gitlab`로 수신하여 같은 토픽에 발행 |
 | `jenkins-command.yaml` | Kafka → HTTP | `playground.pipeline.commands` 토픽에서 `JENKINS_BUILD_COMMAND` 이벤트를 소비하여 Jenkins REST API로 빌드 트리거 |
 
 이 3개는 docker-compose에서 볼륨 마운트(`/etc/connect/*.yaml`)로 Streams 모드에 로드된다. 파일 기반 스트림이므로 REST API로 삭제할 수 없고, 컨테이너 재시작 후에도 항상 존재한다.

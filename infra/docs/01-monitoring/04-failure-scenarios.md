@@ -251,7 +251,7 @@ output:
 
 ### 4-2. Jenkins 웹훅 콜백 미수신
 
-Jenkins가 빌드를 완료하고 Connect의 jenkins-webhook 엔드포인트(:4197)로 콜백을 보내는데, Connect가 다운이거나 네트워크 문제로 콜백이 도달하지 못하면 Spring Boot 측의 WebhookTimeoutChecker가 동작한다.
+Jenkins가 빌드를 완료하고 Connect의 jenkins-webhook 엔드포인트(:4195/jenkins-webhook/webhook/jenkins)로 콜백을 보내는데, Connect가 다운이거나 네트워크 문제로 콜백이 도달하지 못하면 Spring Boot 측의 WebhookTimeoutChecker가 동작한다.
 
 **타임아웃 감지 흐름:**
 
