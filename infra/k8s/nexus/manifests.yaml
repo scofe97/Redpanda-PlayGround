@@ -1,0 +1,97 @@
+# ============================================================================
+# Sonatype Nexus 3 — K8s 매니페스트
+# ============================================================================
+# Maven 아티팩트 저장소. Feature 2(Build/Import 모드)에서 빌드 산출물을 저장하고
+# NexusDownloadStep이 다운로드하는 데 사용한다.
+# Namespace: rp-oss
+#
+# 설치:
+#   kubectl apply -f manifests.yaml
+#
+# 초기 설정 (비밀번호 변경, 저장소 생성):
+#   bash setup-nexus-k8s.sh
+# ============================================================================
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nexus-data
+  namespace: rp-oss
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nexus
+  namespace: rp-oss
+  labels:
+    app: nexus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nexus
+  template:
+    metadata:
+      labels:
+        app: nexus
+    spec:
+      containers:
+        - name: nexus
+          image: sonatype/nexus3:latest
+          env:
+            - name: INSTALL4J_ADD_VM_PARAMS
+              value: "-Xms512m -Xmx1g -XX:MaxDirectMemorySize=512m"
+          ports:
+            - containerPort: 8081
+              name: http
+          resources:
+            requests:
+              cpu: 100m
+              memory: 1Gi
+            limits:
+              memory: 1536Mi
+          readinessProbe:
+            httpGet:
+              path: /service/rest/v1/status
+              port: 8081
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /service/rest/v1/status
+              port: 8081
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: nexus-data
+              mountPath: /nexus-data
+      volumes:
+        - name: nexus-data
+          persistentVolumeClaim:
+            claimName: nexus-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nexus
+  namespace: rp-oss
+  labels:
+    app: nexus
+spec:
+  type: NodePort
+  selector:
+    app: nexus
+  ports:
+    - name: http
+      port: 8081
+      targetPort: 8081
+      nodePort: 31280

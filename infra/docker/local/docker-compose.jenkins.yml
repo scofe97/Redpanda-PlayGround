@@ -11,7 +11,7 @@ services:
       JAVA_OPTS: -Xmx1g -Xms512m -Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8 -Djenkins.install.runSetupWizard=false
       CASC_JENKINS_CONFIG: /var/jenkins_home/casc.yaml
       # Connect webhook URL — GCP→로컬 터널 사용 시 cloudflared URL로 설정
-      CONNECT_WEBHOOK_URL: ${CONNECT_WEBHOOK_URL:-http://connect:4197/webhook/jenkins}
+      CONNECT_WEBHOOK_URL: ${CONNECT_WEBHOOK_URL:-http://connect:4195/jenkins-webhook/webhook/jenkins}
       # GitLab PAT — git clone 시 credential 주입용
       GITLAB_TOKEN: ${GITLAB_TOKEN:-}
     volumes:

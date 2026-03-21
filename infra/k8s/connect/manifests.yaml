@@ -44,7 +44,6 @@ data:
   jenkins-webhook.yaml: |
     input:
       http_server:
-        address: 0.0.0.0:4197
         path: /webhook/jenkins
         allowed_verbs:
           - POST
@@ -80,7 +79,6 @@ data:
   gitlab-webhook.yaml: |
     input:
       http_server:
-        address: 0.0.0.0:4196
         path: /webhook/gitlab
         allowed_verbs:
           - POST
@@ -231,10 +229,6 @@ spec:
           ports:
             - containerPort: 4195
               name: http
-            - containerPort: 4196
-              name: gitlab-webhook
-            - containerPort: 4197
-              name: jenkins-webhook
           resources:
             requests:
               cpu: 50m
@@ -282,14 +276,3 @@ spec:
       port: 4195
       targetPort: 4195
       nodePort: 31195
-    - name: jenkins-webhook
-      port: 4197
-      targetPort: 4197
-      nodePort: 31197
-    - name: gitlab-webhook
-      port: 4196
-      targetPort: 4196
-      nodePort: 31196
-    - name: connect-metrics
-      port: 4198
-      targetPort: 4195

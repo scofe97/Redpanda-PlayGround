@@ -24,7 +24,7 @@ input:
   http_server:
     # GitLab이 POST 요청을 보낼 엔드포인트
     # GitLab 프로젝트 설정 > Webhooks > URL에 이 주소를 등록한다.
-    address: 0.0.0.0:4196
+    # Streams 모드에서 address는 무시되고 공유 포트(4195)에 등록된다.
     path: /webhook/gitlab
     allowed_verbs:
       - POST

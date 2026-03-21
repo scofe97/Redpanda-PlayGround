@@ -2,7 +2,7 @@
 # ============================================================================
 # OSS 스택 설치 스크립트 (Redpanda, PostgreSQL, Connect, Console, Playground)
 # ============================================================================
-# 설치 순서: PostgreSQL → Redpanda → Connect → Console → Playground App → Frontend
+# 설치 순서: PostgreSQL → Redpanda → Connect → Console → Nexus → Playground App → Frontend
 # Redpanda가 준비된 후 Connect/Console을 설치해야 한다.
 # Playground App은 PostgreSQL + Redpanda가 준비된 후 설치한다.
 #
@@ -24,53 +24,59 @@ echo ""
 
 # 네임스페이스
 if ! kubectl get namespace "${NAMESPACE}" &>/dev/null; then
-    echo "[1/7] Creating namespace ${NAMESPACE}..."
+    echo "[1/9] Creating namespace ${NAMESPACE}..."
     kubectl create namespace "${NAMESPACE}"
 else
-    echo "[1/7] Namespace ${NAMESPACE} exists"
+    echo "[1/9] Namespace ${NAMESPACE} exists"
 fi
 
 # Helm repo
-echo "[2/7] Adding Helm repos..."
+echo "[2/9] Adding Helm repos..."
 helm repo add redpanda https://charts.redpanda.com 2>/dev/null || true
 helm repo add bitnami https://charts.bitnami.com/bitnami 2>/dev/null || true
 helm repo update
 
 # PostgreSQL
-echo "[3/7] ${ACTION} PostgreSQL..."
+echo "[3/9] ${ACTION} PostgreSQL..."
 helm "${ACTION}" postgresql bitnami/postgresql \
     -n "${NAMESPACE}" \
     -f "${SCRIPT_DIR}/postgresql/values.yaml" \
     --wait --timeout 5m
 
 # Redpanda
-echo "[4/7] ${ACTION} Redpanda..."
+echo "[4/9] ${ACTION} Redpanda..."
 helm "${ACTION}" redpanda redpanda/redpanda \
     -n "${NAMESPACE}" \
     -f "${SCRIPT_DIR}/redpanda/values.yaml" \
     --wait --timeout 10m
 
 # Connect (kubectl manifests)
-echo "[5/7] Applying Connect manifests..."
+echo "[5/9] Applying Connect manifests..."
 kubectl apply -f "${SCRIPT_DIR}/connect/manifests.yaml"
 echo "  Waiting for Connect to be ready..."
 kubectl rollout status deployment/connect -n "${NAMESPACE}" --timeout=3m || true
 
 # Console
-echo "[5.5/7] ${ACTION} Console..."
+echo "[6/9] ${ACTION} Console..."
 helm "${ACTION}" console redpanda/console \
     -n "${NAMESPACE}" \
     -f "${SCRIPT_DIR}/console/values.yaml" \
     --wait --timeout 5m
 
+# Nexus (kubectl manifests)
+echo "[7/9] Applying Nexus manifests..."
+kubectl apply -f "${SCRIPT_DIR}/nexus/manifests.yaml"
+echo "  Waiting for Nexus to be ready..."
+kubectl rollout status deployment/nexus -n "${NAMESPACE}" --timeout=5m || true
+
 # Playground App
-echo "[6/7] ${ACTION} Playground App..."
+echo "[8/9] ${ACTION} Playground App..."
 helm "${ACTION}" playground "${SCRIPT_DIR}/playground" \
     -n "${NAMESPACE}" \
     --wait --timeout 5m
 
 # Playground Frontend
-echo "[7/7] ${ACTION} Playground Frontend..."
+echo "[9/9] ${ACTION} Playground Frontend..."
 helm "${ACTION}" playground-frontend "${SCRIPT_DIR}/playground-frontend" \
     -n "${NAMESPACE}" \
     --wait --timeout 3m

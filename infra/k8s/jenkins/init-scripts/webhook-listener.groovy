@@ -11,7 +11,7 @@ import hudson.model.listeners.RunListener
  */
 
 // 환경변수 CONNECT_WEBHOOK_URL이 설정되어 있으면 사용, 없으면 기본값
-def WEBHOOK_URL = System.getenv('CONNECT_WEBHOOK_URL') ?: 'http://connect:4197/webhook/jenkins'
+def WEBHOOK_URL = System.getenv('CONNECT_WEBHOOK_URL') ?: 'http://connect:4195/jenkins-webhook/webhook/jenkins'
 
 RunListener.all().add(new RunListener<Run>() {
 

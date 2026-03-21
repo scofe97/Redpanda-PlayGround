@@ -31,7 +31,7 @@ services:
         -Dsun.jnu.encoding=UTF-8
         -Djenkins.install.runSetupWizard=false
       CASC_JENKINS_CONFIG: /var/jenkins_home/casc.yaml
-      CONNECT_WEBHOOK_URL: ${CONNECT_WEBHOOK_URL:-http://10.178.0.2:4197/webhook/jenkins}
+      CONNECT_WEBHOOK_URL: ${CONNECT_WEBHOOK_URL:-http://10.178.0.2:4195/jenkins-webhook/webhook/jenkins}
       GITLAB_TOKEN: ${GITLAB_TOKEN:-}
     volumes:
       - jenkins-data:/var/jenkins_home

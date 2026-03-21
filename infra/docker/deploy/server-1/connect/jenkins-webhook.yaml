@@ -6,7 +6,6 @@
 
 input:
   http_server:
-    address: 0.0.0.0:4197
     path: /webhook/jenkins
     allowed_verbs:
       - POST

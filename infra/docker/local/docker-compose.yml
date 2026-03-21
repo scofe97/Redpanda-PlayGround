@@ -45,7 +45,6 @@ services:
     container_name: playground-connect
     ports:
       - "${CONNECT_PORT}:4195"
-      - "4197:4197"
     volumes:
       - ../shared/connect:/etc/connect:ro
     command: ["streams", "--chilled", "-o", "/etc/connect/observability.yaml", "/etc/connect/jenkins-command.yaml", "/etc/connect/jenkins-webhook.yaml", "/etc/connect/gitlab-webhook.yaml"]

@@ -148,7 +148,7 @@ pipeline {
                 if (params.EXECUTION_ID) {
                     def result = currentBuild.result ?: 'SUCCESS'
                     def payload = """{"executionId":"${params.EXECUTION_ID}","stepOrder":${params.STEP_ORDER},"jobName":"${env.JOB_NAME}","buildNumber":${env.BUILD_NUMBER},"result":"${result}","duration":${currentBuild.duration},"url":"${env.BUILD_URL}","buildLog":"Jenkins build #${env.BUILD_NUMBER} ${result} (checkout->build->test)"}"""
-                    sh "curl -sf -X POST http://playground-connect:4197/webhook/jenkins -H 'Content-Type: application/json' -d '${payload}' || echo 'Webhook failed (non-fatal)'"
+                    sh "curl -sf -X POST http://playground-connect:4195/jenkins-webhook/webhook/jenkins -H 'Content-Type: application/json' -d '${payload}' || echo 'Webhook failed (non-fatal)'"
                 }
             }
         }
@@ -217,7 +217,7 @@ pipeline {
                 if (params.EXECUTION_ID) {
                     def result = currentBuild.result ?: 'SUCCESS'
                     def payload = """{"executionId":"${params.EXECUTION_ID}","stepOrder":${params.STEP_ORDER},"jobName":"${env.JOB_NAME}","buildNumber":${env.BUILD_NUMBER},"result":"${result}","duration":${currentBuild.duration},"url":"${env.BUILD_URL}","buildLog":"Jenkins deploy #${env.BUILD_NUMBER} ${result} (check->stop->deploy->verify)"}"""
-                    sh "curl -sf -X POST http://playground-connect:4197/webhook/jenkins -H 'Content-Type: application/json' -d '${payload}' || echo 'Webhook failed (non-fatal)'"
+                    sh "curl -sf -X POST http://playground-connect:4195/jenkins-webhook/webhook/jenkins -H 'Content-Type: application/json' -d '${payload}' || echo 'Webhook failed (non-fatal)'"
                 }
             }
         }
@@ -257,4 +257,4 @@ echo "=== Jenkins Setup Complete ==="
 echo "  Jenkins URL: $JENKINS_URL"
 echo "  Credentials: $JENKINS_USER / $JENKINS_PASS"
 echo "  Jobs: playground-build, playground-deploy"
-echo "  Webhook: Jobs send callback to playground-connect:4197/webhook/jenkins"
+echo "  Webhook: Jobs send callback to playground-connect:4195/jenkins-webhook/webhook/jenkins"

@@ -63,7 +63,7 @@ controller:
   # ---- 환경변수 ----
   containerEnv:
     - name: CONNECT_WEBHOOK_URL
-      value: "http://10.178.0.2:4197/webhook/jenkins"
+      value: "http://connect.rp-oss.svc.cluster.local:4195/jenkins-webhook/webhook/jenkins"
 
   # ---- Init Groovy Scripts ----
   # /usr/share/jenkins/ref/init.groovy.d/ 에 마운트됨
@@ -80,7 +80,7 @@ controller:
       import hudson.model.ParametersAction
       import hudson.model.listeners.RunListener
 
-      def WEBHOOK_URL = System.getenv('CONNECT_WEBHOOK_URL') ?: 'http://connect:4197/webhook/jenkins'
+      def WEBHOOK_URL = System.getenv('CONNECT_WEBHOOK_URL') ?: 'http://connect:4195/jenkins-webhook/webhook/jenkins'
 
       RunListener.all().add(new RunListener<Run>() {
           @Override
@@ -138,8 +138,6 @@ controller:
               pipeline {
                   agent any
                   parameters {
-                      string(name: 'EXECUTION_ID', defaultValue: '', description: 'Pipeline execution ID')
-                      string(name: 'STEP_ORDER', defaultValue: '1', description: 'Step order number')
                       string(name: 'GIT_URL', defaultValue: '', description: 'Git repository URL')
                       string(name: 'BRANCH', defaultValue: 'main', description: 'Git branch')
                   }
@@ -149,8 +147,8 @@ controller:
                               echo '============================================'
                               echo '  [TEST PIPELINE] Redpanda Playground Build'
                               echo '============================================'
-                              echo "Execution ID : ^${params.EXECUTION_ID}"
-                              echo "Step Order   : ^${params.STEP_ORDER}"
+                              echo "Execution ID : ^${env.EXECUTION_ID}"
+                              echo "Step Order   : ^${env.STEP_ORDER}"
                               echo "GIT_URL      : ^${params.GIT_URL ?: '(simulation)'}"
                               echo "BRANCH       : ^${params.BRANCH}"
                               echo "Build Number : ^${env.BUILD_NUMBER}"
@@ -230,8 +228,6 @@ controller:
               pipeline {
                   agent any
                   parameters {
-                      string(name: 'EXECUTION_ID', defaultValue: '', description: 'Pipeline execution ID')
-                      string(name: 'STEP_ORDER', defaultValue: '1', description: 'Step order number')
                       string(name: 'DEPLOY_TARGET', defaultValue: '', description: 'Deploy target info')
                   }
                   stages {
@@ -240,8 +236,8 @@ controller:
                               echo '============================================'
                               echo '  [TEST PIPELINE] Redpanda Playground Deploy'
                               echo '============================================'
-                              echo "Execution ID  : ^${params.EXECUTION_ID}"
-                              echo "Step Order    : ^${params.STEP_ORDER}"
+                              echo "Execution ID  : ^${env.EXECUTION_ID}"
+                              echo "Step Order    : ^${env.STEP_ORDER}"
                               echo "Deploy Target : ^${params.DEPLOY_TARGET ?: '(unknown)'}"
                               echo "Build Number  : ^${env.BUILD_NUMBER}"
                               echo '--------------------------------------------'
@@ -277,8 +273,6 @@ controller:
               pipelineJob('playground-build') {
                 description('Redpanda Playground - Build Pipeline')
                 parameters {
-                  stringParam('EXECUTION_ID', '', 'Pipeline execution ID')
-                  stringParam('STEP_ORDER', '1', 'Step order number')
                   stringParam('GIT_URL', '', 'Git repository URL (optional)')
                   stringParam('BRANCH', 'main', 'Git branch')
                 }
@@ -292,8 +286,6 @@ controller:
               pipelineJob('playground-deploy') {
                 description('Redpanda Playground - Deploy Pipeline')
                 parameters {
-                  stringParam('EXECUTION_ID', '', 'Pipeline execution ID')
-                  stringParam('STEP_ORDER', '2', 'Step order number')
                   stringParam('DEPLOY_TARGET', 'staging', 'Deploy target environment')
                 }
                 definition {

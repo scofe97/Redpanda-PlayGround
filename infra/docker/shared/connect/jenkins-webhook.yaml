@@ -7,7 +7,7 @@
 # 흐름: Jenkins → POST /webhook/jenkins → 메시지 정규화 → Redpanda 토픽
 #
 # 왜 gitlab-webhook.yaml과 별도 파일인가:
-#   포트(4197)와 path(/webhook/jenkins)가 다르고, 향후 Jenkins 전용
+#   path(/webhook/jenkins)가 다르고, 향후 Jenkins 전용
 #   필터링(예: 특정 Job만 수신)을 추가할 수 있도록 분리했다.
 #   동일 토픽(playground.webhook.inbound)으로 발행하므로 다운스트림
 #   컨슈머는 webhookSource 필드로 GitLab/Jenkins를 구분한다.
@@ -25,7 +25,7 @@ input:
   http_server:
     # Jenkins Notification Plugin이 POST 요청을 보낼 엔드포인트
     # Jenkins 시스템 설정 > Notification Endpoint에 이 주소를 등록한다.
-    address: 0.0.0.0:4197
+    # Streams 모드에서 address는 무시되고 공유 포트(4195)에 등록된다.
     path: /webhook/jenkins
     allowed_verbs:
       - POST
