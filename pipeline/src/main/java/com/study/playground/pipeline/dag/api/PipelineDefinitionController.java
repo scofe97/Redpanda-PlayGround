@@ -2,6 +2,7 @@ package com.study.playground.pipeline.dag.api;
 
 import com.study.playground.pipeline.dto.*;
 import com.study.playground.pipeline.dag.dto.*;
+import com.study.playground.pipeline.dag.dto.DagGraphResponse;
 import com.study.playground.pipeline.dag.service.PipelineDefinitionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -70,6 +71,21 @@ public class PipelineDefinitionController {
             , @RequestBody(required = false) PipelineExecuteRequest request) {
         var params = request != null ? request.getParams() : null;
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(service.restart(id, executionId, params));
+    }
+
+    @GetMapping("/executions/{executionId}/dag-graph")
+    public ResponseEntity<DagGraphResponse> getDagGraph(@PathVariable UUID executionId) {
+        return ResponseEntity.ok(service.getDagGraph(executionId));
+    }
+
+    @GetMapping("/executions/{executionId}/dag-graph/nodes")
+    public ResponseEntity<List<DagGraphResponse.Node>> getDagGraphNodes(@PathVariable UUID executionId) {
+        return ResponseEntity.ok(service.getDagGraph(executionId).nodes());
+    }
+
+    @GetMapping("/executions/{executionId}/dag-graph/edges")
+    public ResponseEntity<List<DagGraphResponse.Edge>> getDagGraphEdges(@PathVariable UUID executionId) {
+        return ResponseEntity.ok(service.getDagGraph(executionId).edges());
     }
 
     @DeleteMapping("/{id}")

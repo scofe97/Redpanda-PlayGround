@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.HashMap;
 
 /**
  * 파이프라인 정의의 CRUD와 실행 트리거를 담당한다.
@@ -308,6 +309,70 @@ public class PipelineDefinitionService {
             throw new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND, "파이프라인 정의를 찾을 수 없습니다: " + id);
         }
         return definition;
+    }
+
+    @Transactional(readOnly = true)
+    public DagGraphResponse getDagGraph(UUID executionId) {
+        var execution = executionMapper.findById(executionId);
+        if (execution == null) {
+            throw new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND
+                    , "Execution not found: " + executionId);
+        }
+
+        var definitionId = execution.getPipelineDefinitionId();
+        if (definitionId == null) {
+            throw new BusinessException(CommonErrorCode.INVALID_INPUT
+                    , "티켓 기반 실행은 DAG 그래프를 지원하지 않습니다");
+        }
+
+        // Job 정의 + 의존성 로드
+        var definition = definitionMapper.findById(definitionId);
+        loadJobDependencies(definitionId, definition.getJobs());
+
+        // Job 실행 상태 로드
+        var jobExecutions = jobExecutionMapper.findByExecutionId(executionId);
+        var statusByJobName = new HashMap<String, String>();
+        for (var je : jobExecutions) {
+            statusByJobName.put(je.getJobName(), je.getStatus().name());
+        }
+
+        // nodes 생성
+        var nodes = definition.getJobs().stream().map(job -> {
+            var status = statusByJobName.getOrDefault(job.getJobName(), "PENDING");
+            var color = switch (status) {
+                case "SUCCESS" -> "green";
+                case "FAILED", "COMPENSATION_FAILED" -> "red";
+                case "RUNNING" -> "blue";
+                case "WAITING_WEBHOOK" -> "purple";
+                case "COMPENSATED" -> "orange";
+                case "SKIPPED" -> "gray";
+                default -> "#808080";
+            };
+            return new DagGraphResponse.Node(
+                    job.getId().toString()
+                    , job.getJobName()
+                    , job.getJobType().name()
+                    , status
+                    , color
+            );
+        }).toList();
+
+        // edges 생성
+        var edges = new ArrayList<DagGraphResponse.Edge>();
+        var edgeIdx = 0;
+        for (var job : definition.getJobs()) {
+            if (job.getDependsOnJobIds() != null) {
+                for (var depId : job.getDependsOnJobIds()) {
+                    edges.add(new DagGraphResponse.Edge(
+                            "e" + (edgeIdx++)
+                            , depId.toString()
+                            , job.getId().toString()
+                    ));
+                }
+            }
+        }
+
+        return new DagGraphResponse(nodes, edges);
     }
 
     private void loadJobDependencies(Long definitionId, List<PipelineJob> jobs) {
