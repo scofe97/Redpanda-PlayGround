@@ -25,6 +25,7 @@
 | Connect Pipelines | `connect-pipelines.json` | input rate, output rate, 에러 rate, DLQ rate, 처리 지연 |
 | Spring Boot App | `spring-boot-app.json` | HTTP RED (요청률/오류율/지연), JVM heap, GC pause, Kafka throughput, connection pool |
 | System Health | `system-health.json` | Alloy 파이프라인, Loki ingestion, Tempo traces, Prometheus TSDB, 컨테이너 메모리 |
+| Pipeline Tracker | `pipeline-tracker.json` | executionId별 파이프라인 상태, 스텝 타임라인, 실행 로그 |
 
 ---
 
@@ -290,6 +291,48 @@ count(up == 0)
 container_memory_usage_bytes{name=~"playground-.*"}
 ```
 - 컨테이너별 메모리 사용량을 한눈에 비교
+
+---
+
+### 2-5. Pipeline Execution Tracker
+
+executionId를 입력하면 해당 파이프라인 실행의 전체 흐름을 추적하는 대시보드다. Loki 로그 기반으로 동작하며, 앱 코드의 특정 로그 마커에 의존한다.
+
+#### 로그 마커 규칙
+
+대시보드 쿼리가 올바르게 동작하려면 이벤트 발행 시 아래 형식의 로그가 남아야 한다. `PipelineEventProducer`와 `DagEventProducer`에서 Kafka 이벤트 발행 직후 로그를 기록한다.
+
+| 마커 | 발행 시점 | 필수 필드 | 사용하는 패널 |
+|------|----------|----------|-------------|
+| `[StepChanged]` | Job 상태 변경 시 | `executionId`, `jobName`, `status`, `jobType` | Step Changes(id=3), Timeline(id=5) |
+| `[ExecutionCompleted]` | 파이프라인 완료 시 | `executionId`, `status`, `durationMs` | Pipeline Status(id=1) |
+| `[DagJobDispatched]` | DAG Job 시작 시 | `executionId`, `jobName`, `jobType`, `jobOrder` | Execution Logs(id=6) |
+
+로그 메시지 형식은 `key=value` 쌍이어야 한다. 대시보드의 Loki regexp가 이 형식을 파싱하기 때문이다.
+
+```
+# 예시
+[StepChanged] executionId=abc-123, jobName=build-app, status=SUCCESS, jobType=JENKINS_BUILD
+[ExecutionCompleted] executionId=abc-123, status=SUCCESS, durationMs=12345, error=null
+```
+
+#### 패널 구성
+
+| 패널 | 타입 | Loki 쿼리 핵심 | 설명 |
+|------|------|---------------|------|
+| Pipeline Status | Stat | `|= executionId |= ExecutionCompleted` → `status=` 추출 | 최종 상태 (SUCCESS/FAILED/RUNNING) |
+| Total Events | Stat | `|= executionId` → count_over_time | 전체 로그 이벤트 수 |
+| Step Changes | Stat | `|= executionId |= StepChanged` → count_over_time | Job 상태 변경 횟수 |
+| Failures | Stat | `|= executionId |~ FAILED\|COMPENSATED` | 실패/보상 이벤트 수 |
+| Step Status Timeline | State Timeline | `|= executionId |= StepChanged` → jobName, status 추출 | 각 Job의 상태 변화를 시간축으로 표시 |
+| Execution Logs | Logs | `|= executionId` | 전체 로그 (traceId 클릭 → Tempo) |
+
+#### 대시보드 변수
+- `executionId`: 텍스트 입력 (UUID)
+
+#### 주의사항
+- 로그 마커를 변경하면 대시보드 regexp도 함께 수정해야 한다
+- DAG 실행의 `DagJobCompleted`도 `[StepChanged]` 마커를 사용하여 Timeline 패널과 호환된다
 
 ---
 

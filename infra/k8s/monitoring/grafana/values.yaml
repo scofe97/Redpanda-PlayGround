@@ -23,6 +23,14 @@ persistence:
   size: 1Gi
   storageClass: local-path
 
+# init-chown-data 권한 문제 해결 (local-path PV에서 chown 실패)
+initChownData:
+  enabled: false
+
+# Infinity 플러그인 — JSON API 호출 (Node Graph 패널용)
+plugins:
+  - yesoreyeram-infinity-datasource
+
 # NodePort로 외부 접근 (K8s NodePort 범위: 30000-32767)
 service:
   type: NodePort
@@ -73,6 +81,12 @@ datasources:
                 value: service_name
           serviceMap:
             datasourceUid: prometheus
+
+      - name: Infinity
+        type: yesoreyeram-infinity-datasource
+        access: direct
+        uid: infinity
+        isDefault: false
 
       - name: Prometheus
         type: prometheus
