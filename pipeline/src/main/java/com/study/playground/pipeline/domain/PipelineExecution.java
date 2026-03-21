@@ -64,6 +64,12 @@ public class PipelineExecution {
     private String parametersJson;
 
     /**
+     * Job 간 공유 컨텍스트 JSON. 빌드 결과물 경로 등 이전 Job의 출력을 다음 Job에 전달한다.
+     * 예: BUILD Job 완료 시 {"ARTIFACT_URL": "http://nexus/.../app.war"} 저장 → DEPLOY Job이 읽음.
+     */
+    private String contextJson;
+
+    /**
      * 이 실행에 속한 Job 실행 목록. jobOrder 오름차순으로 정렬되어 있다.
      * MyBatis collection 매핑을 통해 조인 쿼리 결과로 채워진다.
      */
@@ -80,6 +86,29 @@ public class PipelineExecution {
             return OBJECT_MAPPER.readValue(parametersJson, new TypeReference<>() {});
         } catch (Exception e) {
             return Map.of();
+        }
+    }
+
+    /** contextJson을 파싱하여 컨텍스트 맵으로 반환한다. */
+    public Map<String, String> context() {
+        if (contextJson == null || contextJson.isBlank()) {
+            return new java.util.HashMap<>();
+        }
+        try {
+            return OBJECT_MAPPER.readValue(contextJson, new TypeReference<>() {});
+        } catch (Exception e) {
+            return new java.util.HashMap<>();
+        }
+    }
+
+    /** 컨텍스트에 key-value를 추가하고 contextJson을 갱신한다. */
+    public void putContext(String key, String value) {
+        var ctx = context();
+        ctx.put(key, value);
+        try {
+            this.contextJson = OBJECT_MAPPER.writeValueAsString(ctx);
+        } catch (Exception e) {
+            // ignore
         }
     }
 }

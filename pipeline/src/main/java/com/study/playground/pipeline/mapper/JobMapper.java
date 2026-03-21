@@ -41,4 +41,7 @@ public interface JobMapper {
 
     /** 지정한 Jenkins 상태의 Job 목록을 조회한다. */
     List<PipelineJob> findByJenkinsStatus(@Param("jenkinsStatus") String jenkinsStatus);
+
+    /** preset의 특정 카테고리 도구 URL을 조회한다. */
+    String findToolUrlByPresetIdAndCategory(@Param("presetId") Long presetId, @Param("category") String category);
 }

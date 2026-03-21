@@ -120,6 +120,13 @@
         WHERE pj.jenkins_status = #{jenkinsStatus}
     </select>
 
+    <select id="findToolUrlByPresetIdAndCategory" resultType="String">
+        SELECT st.url FROM support_tool st
+        JOIN preset_entry pe ON st.id = pe.tool_id
+        WHERE pe.preset_id = #{presetId} AND pe.category = #{category}
+        LIMIT 1
+    </select>
+
     <delete id="delete">
         DELETE FROM pipeline_job_dependency
         WHERE job_id = #{id}

@@ -58,4 +58,12 @@
         WHERE id = #{id}
     </update>
 
+    <select id="findByJobId" resultType="com.study.playground.pipeline.domain.PipelineJobExecution">
+        SELECT id, execution_id, job_order, job_type, job_name, job_id, status, log, started_at, completed_at, retry_count
+        FROM pipeline_job_execution
+        WHERE job_id = #{jobId}
+        ORDER BY started_at DESC
+        LIMIT 10
+    </select>
+
 </mapper>

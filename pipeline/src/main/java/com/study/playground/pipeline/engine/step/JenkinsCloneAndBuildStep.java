@@ -9,6 +9,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -36,6 +39,7 @@ public class JenkinsCloneAndBuildStep implements PipelineJobExecutor {
 
     /** 기본 Jenkins 빌드 Job 이름. Job 이름에서 별도 지정이 없으면 이 Job을 사용한다. */
     private static final String DEFAULT_JOB = "playground-build";
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final JenkinsAdapter jenkinsAdapter;
     private final PipelineCommandProducer commandProducer;
@@ -71,12 +75,21 @@ public class JenkinsCloneAndBuildStep implements PipelineJobExecutor {
             jenkinsJobName = DEFAULT_JOB;
         }
 
-        // Job 이름에서 GIT_URL, BRANCH 파싱: "Clone: http://localhost:29180/root/repo#main"
         Map<String, String> params = new HashMap<>();
         params.put("EXECUTION_ID", jobExecution.getExecutionId().toString());
         params.put("STEP_ORDER", String.valueOf(jobExecution.getJobOrder()));
 
-        if (jobName != null && jobName.contains(":")) {
+        // 1) resolvedConfigJson이 있으면 파싱하여 Jenkins 파라미터로 사용
+        if (jobExecution.getResolvedConfigJson() != null
+                && !jobExecution.getResolvedConfigJson().isBlank()) {
+            var configParams = OBJECT_MAPPER.readValue(
+                    jobExecution.getResolvedConfigJson()
+                    , new TypeReference<Map<String, String>>() {});
+            configParams.forEach(params::putIfAbsent);
+            log.info("[Real] configJson 파라미터 적용: {}", configParams.keySet());
+        }
+        // 2) 기존 jobName 파싱 폴백 (configJson 없는 레거시 Job 호환)
+        else if (jobName != null && jobName.contains(":")) {
             String raw = jobName.substring(jobName.indexOf(':') + 1).trim();
             String gitUrl = raw.contains("#")
                     ? raw.substring(0, raw.lastIndexOf('#'))
@@ -85,7 +98,6 @@ public class JenkinsCloneAndBuildStep implements PipelineJobExecutor {
                     ? raw.substring(raw.lastIndexOf('#') + 1)
                     : "main";
 
-            // 외부IP/localhost → Docker 서비스명 변환 (Jenkins는 같은 playground-net에서 실행)
             String internalUrl = gitUrl
                     .replace("localhost:29180", "playground-gitlab:29180")
                     .replace("34.47.74.0:29180", "playground-gitlab:29180")
@@ -93,7 +105,7 @@ public class JenkinsCloneAndBuildStep implements PipelineJobExecutor {
 
             params.put("GIT_URL", internalUrl);
             params.put("BRANCH", branch);
-            log.info("[Real] Git 파라미터: URL={}, branch={}", internalUrl, branch);
+            log.info("[Real] Git 파라미터 (jobName 폴백): URL={}, branch={}", internalUrl, branch);
         }
 
         // 사용자 파라미터 병합 (시스템 파라미터가 우선 — putIfAbsent로 사용자 값 추가)

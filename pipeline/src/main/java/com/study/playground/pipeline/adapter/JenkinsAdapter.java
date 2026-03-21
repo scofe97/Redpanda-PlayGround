@@ -401,12 +401,10 @@ public class JenkinsAdapter {
                         <hudson.model.StringParameterDefinition>
                           <name>EXECUTION_ID</name>
                           <defaultValue></defaultValue>
-                          <description>Pipeline execution ID</description>
                         </hudson.model.StringParameterDefinition>
                         <hudson.model.StringParameterDefinition>
                           <name>STEP_ORDER</name>
                           <defaultValue>1</defaultValue>
-                          <description>Step order</description>
                         </hudson.model.StringParameterDefinition>
                       </parameterDefinitions>
                     </hudson.model.ParametersDefinitionProperty>

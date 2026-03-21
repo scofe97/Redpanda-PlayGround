@@ -9,7 +9,9 @@ import com.study.playground.pipeline.dag.mapper.PipelineDefinitionMapper;
 import com.study.playground.pipeline.mapper.PipelineExecutionMapper;
 import com.study.playground.pipeline.mapper.PipelineJobExecutionMapper;
 import com.study.playground.pipeline.dag.mapper.PipelineJobMapper;
+import com.study.playground.pipeline.mapper.JobMapper;
 import com.study.playground.pipeline.engine.JobExecutorRegistry;
+import com.study.playground.pipeline.engine.ParameterResolver;
 import com.study.playground.pipeline.engine.SagaCompensator;
 import com.study.playground.pipeline.dag.event.DagEventProducer;
 import jakarta.annotation.PostConstruct;
@@ -49,6 +51,7 @@ public class DagExecutionCoordinator {
     private final PipelineExecutionMapper executionMapper;
     private final PipelineJobExecutionMapper jobExecutionMapper;
     private final PipelineJobMapper jobMapper;
+    private final JobMapper singleJobMapper;
     private final PipelineDefinitionMapper definitionMapper;
     private final PipelineEventProducer eventProducer;
     private final DagEventProducer dagEventProducer;
@@ -263,6 +266,12 @@ public class DagExecutionCoordinator {
             if (success) {
                 state.markCompleted(jobId);
                 log.info("[DAG] Job completed successfully: jobId={}, execution={}", jobId, executionId);
+
+                // BUILD Job 완료 시 configJson의 GAV로 Nexus URL을 구성하여 contextJson에 저장
+                var completedJob = state.jobs().get(jobId);
+                if (completedJob != null && completedJob.getJobType() == PipelineJobType.BUILD) {
+                    saveArtifactUrlToContext(executionId, completedJob);
+                }
             } else {
                 state.markFailed(jobId);
                 log.warn("[DAG] Job failed: jobId={}, execution={}", jobId, executionId);
@@ -448,6 +457,46 @@ public class DagExecutionCoordinator {
         var userParams = execution.parameters();
         if (!userParams.isEmpty()) {
             je.setUserParams(userParams);
+        }
+
+        // 실행 컨텍스트 전달 (이전 Job의 출력물을 다음 Job이 참조)
+        var execContext = execution.context();
+
+        // DEPLOY Job이 BUILD Job에 의존하면, 해당 빌드의 ARTIFACT_URL을 자동 주입
+        if (job.getJobType() == PipelineJobType.DEPLOY && !execContext.isEmpty()) {
+            var deps = job.getDependsOnJobIds();
+            if (deps != null) {
+                var state = executionStates.get(executionId);
+                for (var depId : deps) {
+                    var depJob = state != null ? state.jobs().get(depId) : null;
+                    if (depJob != null && depJob.getJobType() == PipelineJobType.BUILD) {
+                        var depArtifactUrl = execContext.get("ARTIFACT_URL_" + depId);
+                        if (depArtifactUrl != null) {
+                            execContext.put("ARTIFACT_URL", depArtifactUrl);
+                            log.debug("[DAG] DEPLOY Job {} ← BUILD Job {}의 ARTIFACT_URL 자동 주입", job.getId(), depId);
+                            // 첫 번째 BUILD 의존성의 아티팩트만 사용. 다중 BUILD→단일 DEPLOY 시 확장 필요.
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!execContext.isEmpty()) {
+            je.setExecutionContext(execContext);
+        }
+
+        // Job configJson의 ${PARAM} 플레이스홀더를 사용자 파라미터 + 실행 컨텍스트로 치환
+        var configJson = job.getConfigJson();
+        if (configJson != null) {
+            // 컨텍스트 + 사용자 파라미터를 병합 (사용자 파라미터가 우선)
+            var mergedParams = new java.util.HashMap<>(execContext);
+            mergedParams.putAll(userParams);
+            if (!mergedParams.isEmpty()) {
+                je.setResolvedConfigJson(ParameterResolver.resolve(configJson, mergedParams));
+            } else {
+                je.setResolvedConfigJson(configJson);
+            }
         }
 
         // RUNNING으로 전환
@@ -679,4 +728,58 @@ public class DagExecutionCoordinator {
                 ? Duration.between(execution.getStartedAt(), LocalDateTime.now()).toMillis()
                 : 0;
     }
+
+    /**
+     * BUILD Job 완료 시 configJson의 GAV 좌표로 Nexus 아티팩트 URL을 구성하여 contextJson에 저장한다.
+     * 키는 ARTIFACT_URL_{jobId}로, 여러 BUILD Job이 있을 때 각각 구분된다.
+     * DEPLOY Job의 configJson에서 ${ARTIFACT_URL_{jobId}} 플레이스홀더로 참조할 수 있다.
+     */
+    private void saveArtifactUrlToContext(UUID executionId, PipelineJob job) {
+        try {
+            var execution = executionMapper.findById(executionId);
+            if (execution == null) return;
+
+            // configJson에서 GAV 좌표 추출 (userParams로 ${PARAM} 치환 후)
+            var configJson = job.getConfigJson();
+            if (configJson == null || configJson.isBlank()) return;
+
+            var userParams = execution.parameters();
+            var resolved = !userParams.isEmpty()
+                    ? ParameterResolver.resolve(configJson, userParams)
+                    : configJson;
+
+            var configMap = OBJECT_MAPPER.readValue(resolved
+                    , new com.fasterxml.jackson.core.type.TypeReference<java.util.Map<String, String>>() {});
+
+            // Nexus URL: preset에서 조회 (category=LIBRARY), 없으면 configJson 폴백
+            var nexusUrl = singleJobMapper.findToolUrlByPresetIdAndCategory(job.getPresetId(), "LIBRARY");
+            if (nexusUrl == null || nexusUrl.isBlank()) {
+                nexusUrl = configMap.getOrDefault("NEXUS_URL", "");
+            }
+            var groupId = configMap.getOrDefault("GROUP_ID", "");
+            var artifactId = configMap.getOrDefault("ARTIFACT_ID", "");
+            var version = configMap.getOrDefault("VERSION", "");
+            var packaging = configMap.getOrDefault("PACKAGING", "war");
+
+            if (nexusUrl.isEmpty() || groupId.isEmpty() || artifactId.isEmpty() || version.isEmpty()) {
+                log.debug("[DAG] BUILD Job {}에 GAV 정보 부족 — contextJson 스킵", job.getId());
+                return;
+            }
+
+            var groupPath = groupId.replace('.', '/');
+            var artifactUrl = "%s/repository/maven-releases/%s/%s/%s/%s-%s.%s".formatted(
+                    nexusUrl, groupPath, artifactId, version, artifactId, version, packaging);
+
+            execution.putContext("ARTIFACT_URL_" + job.getId(), artifactUrl);
+            executionMapper.updateContextJson(executionId, execution.getContextJson());
+            log.info("[DAG] BUILD Job {} 완료 → contextJson에 ARTIFACT_URL_{} 저장: {}",
+                    job.getId(), job.getId(), artifactUrl);
+        } catch (Exception e) {
+            log.warn("[DAG] ARTIFACT_URL 저장 실패 (executionId={}, jobId={}): {}",
+                    executionId, job.getId(), e.getMessage());
+        }
+    }
+
+    private static final com.fasterxml.jackson.databind.ObjectMapper OBJECT_MAPPER
+            = new com.fasterxml.jackson.databind.ObjectMapper();
 }

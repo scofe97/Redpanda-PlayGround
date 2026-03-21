@@ -60,6 +60,11 @@ public class JobController {
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(service.execute(id, params));
     }
 
+    @GetMapping("/{id}/executions")
+    public ResponseEntity<List<PipelineExecutionResponse>> getExecutions(@PathVariable Long id) {
+        return ResponseEntity.ok(service.getExecutions(id));
+    }
+
     @PostMapping("/{id}/retry-provision")
     public ResponseEntity<Void> retryJenkinsProvision(@PathVariable Long id) {
         service.retryJenkinsProvision(id);

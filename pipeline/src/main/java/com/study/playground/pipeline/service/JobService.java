@@ -203,6 +203,30 @@ public class JobService {
         return PipelineExecutionResponse.accepted(execution);
     }
 
+    /**
+     * 특정 Job의 실행 이력을 최근 10건까지 반환한다.
+     *
+     * <p>pipeline_job_execution 테이블에서 job_id로 조회한 뒤
+     * 연관된 PipelineExecution을 함께 조합하여 반환한다.</p>
+     */
+    @Transactional(readOnly = true)
+    public List<PipelineExecutionResponse> getExecutions(Long jobId) {
+        var jobExecutions = jobExecutionMapper.findByJobId(jobId);
+        var executionIds = jobExecutions.stream()
+                .map(PipelineJobExecution::getExecutionId)
+                .distinct()
+                .toList();
+        return executionIds.stream()
+                .map(exId -> {
+                    var execution = executionMapper.findById(exId);
+                    if (execution == null) return null;
+                    var allJobExecs = jobExecutionMapper.findByExecutionId(exId);
+                    return PipelineExecutionResponse.from(execution, allJobExecs);
+                })
+                .filter(java.util.Objects::nonNull)
+                .toList();
+    }
+
     /** Jenkins Outbox 이벤트를 발행한다. aggregate_type=JENKINS, topic은 사용하지 않으므로 빈 문자열. */
     private void publishJenkinsOutboxEvent(String eventType, Long jobId, Map<String, Object> payload) {
         try {

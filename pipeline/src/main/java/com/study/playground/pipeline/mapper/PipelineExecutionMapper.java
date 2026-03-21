@@ -84,4 +84,6 @@ public interface PipelineExecutionMapper {
             @Param("status") String status,
             @Param("completedAt") LocalDateTime completedAt,
             @Param("errorMessage") String errorMessage);
+
+    void updateContextJson(@Param("id") UUID id, @Param("contextJson") String contextJson);
 }

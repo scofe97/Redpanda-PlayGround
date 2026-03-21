@@ -2,7 +2,7 @@ JAVA_HOME_21 := $(shell /usr/libexec/java_home -v 21 2>/dev/null || echo "")
 export JAVA_HOME := $(JAVA_HOME_21)
 
 .PHONY: help infra db nexus infra-all infra-down infra-logs backend build test frontend frontend-build dev clean console asyncapi app \
-       setup-gitlab setup-nexus setup-registry setup-jenkins setup-all demo-deploy demo-full \
+       setup-gitlab setup-nexus setup-nexus-k8s setup-registry setup-jenkins setup-all demo-deploy demo-full \
        monitoring monitoring-down grafana
 
 help: ## 사용 가능한 명령어 목록
@@ -102,8 +102,11 @@ grafana: ## Grafana 열기
 setup-gitlab: ## GitLab에 egov-sample + portal-app 프로젝트 등록
 	bash infra/docker/shared/scripts/setup-gitlab.sh
 
-setup-nexus: ## Nexus에 egov-sample WAR 업로드
+setup-nexus: ## Nexus에 egov-sample WAR 업로드 (Docker)
 	bash infra/docker/shared/scripts/setup-nexus.sh
+
+setup-nexus-k8s: ## K8s Nexus 초기 설정 + egov-sample WAR 업로드
+	bash infra/k8s/nexus/setup-nexus-k8s.sh
 
 setup-registry: ## Registry에 egov-sample 이미지 push
 	bash infra/docker/shared/scripts/setup-registry.sh

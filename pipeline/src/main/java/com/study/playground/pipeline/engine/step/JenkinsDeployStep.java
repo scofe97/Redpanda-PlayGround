@@ -9,6 +9,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -36,6 +39,7 @@ public class JenkinsDeployStep implements PipelineJobExecutor {
 
     /** 기본 Jenkins 배포 Job 이름. Job 이름에서 별도 지정이 없으면 이 Job을 사용한다. */
     private static final String DEFAULT_JOB = "playground-deploy";
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final JenkinsAdapter jenkinsAdapter;
     private final PipelineCommandProducer commandProducer;
@@ -68,21 +72,34 @@ public class JenkinsDeployStep implements PipelineJobExecutor {
             jenkinsJobName = DEFAULT_JOB;
         }
 
-        // Job 이름에서 배포 대상 정보 추출: "Deploy: egov-sample (main), my-image:latest"
-        var deployTarget = "";
-        if (jobName != null && jobName.contains("Deploy:")) {
-            deployTarget = jobName.substring(jobName.indexOf("Deploy:") + 7).trim();
-        }
-
         var params = new HashMap<String, String>();
         params.put("EXECUTION_ID", jobExecution.getExecutionId().toString());
         params.put("STEP_ORDER", String.valueOf(jobExecution.getJobOrder()));
-        if (!deployTarget.isEmpty()) {
-            params.put("DEPLOY_TARGET", deployTarget);
-            log.info("[Deploy] 대상: {}", deployTarget);
+
+        // 1) resolvedConfigJson이 있으면 파싱하여 Jenkins 파라미터로 사용
+        if (jobExecution.getResolvedConfigJson() != null
+                && !jobExecution.getResolvedConfigJson().isBlank()) {
+            var configParams = OBJECT_MAPPER.readValue(
+                    jobExecution.getResolvedConfigJson()
+                    , new TypeReference<Map<String, String>>() {});
+            configParams.forEach(params::putIfAbsent);
+            log.info("[Deploy] configJson 파라미터 적용: {}", configParams.keySet());
+        }
+        // 2) 기존 jobName 파싱 폴백
+        else if (jobName != null && jobName.contains("Deploy:")) {
+            var deployTarget = jobName.substring(jobName.indexOf("Deploy:") + 7).trim();
+            if (!deployTarget.isEmpty()) {
+                params.put("DEPLOY_TARGET", deployTarget);
+                log.info("[Deploy] 대상 (jobName 폴백): {}", deployTarget);
+            }
         }
 
-        // 사용자 파라미터 병합 (시스템 파라미터가 우선 — putIfAbsent로 사용자 값 추가)
+        // 3) 실행 컨텍스트에서 ARTIFACT_URL 주입 (configJson에 없으면)
+        if (jobExecution.getExecutionContext() != null) {
+            jobExecution.getExecutionContext().forEach(params::putIfAbsent);
+        }
+
+        // 4) 사용자 파라미터 병합 (시스템 파라미터가 우선 — putIfAbsent로 사용자 값 추가)
         if (jobExecution.getUserParams() != null) {
             jobExecution.getUserParams().forEach(params::putIfAbsent);
         }

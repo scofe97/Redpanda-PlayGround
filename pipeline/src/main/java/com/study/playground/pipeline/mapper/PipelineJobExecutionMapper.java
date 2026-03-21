@@ -37,4 +37,6 @@ public interface PipelineJobExecutionMapper {
             @Param("completedAt") LocalDateTime completedAt);
 
     void incrementRetryCount(@Param("id") Long id);
+
+    List<PipelineJobExecution> findByJobId(@Param("jobId") Long jobId);
 }

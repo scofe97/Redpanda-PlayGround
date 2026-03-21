@@ -31,6 +31,8 @@ public record PipelineExecutionResponse(
         String errorMessage,
         /** 실행 시 주입된 파라미터. */
         Map<String, String> parameters,
+        /** Job 간 공유 컨텍스트 (빌드 결과물 경로 등). */
+        Map<String, String> context,
         /** 실시간 진행 상황을 구독할 수 있는 SSE 엔드포인트 URL. */
         String trackingUrl
 ) {
@@ -47,6 +49,7 @@ public record PipelineExecutionResponse(
             PipelineExecution execution,
             List<PipelineJobExecution> jobExecutions) {
         var params = execution.parameters();
+        var ctx = execution.context();
         return new PipelineExecutionResponse(
                 execution.getId()
                 , execution.getTicketId()
@@ -56,6 +59,7 @@ public record PipelineExecutionResponse(
                 , execution.getCompletedAt()
                 , execution.getErrorMessage()
                 , params.isEmpty() ? null : params
+                , ctx.isEmpty() ? null : ctx
                 , buildTrackingUrl(execution)
         );
     }
@@ -79,6 +83,7 @@ public record PipelineExecutionResponse(
                 , null
                 , null
                 , params.isEmpty() ? null : params
+                , null
                 , buildTrackingUrl(execution)
         );
     }

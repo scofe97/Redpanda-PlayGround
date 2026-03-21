@@ -65,4 +65,17 @@ public class PipelineJobExecution {
      * 파싱한 값을 여기에 세팅하여 Step Executor가 참조한다.
      */
     private transient java.util.Map<String, String> userParams;
+
+    /**
+     * Job의 configJson에 파라미터 플레이스홀더(${PARAM})를 치환한 결과.
+     * DB에 저장하지 않는 런타임 전달용 필드.
+     * DagExecutionCoordinator.executeJob()에서 ParameterResolver.resolve()로 치환 후 세팅한다.
+     */
+    private transient String resolvedConfigJson;
+
+    /**
+     * 실행 컨텍스트. 이전 Job의 출력(빌드 결과물 경로 등)을 다음 Job에 전달한다.
+     * DagExecutionCoordinator가 execution.context()를 복사하여 세팅한다.
+     */
+    private transient java.util.Map<String, String> executionContext;
 }
