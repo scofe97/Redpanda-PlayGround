@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: redpanda
+  namespace: argocd
+spec:
+  project: playground
+  sources:
+    - repoURL: https://github.com/scofe97/Redpanda-PlayGround.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://charts.redpanda.com
+      chart: redpanda
+      targetRevision: "*"
+      helm:
+        valueFiles:
+          - $values/infra/k8s/redpanda/values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: rp-oss
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true

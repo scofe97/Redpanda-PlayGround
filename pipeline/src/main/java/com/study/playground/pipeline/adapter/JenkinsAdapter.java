@@ -36,7 +36,8 @@ public class JenkinsAdapter {
         try {
             AdapterInputValidator.validatePathParam(jobName, "jobName");
             String url = UriComponentsBuilder.fromHttpUrl(getTool().url())
-                    .pathSegment("job", jobName, String.valueOf(buildNumber), "api/json")
+                    .pathSegment("job", jobName, String.valueOf(buildNumber))
+                    .path("/api/json")
                     .toUriString();
             ResponseEntity<JenkinsBuildInfo> response = restTemplate.exchange(
                     url, HttpMethod.GET,
@@ -54,7 +55,8 @@ public class JenkinsAdapter {
         try {
             AdapterInputValidator.validatePathParam(jobName, "jobName");
             String url = UriComponentsBuilder.fromHttpUrl(getTool().url())
-                    .pathSegment("job", jobName, "lastBuild", "api/json")
+                    .pathSegment("job", jobName, "lastBuild")
+                    .path("/api/json")
                     .toUriString();
             ResponseEntity<JenkinsBuildInfo> response = restTemplate.exchange(
                     url, HttpMethod.GET,
@@ -176,7 +178,8 @@ public class JenkinsAdapter {
             AdapterInputValidator.validatePathParam(jobName, "jobName");
             JenkinsToolInfo tool = getTool();
             String url = UriComponentsBuilder.fromHttpUrl(tool.url())
-                    .pathSegment("job", jobName, "api/json")
+                    .pathSegment("job", jobName)
+                    .path("/api/json")
                     .toUriString();
             restTemplate.exchange(url, HttpMethod.GET
                     , new HttpEntity<>(buildHeaders())
@@ -226,7 +229,8 @@ public class JenkinsAdapter {
         try {
             JenkinsToolInfo tool = getTool();
             String checkUrl = UriComponentsBuilder.fromHttpUrl(tool.url())
-                    .pathSegment("job", folderName, "api/json")
+                    .pathSegment("job", folderName)
+                    .path("/api/json")
                     .toUriString();
             restTemplate.exchange(checkUrl, HttpMethod.GET
                     , new HttpEntity<>(buildHeaders())
@@ -339,7 +343,8 @@ public class JenkinsAdapter {
             AdapterInputValidator.validatePathParam(jobName, "jobName");
             JenkinsToolInfo tool = getTool();
             String url = UriComponentsBuilder.fromHttpUrl(tool.url())
-                    .pathSegment("job", folderName, "job", jobName, "api/json")
+                    .pathSegment("job", folderName, "job", jobName)
+                    .path("/api/json")
                     .toUriString();
             restTemplate.exchange(url, HttpMethod.GET
                     , new HttpEntity<>(buildHeaders())
@@ -357,7 +362,8 @@ public class JenkinsAdapter {
             AdapterInputValidator.validatePathParam(folderName, "folderName");
             JenkinsToolInfo tool = getTool();
             String url = UriComponentsBuilder.fromHttpUrl(tool.url())
-                    .pathSegment("job", folderName, "api/json")
+                    .pathSegment("job", folderName)
+                    .path("/api/json")
                     .queryParam("tree", "jobs[name]")
                     .toUriString();
             ResponseEntity<String> response = restTemplate.exchange(

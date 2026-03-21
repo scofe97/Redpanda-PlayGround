@@ -96,6 +96,11 @@ public class JenkinsCloneAndBuildStep implements PipelineJobExecutor {
             log.info("[Real] Git 파라미터: URL={}, branch={}", internalUrl, branch);
         }
 
+        // 사용자 파라미터 병합 (시스템 파라미터가 우선 — putIfAbsent로 사용자 값 추가)
+        if (jobExecution.getUserParams() != null) {
+            jobExecution.getUserParams().forEach(params::putIfAbsent);
+        }
+
         commandProducer.publishJenkinsBuildCommand(execution, jobExecution, jenkinsJobName, params);
         log.info("[Real] Jenkins 빌드 커맨드 발행 완료 (via Kafka): job={}", jenkinsJobName);
         jobExecution.setWaitingForWebhook(true);

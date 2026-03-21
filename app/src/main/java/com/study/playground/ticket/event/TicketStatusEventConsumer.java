@@ -1,6 +1,6 @@
 package com.study.playground.ticket.event;
 
-import com.study.playground.avro.common.PipelineStatus;
+import com.study.playground.avro.common.AvroPipelineStatus;
 import com.study.playground.avro.pipeline.PipelineExecutionCompletedEvent;
 import com.study.playground.common.idempotency.ProcessedEvent;
 import com.study.playground.common.idempotency.ProcessedEventMapper;
@@ -63,8 +63,12 @@ public class TicketStatusEventConsumer {
         processed.setEventId(eventId);
         processedEventMapper.insert(processed);
 
-        long ticketId = event.getTicketId();
-        PipelineStatus pipelineStatus = event.getStatus();
+        Long ticketId = event.getTicketId();
+        if (ticketId == null) {
+            log.debug("Skipping ticket status update: ticketId is null (DAG pipeline)");
+            return;
+        }
+        AvroPipelineStatus pipelineStatus = event.getStatus();
 
         TicketStatus newStatus = switch (pipelineStatus) {
             case SUCCESS -> TicketStatus.DEPLOYED;

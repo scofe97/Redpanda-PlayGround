@@ -1,0 +1,62 @@
+# ============================================================================
+# Tempo Helm Chart Values — Redpanda Playground
+# ============================================================================
+# Chart: grafana/tempo
+# Namespace: rp-mgm
+#
+# 설치:
+#   helm install tempo grafana/tempo -n rp-mgm -f values.yaml
+#
+# 업그레이드:
+#   helm upgrade tempo grafana/tempo -n rp-mgm -f values.yaml
+# ============================================================================
+
+# 단일 인스턴스 Tempo (grafana/tempo chart)
+tempo:
+  server:
+    http_listen_port: 3200
+
+  # OTLP 수신은 Alloy가 담당 — Tempo는 Alloy로부터만 받음
+  # Alloy가 otelcol.exporter.otlphttp로 Tempo에 전달
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+        http:
+          endpoint: "0.0.0.0:4318"
+
+  storage:
+    trace:
+      backend: local
+      local:
+        path: /var/tempo/traces
+      wal:
+        path: /var/tempo/wal
+
+  compactor:
+    compaction:
+      block_retention: 72h
+
+  metrics_generator:
+    registry:
+      external_labels:
+        source: tempo
+    storage:
+      path: /var/tempo/generator/wal
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    memory: 1Gi
+
+persistence:
+  enabled: true
+  size: 5Gi
+  storageClass: local-path
+
+# Tempo는 내부 서비스로만 사용 (Alloy/Grafana에서 접근)
+service:
+  type: ClusterIP

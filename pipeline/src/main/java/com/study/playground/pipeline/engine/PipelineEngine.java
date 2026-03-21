@@ -1,8 +1,10 @@
 package com.study.playground.pipeline.engine;
 
 import com.study.playground.kafka.tracing.TraceContextUtil;
+import com.study.playground.avro.common.AvroPipelineStatus;
 import com.study.playground.pipeline.domain.*;
 import com.study.playground.pipeline.engine.step.*;
+import com.study.playground.pipeline.dag.engine.DagExecutionCoordinator;
 import com.study.playground.pipeline.event.PipelineEventProducer;
 import com.study.playground.pipeline.mapper.PipelineExecutionMapper;
 import com.study.playground.pipeline.mapper.PipelineJobExecutionMapper;
@@ -104,9 +106,15 @@ public class PipelineEngine {
         execution.setJobExecutions(jobExecutionMapper.findByExecutionId(execution.getId()));
         List<PipelineJobExecution> jobExecutions = execution.getJobExecutions();
 
+        // 사용자 파라미터 로드
+        var userParams = execution.parameters();
+
         for (int i = fromIndex; i < jobExecutions.size(); i++) {
             // i번째 Job 상태 조회 및 진행중 변경
             PipelineJobExecution jobExecution = jobExecutions.get(i);
+            if (!userParams.isEmpty()) {
+                jobExecution.setUserParams(userParams);
+            }
             updateJobExecutionStatus(execution, jobExecution, JobExecutionStatus.RUNNING, null);
 
             try {
@@ -251,7 +259,7 @@ public class PipelineEngine {
                 errorMessage);
         eventProducer.publishExecutionCompleted(
                 execution,
-                com.study.playground.avro.common.PipelineStatus.FAILED,
+                AvroPipelineStatus.FAILED,
                 durationMs,
                 errorMessage);
     }
@@ -265,7 +273,7 @@ public class PipelineEngine {
 
         eventProducer.publishExecutionCompleted(
                 execution,
-                com.study.playground.avro.common.PipelineStatus.SUCCESS,
+                AvroPipelineStatus.SUCCESS,
                 durationMs,
                 null);
         log.info("Pipeline execution completed: {} in {}ms", execution.getId(), durationMs);

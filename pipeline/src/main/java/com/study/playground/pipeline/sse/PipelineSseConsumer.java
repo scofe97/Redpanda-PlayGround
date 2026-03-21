@@ -44,12 +44,20 @@ public class PipelineSseConsumer {
                 case Topics.PIPELINE_EVT_STEP_CHANGED -> {
                     PipelineStepChangedEvent event = avroSerializer.deserialize(
                             record.value(), PipelineStepChangedEvent.getClassSchema());
+                    if (event.getTicketId() == null) {
+                        log.debug("SSE skip: ticketId is null (DAG pipeline)");
+                        return;
+                    }
                     String json = avroSerializer.toJson(event);
                     sseRegistry.send(event.getTicketId(), "status", json);
                 }
                 case Topics.PIPELINE_EVT_COMPLETED -> {
                     PipelineExecutionCompletedEvent event = avroSerializer.deserialize(
                             record.value(), PipelineExecutionCompletedEvent.getClassSchema());
+                    if (event.getTicketId() == null) {
+                        log.debug("SSE skip: ticketId is null (DAG pipeline)");
+                        return;
+                    }
                     String json = avroSerializer.toJson(event);
                     sseRegistry.send(event.getTicketId(), "completed", json);
                     sseRegistry.complete(event.getTicketId());

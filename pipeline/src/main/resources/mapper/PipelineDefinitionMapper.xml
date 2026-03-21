@@ -1,21 +1,22 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.study.playground.pipeline.mapper.PipelineDefinitionMapper">
+<mapper namespace="com.study.playground.pipeline.dag.mapper.PipelineDefinitionMapper">
 
-    <insert id="insert" parameterType="com.study.playground.pipeline.domain.PipelineDefinition"
+    <insert id="insert" parameterType="com.study.playground.pipeline.dag.domain.PipelineDefinition"
             useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO pipeline_definition (name, description, status, created_at)
-        VALUES (#{name}, #{description}, #{status}, NOW())
+        INSERT INTO pipeline_definition (name, description, status, failure_policy, created_at)
+        VALUES (#{name}, #{description}, #{status}, #{failurePolicy}, NOW())
     </insert>
 
-    <resultMap id="definitionWithJobs" type="com.study.playground.pipeline.domain.PipelineDefinition">
+    <resultMap id="definitionWithJobs" type="com.study.playground.pipeline.dag.domain.PipelineDefinition">
         <id property="id" column="def_id"/>
         <result property="name" column="def_name"/>
         <result property="description" column="def_description"/>
         <result property="status" column="def_status"/>
+        <result property="failurePolicy" column="def_failure_policy"/>
         <result property="createdAt" column="def_created_at"/>
-        <collection property="jobs" ofType="com.study.playground.pipeline.domain.PipelineJob">
+        <collection property="jobs" ofType="com.study.playground.pipeline.dag.domain.PipelineJob">
             <id property="id" column="job_id"/>
             <result property="pipelineDefinitionId" column="job_definition_id"/>
             <result property="jobName" column="job_name"/>
@@ -24,17 +25,20 @@
             <result property="presetId" column="job_preset_id"/>
             <result property="presetName" column="job_preset_name"/>
             <result property="configJson" column="job_config_json"/>
+            <result property="parameterSchemaJson" column="job_parameter_schema_json"/>
             <result property="createdAt" column="job_created_at"/>
         </collection>
     </resultMap>
 
     <select id="findById" resultMap="definitionWithJobs">
         SELECT d.id AS def_id, d.name AS def_name, d.description AS def_description,
-               d.status AS def_status, d.created_at AS def_created_at,
+               d.status AS def_status, d.failure_policy AS def_failure_policy,
+               d.created_at AS def_created_at,
                j.id AS job_id, j.pipeline_definition_id AS job_definition_id,
                j.job_name, j.job_type, m.execution_order AS job_execution_order,
                j.preset_id AS job_preset_id, mp.name AS job_preset_name,
-               j.config_json AS job_config_json, j.created_at AS job_created_at
+               j.config_json AS job_config_json, j.parameter_schema_json AS job_parameter_schema_json,
+               j.created_at AS job_created_at
         FROM pipeline_definition d
         LEFT JOIN pipeline_job_mapping m ON m.pipeline_definition_id = d.id
         LEFT JOIN pipeline_job j ON j.id = m.job_id
@@ -44,8 +48,8 @@
     </select>
 
     <!-- ACTIVE 상태만 조회. INACTIVE 포함 조회가 필요하면 별도 메서드 추가. -->
-    <select id="findAll" resultType="com.study.playground.pipeline.domain.PipelineDefinition">
-        SELECT id, name, description, status, created_at
+    <select id="findAll" resultType="com.study.playground.pipeline.dag.domain.PipelineDefinition">
+        SELECT id, name, description, status, failure_policy, created_at
         FROM pipeline_definition
         WHERE status = 'ACTIVE'
         ORDER BY created_at DESC

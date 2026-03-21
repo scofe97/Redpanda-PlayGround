@@ -1,0 +1,295 @@
+# ============================================================================
+# Redpanda Connect — K8s 매니페스트
+# ============================================================================
+# 공식 Helm chart가 없으므로 Deployment + ConfigMap + Service로 구성한다.
+# Namespace: rp-oss
+#
+# 설치:
+#   kubectl apply -f manifests.yaml -n rp-oss
+#
+# 파이프라인 수정 후:
+#   kubectl create configmap connect-pipelines -n rp-oss \
+#     --from-file=... --dry-run=client -o yaml | kubectl apply -f -
+#   kubectl rollout restart deployment connect -n rp-oss
+# ============================================================================
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: connect-config
+  namespace: rp-oss
+data:
+  observability.yaml: |
+    logger:
+      level: INFO
+      format: logfmt
+      add_timestamp: true
+      static_fields:
+        service: redpanda-connect
+
+    metrics:
+      prometheus: {}
+
+    http:
+      enabled: true
+      address: "0.0.0.0:4195"
+
+    tracer:
+      open_telemetry_collector:
+        http:
+          - address: alloy-otlp.rp-mgm.svc.cluster.local:4318
+        tags:
+          service.name: redpanda-connect
+
+  jenkins-webhook.yaml: |
+    input:
+      http_server:
+        address: 0.0.0.0:4197
+        path: /webhook/jenkins
+        allowed_verbs:
+          - POST
+        timeout: 5s
+    pipeline:
+      processors:
+        - mapping: |
+            root.webhookSource = "JENKINS"
+            root.payload = content().string()
+            root.headers = @
+            root.receivedAt = now()
+        - catch:
+            - log:
+                message: "Jenkins 웹훅 처리 실패"
+                level: ERROR
+                fields_mapping: |
+                  root.error = error()
+                  root.payload_preview = content().string().slice(0, 200)
+    output:
+      retry:
+        max_retries: 5
+        backoff:
+          initial_interval: 500ms
+          max_interval: 10s
+        output:
+          kafka_franz:
+            seed_brokers:
+              - redpanda.rp-oss.svc.cluster.local:9092
+            topic: playground.webhook.inbound
+            key: ${! json("webhookSource") }
+            max_in_flight: 1
+
+  gitlab-webhook.yaml: |
+    input:
+      http_server:
+        address: 0.0.0.0:4196
+        path: /webhook/gitlab
+        allowed_verbs:
+          - POST
+        timeout: 5s
+    pipeline:
+      processors:
+        - mapping: |
+            root.webhookSource = "GITLAB"
+            root.payload = content().string()
+            root.headers = @
+            root.receivedAt = now()
+        - catch:
+            - log:
+                message: "GitLab 웹훅 처리 실패"
+                level: ERROR
+                fields_mapping: |
+                  root.error = error()
+                  root.payload_preview = content().string().slice(0, 200)
+    output:
+      retry:
+        max_retries: 5
+        backoff:
+          initial_interval: 500ms
+          max_interval: 10s
+        output:
+          kafka_franz:
+            seed_brokers:
+              - redpanda.rp-oss.svc.cluster.local:9092
+            topic: playground.webhook.inbound
+            key: ${! json("webhookSource") }
+            max_in_flight: 1
+
+  jenkins-command.yaml: |
+    input:
+      kafka_franz:
+        seed_brokers:
+          - redpanda.rp-oss.svc.cluster.local:9092
+        topics:
+          - playground.pipeline.commands.jenkins
+        consumer_group: connect-jenkins-command-v4
+    pipeline:
+      processors:
+        - mapping: |
+            let job = this.jobName
+            let query = this.params.key_values().map_each(kv -> "%s=%s".format(kv.key, kv.value.escape_url_query())).join("&")
+            meta jenkins_url = this.jenkinsUrl
+            meta jenkins_path = "/job/%s/buildWithParameters?%s".format($job, $query)
+            meta execution_id = this.executionId
+            meta step_order = this.stepOrder.string()
+            root = ""
+        - log:
+            message: "Jenkins API 호출"
+            level: INFO
+            fields_mapping: |
+              root.execution_id = meta("execution_id")
+              root.step_order = meta("step_order")
+              root.jenkins_path = meta("jenkins_path")
+        - branch:
+            request_map: 'root = ""'
+            processors:
+              - http:
+                  url: '${! meta("jenkins_url") }${! meta("jenkins_path") }'
+                  verb: POST
+                  headers:
+                    Content-Type: application/x-www-form-urlencoded
+                    X-Execution-Id: '${! meta("execution_id") }'
+                    X-Step-Order: '${! meta("step_order") }'
+                  basic_auth:
+                    enabled: true
+                    username: admin
+                    password: "${JENKINS_TOKEN}"
+                  timeout: 15s
+                  successful_on: [200, 201, 202]
+            result_map: |
+              root = if errored() { error() } else { deleted() }
+        - switch:
+            - check: 'content().length() == 0'
+              processors:
+                - mapping: 'root = deleted()'
+            - check: 'this.contains("status 429") || this.contains("status 5")'
+              processors:
+                - log:
+                    message: "Jenkins 5xx/429 — 재시도 대상"
+                    level: WARN
+                    fields_mapping: |
+                      root.execution_id = meta("execution_id")
+                      root.error = content().string()
+                - mapping: 'root = throw("retryable: " + content().string())'
+            - processors:
+                - log:
+                    message: "Jenkins 4xx — DLQ 직행"
+                    level: ERROR
+                    fields_mapping: |
+                      root.execution_id = meta("execution_id")
+                      root.step_order = meta("step_order")
+                      root.error = content().string()
+    output:
+      fallback:
+        - retry:
+            max_retries: 5
+            backoff:
+              initial_interval: 2s
+              max_interval: 30s
+            output:
+              drop: {}
+        - kafka_franz:
+            seed_brokers:
+              - redpanda.rp-oss.svc.cluster.local:9092
+            topic: playground.dlq
+            key: '${! meta("execution_id") }'
+            max_in_flight: 1
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: connect
+  namespace: rp-oss
+  labels:
+    app: connect
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: connect
+  template:
+    metadata:
+      labels:
+        app: connect
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "4195"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: connect
+          image: docker.redpanda.com/redpandadata/connect:4
+          args:
+            - streams
+            - --chilled
+            - -o
+            - /etc/connect/observability.yaml
+            - /etc/connect/jenkins-command.yaml
+            - /etc/connect/jenkins-webhook.yaml
+            - /etc/connect/gitlab-webhook.yaml
+          env:
+            - name: JENKINS_TOKEN
+              value: "admin"
+          ports:
+            - containerPort: 4195
+              name: http
+            - containerPort: 4196
+              name: gitlab-webhook
+            - containerPort: 4197
+              name: jenkins-webhook
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 4195
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: 4195
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          volumeMounts:
+            - name: config
+              mountPath: /etc/connect
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: connect-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: connect
+  namespace: rp-oss
+  labels:
+    app: connect
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "4195"
+    prometheus.io/path: "/metrics"
+spec:
+  type: NodePort
+  selector:
+    app: connect
+  ports:
+    - name: http
+      port: 4195
+      targetPort: 4195
+      nodePort: 31195
+    - name: jenkins-webhook
+      port: 4197
+      targetPort: 4197
+      nodePort: 31197
+    - name: gitlab-webhook
+      port: 4196
+      targetPort: 4196
+      nodePort: 31196
+    - name: connect-metrics
+      port: 4198
+      targetPort: 4195

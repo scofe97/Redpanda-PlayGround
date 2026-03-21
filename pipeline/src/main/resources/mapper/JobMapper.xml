@@ -3,7 +3,7 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.study.playground.pipeline.mapper.JobMapper">
 
-    <resultMap id="jobResultMap" type="com.study.playground.pipeline.domain.PipelineJob">
+    <resultMap id="jobResultMap" type="com.study.playground.pipeline.dag.domain.PipelineJob">
         <id     property="id"                   column="id"/>
         <result property="pipelineDefinitionId" column="pipeline_definition_id"/>
         <result property="jobName"              column="job_name"/>
@@ -14,12 +14,13 @@
         <result property="configJson"           column="config_json"/>
         <result property="jenkinsScript"       column="jenkins_script"/>
         <result property="jenkinsStatus"       column="jenkins_status"/>
+        <result property="parameterSchemaJson" column="parameter_schema_json"/>
         <result property="createdAt"            column="created_at"/>
     </resultMap>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
-        INSERT INTO pipeline_job (pipeline_definition_id, job_name, job_type, execution_order, preset_id, config_json, jenkins_script, jenkins_status, created_at)
-        VALUES (NULL, #{jobName}, #{jobType}, NULL, #{presetId}, #{configJson}, #{jenkinsScript}, COALESCE(#{jenkinsStatus}, 'PENDING'), NOW())
+        INSERT INTO pipeline_job (pipeline_definition_id, job_name, job_type, execution_order, preset_id, config_json, jenkins_script, jenkins_status, parameter_schema_json, created_at)
+        VALUES (NULL, #{jobName}, #{jobType}, NULL, #{presetId}, #{configJson}, #{jenkinsScript}, COALESCE(#{jenkinsStatus}, 'PENDING'), #{parameterSchemaJson}, NOW())
     </insert>
 
     <select id="findById" resultMap="jobResultMap">
@@ -34,6 +35,7 @@
             , pj.config_json
             , pj.jenkins_script
             , pj.jenkins_status
+            , pj.parameter_schema_json
             , pj.created_at
         FROM pipeline_job pj
         LEFT JOIN middleware_preset mp ON mp.id = pj.preset_id
@@ -52,6 +54,7 @@
             , pj.config_json
             , pj.jenkins_script
             , pj.jenkins_status
+            , pj.parameter_schema_json
             , pj.created_at
         FROM pipeline_job pj
         LEFT JOIN middleware_preset mp ON mp.id = pj.preset_id
@@ -70,6 +73,7 @@
             , pj.config_json
             , pj.jenkins_script
             , pj.jenkins_status
+            , pj.parameter_schema_json
             , pj.created_at
         FROM pipeline_job pj
         LEFT JOIN middleware_preset mp ON mp.id = pj.preset_id
@@ -87,6 +91,7 @@
             , preset_id      = #{presetId}
             , config_json    = #{configJson}
             , jenkins_script = #{jenkinsScript}
+            , parameter_schema_json = #{parameterSchemaJson}
         WHERE id = #{id}
     </update>
 
@@ -108,6 +113,7 @@
             , pj.config_json
             , pj.jenkins_script
             , pj.jenkins_status
+            , pj.parameter_schema_json
             , pj.created_at
         FROM pipeline_job pj
         LEFT JOIN middleware_preset mp ON mp.id = pj.preset_id

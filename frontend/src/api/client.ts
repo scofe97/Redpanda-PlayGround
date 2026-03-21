@@ -39,7 +39,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     throw new ApiError(errorCode, errorMessage, res.status);
   }
 
-  return res.json() as Promise<T>;
+  // 빈 body 처리 (예: 202 Accepted with no content)
+  const text = await res.text();
+  if (!text) return undefined as T;
+  return JSON.parse(text) as T;
 }
 
 export const api = {

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.study.playground.pipeline.mapper.PipelineJobMappingMapper">
+<mapper namespace="com.study.playground.pipeline.dag.mapper.PipelineJobMappingMapper">
 
     <insert id="insertBatch">
         INSERT INTO pipeline_job_mapping (pipeline_definition_id, job_id, execution_order)
@@ -11,7 +11,7 @@
         </foreach>
     </insert>
 
-    <select id="findByDefinitionId" resultType="com.study.playground.pipeline.domain.PipelineJobMapping">
+    <select id="findByDefinitionId" resultType="com.study.playground.pipeline.dag.domain.PipelineJobMapping">
         SELECT m.pipeline_definition_id, m.job_id AS jobId, m.execution_order AS executionOrder,
                j.job_name AS jobName, j.job_type AS jobType,
                j.preset_id AS presetId, mp.name AS presetName,

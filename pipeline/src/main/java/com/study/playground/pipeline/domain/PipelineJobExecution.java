@@ -49,10 +49,20 @@ public class PipelineJobExecution {
     /** Job 실행이 종료(SUCCESS/FAILED/COMPENSATED)된 시각. */
     private LocalDateTime completedAt;
 
+    /** 동기 실행 실패 시 재시도 횟수. 0이면 재시도 없이 최초 실행만 수행된 것이다. */
+    private int retryCount;
+
     /**
      * 외부 웹훅 완료 대기 여부를 나타내는 런타임 전용 플래그.
      * {@code transient}로 선언하여 DB에 저장되지 않는다.
      * 폴링 스케줄러가 이 값을 보고 타임아웃 감지 대상에서 제외할 수 있다.
      */
     private transient boolean waitingForWebhook = false;
+
+    /**
+     * 실행 시 주입된 사용자 파라미터. DB에 저장하지 않는 런타임 전달용 필드.
+     * DagExecutionCoordinator/PipelineEngine이 execution의 parametersJson에서
+     * 파싱한 값을 여기에 세팅하여 Step Executor가 참조한다.
+     */
+    private transient java.util.Map<String, String> userParams;
 }

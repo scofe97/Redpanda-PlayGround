@@ -4,6 +4,6 @@ WORKDIR /app
 
 COPY build/libs/redpanda-playground-*.jar app.jar
 
-EXPOSE 8080
+EXPOSE 8070
 
 ENTRYPOINT ["java", "-jar", "app.jar"]

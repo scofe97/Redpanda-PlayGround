@@ -9,6 +9,7 @@ import com.study.playground.kafka.serialization.AvroSerializer;
 import com.study.playground.kafka.topic.Topics;
 import com.study.playground.kafka.tracing.TraceContextUtil;
 import com.study.playground.pipeline.domain.*;
+import com.study.playground.pipeline.dag.domain.*;
 import com.study.playground.pipeline.dto.JobRequest;
 import com.study.playground.pipeline.dto.JobResponse;
 import com.study.playground.pipeline.dto.PipelineExecutionResponse;
@@ -58,6 +59,7 @@ public class JobService {
         job.setConfigJson(request.getConfigJson());
         job.setJenkinsScript(request.getJenkinsScript());
         job.setJenkinsStatus(request.getJenkinsScript() != null ? "PENDING" : null);
+        job.setParameterSchemaJson(request.getParameterSchemaJson());
         jobMapper.insert(job);
 
         if (request.getJenkinsScript() != null && !request.getJenkinsScript().isBlank()) {
@@ -90,6 +92,7 @@ public class JobService {
         job.setPresetId(request.getPresetId());
         job.setConfigJson(request.getConfigJson());
         job.setJenkinsScript(request.getJenkinsScript());
+        job.setParameterSchemaJson(request.getParameterSchemaJson());
         jobMapper.update(job);
 
         // 스크립트 변경 시 Jenkins 업데이트 이벤트 발행
@@ -146,7 +149,7 @@ public class JobService {
      * Outbox를 통해 PIPELINE_CMD_EXECUTION 토픽에 이벤트를 발행한다.</p>
      */
     @Transactional
-    public PipelineExecutionResponse execute(Long id) {
+    public PipelineExecutionResponse execute(Long id, Map<String, String> userParams) {
         var job = getJobOrThrow(id);
 
         // jenkinsScript가 있는 Job은 ACTIVE 상태에서만 실행 가능
@@ -162,6 +165,13 @@ public class JobService {
         execution.setStatus(PipelineStatus.PENDING);
         execution.setStartedAt(LocalDateTime.now());
         execution.setTraceParent(TraceContextUtil.captureTraceParent());
+        if (userParams != null && !userParams.isEmpty()) {
+            try {
+                execution.setParametersJson(objectMapper.writeValueAsString(userParams));
+            } catch (Exception e) {
+                throw new RuntimeException("JSON 직렬화 실패", e);
+            }
+        }
         executionMapper.insert(execution);
 
         // JobExecution 1건 생성

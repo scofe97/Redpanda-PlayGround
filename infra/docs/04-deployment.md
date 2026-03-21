@@ -507,3 +507,121 @@ support_tool:
   NEXUS    | http://34.47.83.38:28881 | admin | admin123
   REGISTRY | http://34.47.83.38:25050 |       |
 ```
+
+---
+
+## K8s(kubeadm) + Helm + ArgoCD 배포
+
+Docker Compose 기반 배포의 다음 단계로, 동일 GCP 3대 VM에서 운영하던 서비스를 kubeadm K8s 클러스터 위로 이관했다. Helm 차트로 배포하고 ArgoCD로 GitOps 관리한다.
+
+### 아키텍처 변화
+
+| 항목 | Docker Compose | K8s + Helm |
+|------|---------------|------------|
+| 배포 단위 | docker-compose.yml per server | Helm chart per service |
+| 서비스 디스커버리 | Docker 서비스명 | K8s Service DNS (`svc.cluster.local`) |
+| 설정 관리 | .env + docker-compose | values.yaml + ConfigMap |
+| 배포 관리 | `docker compose up -d` | `helm install` / ArgoCD Sync |
+| 네트워크 | Docker bridge (playground-net) | K8s ClusterIP + NodePort |
+| 스케일링 | 수동 | `replicaCount` 변경 |
+
+### 네임스페이스 배치
+
+| 네임스페이스 | 서비스 | 비고 |
+|-------------|--------|------|
+| `rp-oss` | PostgreSQL, Redpanda, Connect, Console, **Playground App**, **Playground Frontend** | 데이터 + 앱 |
+| `rp-mgm` | Loki, Tempo, Prometheus, Alloy, Grafana | 모니터링 |
+| `rp-jenkins` | Jenkins | CI/CD |
+| `argocd` | ArgoCD | GitOps |
+
+### Helm 차트 분류
+
+**커뮤니티 차트** (Helm repo + Git values override):
+- postgresql (`bitnami/postgresql`)
+- redpanda (`redpanda/redpanda`)
+- console (`redpanda/console`)
+- loki, tempo, alloy, grafana (`grafana/*`)
+- prometheus (`prometheus-community/prometheus`)
+- jenkins (`jenkins/jenkins`)
+
+**커스텀 차트** (Git repo path):
+- playground — Spring Boot 백엔드 (`infra/k8s/playground/`)
+- playground-frontend — React + nginx (`infra/k8s/playground-frontend/`)
+
+**Plain manifests** (Git repo path):
+- connect — Redpanda Connect (`infra/k8s/connect/`)
+
+### 배포 절차
+
+```bash
+# 1. OSS 스택 설치 (PostgreSQL → Redpanda → Connect → Console → App → Frontend)
+cd infra/k8s && ./oss-install.sh
+
+# 2. 모니터링 스택 설치 (Loki → Tempo → Prometheus → Alloy → Grafana)
+cd infra/k8s/monitoring && ./install.sh
+
+# 3. ArgoCD에 Application 등록 (GitOps 전환)
+cd infra/argocd && ./install.sh
+```
+
+### ArgoCD 구성
+
+Git repo(`https://github.com/scofe97/Redpanda-PlayGround.git`)를 소스로 하는 multi-source Application을 사용한다. 커뮤니티 차트는 Helm repo에서 차트를, Git repo에서 values 파일을 가져온다.
+
+```
+infra/argocd/
+├── project.yaml            # AppProject (6개 Helm repo + 3개 namespace 허용)
+├── postgresql.yaml          # multi-source: bitnami + git values
+├── redpanda.yaml            # multi-source: redpanda + git values
+├── connect.yaml             # git path: infra/k8s/connect/
+├── console.yaml             # multi-source: redpanda + git values
+├── playground.yaml          # git path: infra/k8s/playground/
+├── playground-frontend.yaml # git path: infra/k8s/playground-frontend/
+├── loki.yaml                # multi-source: grafana + git values
+├── tempo.yaml               # multi-source: grafana + git values
+├── prometheus.yaml          # multi-source: prometheus-community + git values
+├── alloy.yaml               # multi-source: grafana + git values
+├── grafana.yaml             # multi-source: grafana + git values
+├── jenkins.yaml             # multi-source: jenkins + git values
+└── install.sh               # kubectl apply 일괄 등록
+```
+
+Git push 후 ArgoCD UI(`http://34.47.83.38:31134`)에서 Sync하면 변경사항이 반영된다. `syncPolicy.automated`는 설정하지 않았으므로 수동 Sync가 기본이다.
+
+### NodePort 매핑
+
+| 서비스 | NodePort | 접속 URL |
+|--------|----------|----------|
+| Playground API | 31070 | `http://<NODE_IP>:31070` |
+| Playground Frontend | 31080 | `http://<NODE_IP>:31080` |
+| Grafana | 30000 | `http://34.22.78.240:30000` |
+| ArgoCD | 31134 | `http://34.47.83.38:31134` |
+
+### Docker 이미지 빌드
+
+K8s에 배포하려면 컨테이너 이미지가 필요하다. 로컬에서 빌드 후 노드에 로드하거나 레지스트리에 push한다.
+
+```bash
+# 백엔드
+docker build -t playground:latest .
+
+# 프론트엔드
+docker build -t playground-frontend:latest frontend/
+```
+
+### 검증
+
+```bash
+# 차트 검증
+helm lint infra/k8s/playground/
+helm lint infra/k8s/playground-frontend/
+
+# Pod 상태 확인
+kubectl get pods -n rp-oss
+kubectl get pods -n rp-mgm
+kubectl get pods -n rp-jenkins
+
+# ArgoCD 상태 확인
+argocd app list
+kubectl get applications -n argocd
+```

@@ -1,0 +1,16 @@
+{
+  "type": "record",
+  "name": "DagJobCompletedEvent",
+  "namespace": "com.study.playground.avro.pipeline",
+  "fields": [
+    {"name": "executionId", "type": "string"},
+    {"name": "jobId", "type": "long"},
+    {"name": "jobName", "type": "string"},
+    {"name": "jobType", "type": "string"},
+    {"name": "jobOrder", "type": "int"},
+    {"name": "status", "type": "string"},
+    {"name": "durationMs", "type": "long"},
+    {"name": "retryCount", "type": "int"},
+    {"name": "logSnippet", "type": ["null", "string"], "default": null}
+  ]
+}

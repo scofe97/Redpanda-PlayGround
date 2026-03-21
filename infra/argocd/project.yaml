@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: playground
+  namespace: argocd
+spec:
+  description: Redpanda Playground Infrastructure
+  sourceRepos:
+    - https://github.com/scofe97/Redpanda-PlayGround.git
+    - https://charts.bitnami.com/bitnami
+    - https://charts.redpanda.com
+    - https://grafana.github.io/helm-charts
+    - https://prometheus-community.github.io/helm-charts
+    - https://charts.jenkins.io
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: rp-oss
+    - server: https://kubernetes.default.svc
+      namespace: rp-mgm
+    - server: https://kubernetes.default.svc
+      namespace: rp-jenkins
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace

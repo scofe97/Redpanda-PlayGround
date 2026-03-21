@@ -35,4 +35,6 @@ public interface PipelineJobExecutionMapper {
             @Param("newStatus") String newStatus,
             @Param("log") String log,
             @Param("completedAt") LocalDateTime completedAt);
+
+    void incrementRetryCount(@Param("id") Long id);
 }

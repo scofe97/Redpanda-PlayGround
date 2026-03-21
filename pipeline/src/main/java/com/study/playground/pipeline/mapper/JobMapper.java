@@ -1,6 +1,6 @@
 package com.study.playground.pipeline.mapper;
 
-import com.study.playground.pipeline.domain.PipelineJob;
+import com.study.playground.pipeline.dag.domain.PipelineJob;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 

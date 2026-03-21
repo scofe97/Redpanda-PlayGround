@@ -1,0 +1,38 @@
+# ============================================================================
+# PostgreSQL Helm Chart Values — Redpanda Playground
+# ============================================================================
+# Chart: bitnami/postgresql
+# Namespace: rp-oss
+#
+# 설치:
+#   helm repo add bitnami https://charts.bitnami.com/bitnami && helm repo update
+#   helm install postgresql bitnami/postgresql -n rp-oss -f values.yaml
+#
+# 업그레이드:
+#   helm upgrade postgresql bitnami/postgresql -n rp-oss -f values.yaml
+# ============================================================================
+
+auth:
+  database: playground
+  username: playground
+  password: playground
+
+primary:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClass: local-path
+
+  service:
+    type: NodePort
+    nodePort: 31432
+
+  # Spring Boot application.yml의 DB 접속 정보와 일치
+  # jdbc:postgresql://postgresql.rp-oss.svc.cluster.local:5432/playground

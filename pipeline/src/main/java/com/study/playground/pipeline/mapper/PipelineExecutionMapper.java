@@ -71,6 +71,14 @@ public interface PipelineExecutionMapper {
      * @param completedAt  종료 시각 (진행 중이면 null)
      * @param errorMessage 실패 원인 메시지 (성공이면 null)
      */
+    /**
+     * 특정 상태의 모든 실행을 조회한다. 크래시 복구 시 RUNNING 실행을 찾는 데 사용한다.
+     *
+     * @param status 조회할 상태 이름 (enum.name())
+     * @return 해당 상태의 실행 목록 (없으면 빈 리스트)
+     */
+    List<PipelineExecution> findByStatus(@Param("status") String status);
+
     void updateStatus(
             @Param("id") UUID id,
             @Param("status") String status,

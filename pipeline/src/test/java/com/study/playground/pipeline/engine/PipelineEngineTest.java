@@ -2,9 +2,11 @@ package com.study.playground.pipeline.engine;
 
 import com.study.playground.pipeline.domain.*;
 import com.study.playground.pipeline.engine.step.*;
+import com.study.playground.pipeline.dag.engine.DagExecutionCoordinator;
 import com.study.playground.pipeline.event.PipelineEventProducer;
 import com.study.playground.pipeline.mapper.PipelineExecutionMapper;
 import com.study.playground.pipeline.mapper.PipelineJobExecutionMapper;
+import com.study.playground.avro.common.AvroPipelineStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -117,7 +119,7 @@ class PipelineEngineTest {
         // Then
         verify(eventProducer).publishExecutionCompleted(
                 eq(execution),
-                eq(com.study.playground.avro.common.PipelineStatus.SUCCESS),
+                eq(AvroPipelineStatus.SUCCESS),
                 anyLong(),
                 isNull());
     }
@@ -186,7 +188,7 @@ class PipelineEngineTest {
         verify(eventProducer).publishJobExecutionChanged(execution, je1, JobExecutionStatus.FAILED);
         verify(eventProducer).publishExecutionCompleted(
                 eq(execution),
-                eq(com.study.playground.avro.common.PipelineStatus.FAILED),
+                eq(AvroPipelineStatus.FAILED),
                 anyLong(),
                 eq("Deploy error"));
     }
@@ -369,7 +371,7 @@ class PipelineEngineTest {
                 any(LocalDateTime.class), eq("Build #42 failed"));
         verify(eventProducer).publishExecutionCompleted(
                 eq(execution),
-                eq(com.study.playground.avro.common.PipelineStatus.FAILED),
+                eq(AvroPipelineStatus.FAILED),
                 anyLong(),
                 eq("Build #42 failed"));
     }

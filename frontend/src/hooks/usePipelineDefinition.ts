@@ -46,8 +46,9 @@ export function useUpdatePipelineMappings() {
 export function useExecutePipeline() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => pipelineDefinitionApi.execute(id),
-    onSuccess: (_, id) => {
+    mutationFn: ({ id, params }: { id: number; params?: Record<string, string> }) =>
+      pipelineDefinitionApi.execute(id, params),
+    onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: ['pipeline-definition', id] });
       queryClient.invalidateQueries({ queryKey: ['pipeline-executions', id] });
     },

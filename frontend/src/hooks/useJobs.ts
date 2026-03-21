@@ -45,7 +45,8 @@ export function useDeleteJob() {
 
 export function useExecuteJob() {
   return useMutation({
-    mutationFn: (id: number) => jobApi.execute(id),
+    mutationFn: ({ id, params }: { id: number; params?: Record<string, string> }) =>
+      jobApi.execute(id, params),
   });
 }
 

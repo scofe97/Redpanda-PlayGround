@@ -1,0 +1,41 @@
+replicaCount: 1
+
+image:
+  repository: playground
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: NodePort
+  port: 8070
+  nodePort: 31070
+
+spring:
+  profiles: k8s
+  datasource:
+    url: jdbc:postgresql://postgresql.rp-oss.svc.cluster.local:5432/playground
+    username: playground
+    password: playground
+  kafka:
+    bootstrapServers: redpanda.rp-oss.svc.cluster.local:9093
+    schemaRegistryUrl: http://redpanda.rp-oss.svc.cluster.local:8081
+  connect:
+    url: http://connect.rp-oss.svc.cluster.local:4195
+  otel:
+    endpoint: http://alloy-otlp.rp-mgm.svc.cluster.local:4318
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 512Mi
+
+health:
+  path: /actuator/health
+  port: 8070
+
+metrics:
+  enabled: true
+  path: /actuator/prometheus
+  port: 8070

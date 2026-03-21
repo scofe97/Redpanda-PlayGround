@@ -82,6 +82,11 @@ public class JenkinsDeployStep implements PipelineJobExecutor {
             log.info("[Deploy] 대상: {}", deployTarget);
         }
 
+        // 사용자 파라미터 병합 (시스템 파라미터가 우선 — putIfAbsent로 사용자 값 추가)
+        if (jobExecution.getUserParams() != null) {
+            jobExecution.getUserParams().forEach(params::putIfAbsent);
+        }
+
         commandProducer.publishJenkinsBuildCommand(execution, jobExecution, jenkinsJobName, params);
         log.info("[Deploy] Jenkins 배포 커맨드 발행 완료 (via Kafka): job={}", jenkinsJobName);
         jobExecution.setWaitingForWebhook(true);

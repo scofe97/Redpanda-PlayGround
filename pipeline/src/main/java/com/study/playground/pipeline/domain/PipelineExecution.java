@@ -1,10 +1,13 @@
 package com.study.playground.pipeline.domain;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -57,9 +60,26 @@ public class PipelineExecution {
     /** 레코드 최초 생성 시각. DB에서 DEFAULT NOW()로 채워진다. */
     private LocalDateTime createdAt;
 
+    /** 실행 시 주입된 파라미터 JSON. key-value 맵을 JSON으로 직렬화하여 저장한다. */
+    private String parametersJson;
+
     /**
      * 이 실행에 속한 Job 실행 목록. jobOrder 오름차순으로 정렬되어 있다.
      * MyBatis collection 매핑을 통해 조인 쿼리 결과로 채워진다.
      */
     private List<PipelineJobExecution> jobExecutions;
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+    /** parametersJson을 파싱하여 파라미터 맵으로 반환한다. */
+    public Map<String, String> parameters() {
+        if (parametersJson == null || parametersJson.isBlank()) {
+            return Map.of();
+        }
+        try {
+            return OBJECT_MAPPER.readValue(parametersJson, new TypeReference<>() {});
+        } catch (Exception e) {
+            return Map.of();
+        }
+    }
 }

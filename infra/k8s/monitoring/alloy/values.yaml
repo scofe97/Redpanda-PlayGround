@@ -1,0 +1,266 @@
+# ============================================================================
+# Alloy Helm Chart Values — Redpanda Playground
+# ============================================================================
+# Chart: grafana/alloy
+# Namespace: rp-mgm
+#
+# 설치:
+#   helm install alloy grafana/alloy -n rp-mgm -f values.yaml
+#
+# 업그레이드:
+#   helm upgrade alloy grafana/alloy -n rp-mgm -f values.yaml
+# ============================================================================
+
+# DaemonSet이 아닌 Deployment로 배포 (단일 수집 지점)
+controller:
+  type: deployment
+  replicas: 1
+
+alloy:
+  # config.alloy 내용을 인라인으로 정의
+  configMap:
+    content: |
+      // ====================================================================
+      // Grafana Alloy — K8s 통합 수집기
+      // ====================================================================
+      // 1. K8s Pod 로그 자동 발견 → Loki 전송
+      // 2. OTLP 수신 (gRPC/HTTP) → Tempo 전송
+      // 3. K8s Service Discovery 기반 메트릭 스크래핑 → Prometheus 전송
+      // ====================================================================
+
+      // --- K8s Pod 로그 수집 ---
+      // rp-app, rp-oss 네임스페이스의 Pod 로그를 자동 수집한다.
+      discovery.kubernetes "pods" {
+        role = "pod"
+        namespaces {
+          names = ["rp-app", "rp-oss", "rp-jenkins"]
+        }
+      }
+
+      // playground 관련 Pod만 필터링
+      discovery.relabel "playground_pods" {
+        targets = discovery.kubernetes.pods.targets
+
+        // Pod 이름을 container 라벨로 추출
+        rule {
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label  = "container"
+        }
+
+        // 네임스페이스 라벨 추가
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label  = "namespace"
+        }
+
+        // app 라벨 추가
+        rule {
+          source_labels = ["__meta_kubernetes_pod_label_app"]
+          target_label  = "app"
+        }
+      }
+
+      loki.source.kubernetes "pods" {
+        targets    = discovery.relabel.playground_pods.output
+        forward_to = [loki.process.multiline.receiver]
+      }
+
+      // Java 멀티라인 스택트레이스 조인
+      loki.process "multiline" {
+        stage.multiline {
+          firstline     = "^\\d{4}-\\d{2}-\\d{2}|^\\[|^ts=|^level="
+          max_wait_time = "3s"
+          max_lines     = 128
+        }
+
+        forward_to = [loki.process.extract_trace.receiver]
+      }
+
+      // trace_id를 Structured Metadata로 추출
+      loki.process "extract_trace" {
+        stage.regex {
+          expression = "traceId=(?P<trace_id>\\w+)"
+        }
+
+        stage.structured_metadata {
+          values = { trace_id = "trace_id" }
+        }
+
+        forward_to = [loki.write.default.receiver]
+      }
+
+      // --- Spring Boot 로그 수신 (Loki4j → Alloy → Loki) ---
+      // 클러스터 외부 Spring Boot(로컬 개발)가 이 엔드포인트로 push
+      loki.source.api "spring_boot" {
+        http {
+          listen_address = "0.0.0.0"
+          listen_port    = 3100
+        }
+        forward_to = [loki.write.default.receiver]
+      }
+
+      loki.write "default" {
+        endpoint {
+          url = "http://loki.rp-mgm.svc.cluster.local:3100/loki/api/v1/push"
+        }
+      }
+
+      // --- OTLP 수신 → 필터 → Tempo 전송 ---
+      otelcol.receiver.otlp "default" {
+        grpc {
+          endpoint = "0.0.0.0:4317"
+        }
+        http {
+          endpoint = "0.0.0.0:4318"
+        }
+
+        output {
+          traces = [otelcol.processor.filter.noise.input]
+        }
+      }
+
+      // 노이즈 스팬 드롭 (Docker 환경과 동일)
+      otelcol.processor.filter "noise" {
+        error_mode = "ignore"
+
+        traces {
+          span = [
+            "IsMatch(name, \"SELECT playground.outbox_event.*\")",
+            "IsMatch(name, \"UPDATE playground.outbox_event.*\")",
+            "name == \"playground\"",
+            "name == \"GET /actuator/prometheus\"",
+          ]
+        }
+
+        output {
+          traces = [otelcol.exporter.otlphttp.tempo.input]
+        }
+      }
+
+      otelcol.exporter.otlphttp "tempo" {
+        client {
+          endpoint = "http://tempo.rp-mgm.svc.cluster.local:4318"
+        }
+      }
+
+      // --- 메트릭 수집 (K8s Service Discovery → remote_write) ---
+
+      // Spring Boot (rp-app 네임스페이스)
+      // prometheus.io/scrape: "true" 어노테이션이 있는 Service의 /actuator/prometheus
+      discovery.kubernetes "services" {
+        role = "service"
+        namespaces {
+          names = ["rp-app"]
+        }
+      }
+
+      discovery.relabel "spring_boot_metrics" {
+        targets = discovery.kubernetes.services.targets
+
+        rule {
+          source_labels = ["__meta_kubernetes_service_annotation_prometheus_io_scrape"]
+          regex         = "true"
+          action        = "keep"
+        }
+
+        rule {
+          source_labels = ["__meta_kubernetes_service_annotation_prometheus_io_path"]
+          target_label  = "__metrics_path__"
+          regex         = "(.+)"
+        }
+
+        rule {
+          source_labels = ["__meta_kubernetes_service_annotation_prometheus_io_port", "__meta_kubernetes_service_name"]
+          target_label  = "job"
+          regex         = ".*;(.*)"
+          replacement   = "spring_boot"
+        }
+      }
+
+      prometheus.scrape "spring_boot" {
+        targets         = discovery.relabel.spring_boot_metrics.output
+        metrics_path    = "/actuator/prometheus"
+        scrape_interval = "15s"
+        forward_to      = [prometheus.remote_write.default.receiver]
+      }
+
+      // Redpanda, Connect (rp-oss 네임스페이스) — 고정 주소로 직접 scrape
+      prometheus.scrape "redpanda" {
+        targets = [{
+          __address__ = "redpanda.rp-oss.svc.cluster.local:9644",
+        }]
+        scrape_interval = "15s"
+        forward_to      = [prometheus.remote_write.default.receiver]
+      }
+
+      // Redpanda Connect
+      prometheus.scrape "connect_command" {
+        targets = [{
+          __address__ = "connect.rp-oss.svc.cluster.local:4195",
+        }]
+        scrape_interval = "15s"
+        forward_to      = [prometheus.remote_write.default.receiver]
+      }
+
+      prometheus.scrape "connect_webhook" {
+        targets = [{
+          __address__ = "connect.rp-oss.svc.cluster.local:4198",
+        }]
+        scrape_interval = "15s"
+        forward_to      = [prometheus.remote_write.default.receiver]
+      }
+
+      prometheus.remote_write "default" {
+        endpoint {
+          url = "http://prometheus-server.rp-mgm.svc.cluster.local:80/api/v1/write"
+        }
+      }
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    memory: 256Mi
+
+# OTLP 수신 포트 + Loki push 수신 포트 노출
+extraPorts:
+  - name: otlp-grpc
+    port: 4317
+    targetPort: 4317
+    protocol: TCP
+  - name: otlp-http
+    port: 4318
+    targetPort: 4318
+    protocol: TCP
+  - name: loki-push
+    port: 3100
+    targetPort: 3100
+    protocol: TCP
+
+# OTLP 포트를 NodePort로 외부 노출 (로컬 Spring Boot → GCP Alloy)
+service:
+  type: NodePort
+  extraPorts:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      nodePort: 30317
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+      nodePort: 30318
+      protocol: TCP
+    - name: loki-push
+      port: 3100
+      targetPort: 3100
+      nodePort: 30100
+      protocol: TCP
+
+# RBAC — Pod 로그 수집을 위해 필요
+serviceAccount:
+  create: true
+
+rbac:
+  create: true

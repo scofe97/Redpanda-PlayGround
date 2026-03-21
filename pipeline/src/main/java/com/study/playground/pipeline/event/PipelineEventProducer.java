@@ -1,6 +1,6 @@
 package com.study.playground.pipeline.event;
 
-import com.study.playground.avro.common.PipelineStatus;
+import com.study.playground.avro.common.AvroPipelineStatus;
 import com.study.playground.avro.pipeline.PipelineExecutionCompletedEvent;
 import com.study.playground.avro.pipeline.PipelineStepChangedEvent;
 import com.study.playground.kafka.outbox.EventPublisher;
@@ -12,6 +12,7 @@ import com.study.playground.pipeline.domain.JobExecutionStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+
 
 /**
  * 파이프라인 실행 중 발생하는 도메인 이벤트를 Kafka로 발행하는 프로듀서.
@@ -73,7 +74,7 @@ public class PipelineEventProducer {
      */
     public void publishExecutionCompleted(
             PipelineExecution execution,
-            PipelineStatus status,
+            AvroPipelineStatus status,
             long durationMs,
             String errorMessage) {
         var executionId = execution.getId().toString();
@@ -93,4 +94,5 @@ public class PipelineEventProducer {
                 , Topics.PIPELINE_EVT_COMPLETED, executionId
         );
     }
+
 }

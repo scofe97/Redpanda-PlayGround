@@ -1,0 +1,90 @@
+# ============================================================================
+# Loki Helm Chart Values — Redpanda Playground
+# ============================================================================
+# Chart: grafana/loki
+# Namespace: rp-mgm
+#
+# 설치:
+#   helm repo add grafana https://grafana.github.io/helm-charts && helm repo update
+#   helm install loki grafana/loki -n rp-mgm -f values.yaml
+#
+# 업그레이드:
+#   helm upgrade loki grafana/loki -n rp-mgm -f values.yaml
+# ============================================================================
+
+# 단일 인스턴스 모드 (PoC 환경)
+deploymentMode: SingleBinary
+
+loki:
+  auth_enabled: false
+
+  commonConfig:
+    replication_factor: 1
+
+  storage:
+    type: filesystem
+
+  schemaConfig:
+    configs:
+      - from: "2024-01-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+
+  limits_config:
+    retention_period: 72h
+    ingestion_rate_mb: 10
+    ingestion_burst_size_mb: 20
+    max_line_size: 512KB
+
+  compactor:
+    working_directory: /var/loki/compactor
+    compaction_interval: 10m
+    retention_enabled: true
+    retention_delete_delay: 2h
+    delete_request_store: filesystem
+
+singleBinary:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClass: local-path
+
+# 불필요한 컴포넌트 비활성화
+backend:
+  replicas: 0
+read:
+  replicas: 0
+write:
+  replicas: 0
+
+gateway:
+  enabled: false
+
+# 모니터링 (자체 클러스터에서는 비활성화)
+monitoring:
+  selfMonitoring:
+    enabled: false
+    grafanaAgent:
+      installOperator: false
+  lokiCanary:
+    enabled: false
+
+# 청크 캐시/결과 캐시 비활성화 (PoC)
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false
+
+test:
+  enabled: false

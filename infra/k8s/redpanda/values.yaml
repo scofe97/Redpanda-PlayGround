@@ -1,0 +1,91 @@
+# ============================================================================
+# Redpanda Helm Chart Values — Redpanda Playground
+# ============================================================================
+# Chart: redpanda/redpanda
+# Namespace: rp-oss
+#
+# 설치:
+#   helm repo add redpanda https://charts.redpanda.com && helm repo update
+#   helm install redpanda redpanda/redpanda -n rp-oss -f values.yaml
+#
+# 업그레이드:
+#   helm upgrade redpanda redpanda/redpanda -n rp-oss -f values.yaml
+# ============================================================================
+
+# 단일 브로커 (PoC 환경)
+statefulset:
+  replicas: 1
+
+# 리소스 제한 (3노드 클러스터에서 다른 워크로드와 공존)
+resources:
+  cpu:
+    cores: 1
+  memory:
+    container:
+      max: 2Gi
+    redpanda:
+      memory: 1Gi
+      reserveMemory: 256Mi
+
+storage:
+  persistentVolume:
+    enabled: true
+    size: 10Gi
+    storageClass: local-path
+
+# 개발자 모드 (Docker 환경과 동일)
+config:
+  cluster:
+    developer_mode: true
+    auto_create_topics_enabled: true
+    group_initial_rebalance_delay: 0
+    group_topic_partitions: 3
+    write_caching_default: "true"
+
+# Kafka API — 내부 + 외부(NodePort)
+listeners:
+  kafka:
+    port: 9092
+    external:
+      default:
+        enabled: true
+        port: 29092
+        # NodePort로 외부 접근 (로컬 Spring Boot → K8s Redpanda)
+        advertisedPorts:
+          - 31092
+  admin:
+    port: 9644
+    external:
+      default:
+        enabled: true
+        port: 29644
+        advertisedPorts:
+          - 31644
+  schemaRegistry:
+    enabled: true
+    port: 8081
+    external:
+      default:
+        enabled: true
+        port: 28081
+        advertisedPorts:
+          - 31081
+  http:
+    enabled: true
+    port: 8082
+
+external:
+  domain: ""
+  type: NodePort
+
+# TLS 비활성화 (PoC)
+tls:
+  enabled: false
+
+# 모니터링 — Alloy가 스크래핑하므로 ServiceMonitor 불필요
+monitoring:
+  enabled: false
+
+# Console은 별도 chart로 설치
+console:
+  enabled: false

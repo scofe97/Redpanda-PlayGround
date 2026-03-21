@@ -11,6 +11,7 @@ import StatusBadge from '../components/StatusBadge';
 import DagGraph from '../components/DagGraph';
 import JobSelector, { PipelineJobMappingLocal } from '../components/JobSelector';
 import PipelineExecutionPanel from '../components/PipelineExecutionPanel';
+import ParameterInputModal from '../components/ParameterInputModal';
 
 /** 서버 응답 → UI 로컬 상태 변환 */
 function toMappingLocals(jobs: PipelineJobResponse[]): PipelineJobMappingLocal[] {
@@ -47,6 +48,7 @@ export default function PipelineDetailPage() {
   const [localMappings, setLocalMappings] = useState<PipelineJobMappingLocal[] | null>(null);
   const [showJobSelector, setShowJobSelector] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  const [showParamModal, setShowParamModal] = useState(false);
 
   const serverMappings = useMemo(
     () => (pipeline?.jobs ? toMappingLocals(pipeline.jobs) : []),
@@ -151,11 +153,22 @@ export default function PipelineDetailPage() {
     setIsDirty(true);
   };
 
-  const handleExecute = async () => {
+  const schemas = (pipeline?.jobs ?? []).flatMap((j) => j.parameterSchemas ?? []);
+
+  const handleExecute = async (params?: Record<string, string>) => {
     try {
-      await executePipeline.mutateAsync(pipelineId);
+      await executePipeline.mutateAsync({ id: pipelineId, params });
+      setShowParamModal(false);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to execute pipeline');
+    }
+  };
+
+  const handleExecuteClick = () => {
+    if (schemas.length > 0) {
+      setShowParamModal(true);
+    } else {
+      handleExecute();
     }
   };
 
@@ -229,9 +242,18 @@ export default function PipelineDetailPage() {
             {/* Section C: Execution */}
             <PipelineExecutionPanel
               pipelineId={pipelineId}
-              onExecute={handleExecute}
+              onExecute={handleExecuteClick}
               isPending={executePipeline.isPending}
             />
+
+            {showParamModal && (
+              <ParameterInputModal
+                schemas={schemas}
+                onSubmit={handleExecute}
+                onCancel={() => setShowParamModal(false)}
+                isPending={executePipeline.isPending}
+              />
+            )}
           </div>
 
           {/* Right Column: Job Config + DAG */}

@@ -115,7 +115,7 @@ export default function JobListPage() {
 
   const handleExecute = async (id: number) => {
     try {
-      await executeJob.mutateAsync(id);
+      await executeJob.mutateAsync({ id });
       alert('실행이 시작되었습니다');
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to execute job');

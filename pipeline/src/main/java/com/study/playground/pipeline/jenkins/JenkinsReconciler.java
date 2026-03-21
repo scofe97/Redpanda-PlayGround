@@ -1,7 +1,7 @@
 package com.study.playground.pipeline.reconciler;
 
 import com.study.playground.pipeline.adapter.JenkinsAdapter;
-import com.study.playground.pipeline.domain.PipelineJob;
+import com.study.playground.pipeline.dag.domain.PipelineJob;
 import com.study.playground.pipeline.mapper.JobMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,13 +45,16 @@ public class JenkinsReconciler {
         }
 
         List<PipelineJob> activeJobs = jobMapper.findByJenkinsStatus("ACTIVE");
-        if (activeJobs.isEmpty()) {
+        List<PipelineJob> failedJobs = jobMapper.findByJenkinsStatus("FAILED");
+        List<PipelineJob> allJobs = new java.util.ArrayList<>(activeJobs);
+        allJobs.addAll(failedJobs);
+        if (allJobs.isEmpty()) {
             return;
         }
 
         // 타입별로 그룹화하여 폴더별 Jenkins Job 목록 조회
         Map<String, Set<String>> jenkinsJobsByFolder = new HashMap<>();
-        for (PipelineJob job : activeJobs) {
+        for (PipelineJob job : allJobs) {
             String folder = job.getJobType().toFolderName();
             jenkinsJobsByFolder.computeIfAbsent(folder
                     , f -> jenkinsAdapter.listJobNamesInFolder(f));
@@ -59,7 +62,7 @@ public class JenkinsReconciler {
 
         int created = 0;
 
-        for (PipelineJob job : activeJobs) {
+        for (PipelineJob job : allJobs) {
             String folder = job.getJobType().toFolderName();
             String jenkinsJobName = "playground-job-%d".formatted(job.getId());
             String script = job.getJenkinsScript();
@@ -69,14 +72,20 @@ public class JenkinsReconciler {
             }
 
             Set<String> folderJobs = jenkinsJobsByFolder.getOrDefault(folder, Set.of());
-            if (!folderJobs.contains(jenkinsJobName)) {
-                // DB에 ACTIVE인데 Jenkins 폴더에 없음 → 재생성
+            boolean isFailed = "FAILED".equals(job.getJenkinsStatus());
+
+            if (!folderJobs.contains(jenkinsJobName) || isFailed) {
+                // Jenkins에 없거나 FAILED 상태 → upsert로 동기화
                 try {
                     jenkinsAdapter.upsertPipelineJob(folder, jenkinsJobName, script);
+                    if (isFailed) {
+                        jobMapper.updateJenkinsStatus(job.getId(), "ACTIVE");
+                        log.info("Reconciler: FAILED → ACTIVE 복구: {}/{}", folder, jenkinsJobName);
+                    }
                     created++;
-                    log.info("Reconciler: Jenkins Job 재생성 완료: {}/{}", folder, jenkinsJobName);
+                    log.info("Reconciler: Jenkins Job 동기화 완료: {}/{}", folder, jenkinsJobName);
                 } catch (Exception e) {
-                    log.warn("Reconciler: Jenkins Job 재생성 실패: {}/{}", folder, jenkinsJobName, e);
+                    log.warn("Reconciler: Jenkins Job 동기화 실패: {}/{}", folder, jenkinsJobName, e);
                 }
             }
         }

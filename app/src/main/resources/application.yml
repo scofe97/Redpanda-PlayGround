@@ -20,7 +20,7 @@ mybatis:
   mapper-locations: classpath*:mapper/**/*.xml
   configuration:
     map-underscore-to-camel-case: true
-  type-aliases-package: com.study.playground.ticket.domain,com.study.playground.pipeline.domain,com.study.playground.kafka.outbox,com.study.playground.supporttool.domain,com.study.playground.connector.domain,com.study.playground.preset.domain
+  type-aliases-package: com.study.playground.ticket.domain,com.study.playground.pipeline.domain,com.study.playground.pipeline.dag.domain,com.study.playground.kafka.outbox,com.study.playground.supporttool.domain,com.study.playground.connector.domain,com.study.playground.preset.domain
   type-handlers-package: com.study.playground.common.mybatis
 
 app:
@@ -81,6 +81,12 @@ logging:
     org.mybatis: DEBUG
     org.mybatis.spring.SqlSessionUtils: INFO
     org.mybatis.spring.transaction.SpringManagedTransaction: INFO
+
+pipeline:
+  max-concurrent-jobs: 3
+  webhook-timeout-minutes: 5
+  job-max-retries: 2
+  stale-execution-timeout-minutes: 30
 
 outbox:
   batch-size: 50

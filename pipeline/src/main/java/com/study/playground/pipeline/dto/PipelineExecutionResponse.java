@@ -5,6 +5,7 @@ import com.study.playground.pipeline.domain.PipelineJobExecution;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -28,6 +29,8 @@ public record PipelineExecutionResponse(
         LocalDateTime startedAt,
         LocalDateTime completedAt,
         String errorMessage,
+        /** 실행 시 주입된 파라미터. */
+        Map<String, String> parameters,
         /** 실시간 진행 상황을 구독할 수 있는 SSE 엔드포인트 URL. */
         String trackingUrl
 ) {
@@ -43,6 +46,7 @@ public record PipelineExecutionResponse(
     public static PipelineExecutionResponse from(
             PipelineExecution execution,
             List<PipelineJobExecution> jobExecutions) {
+        var params = execution.parameters();
         return new PipelineExecutionResponse(
                 execution.getId()
                 , execution.getTicketId()
@@ -51,6 +55,7 @@ public record PipelineExecutionResponse(
                 , execution.getStartedAt()
                 , execution.getCompletedAt()
                 , execution.getErrorMessage()
+                , params.isEmpty() ? null : params
                 , buildTrackingUrl(execution)
         );
     }
@@ -64,6 +69,7 @@ public record PipelineExecutionResponse(
      * @param execution 방금 생성된 파이프라인 실행 도메인 객체
      */
     public static PipelineExecutionResponse accepted(PipelineExecution execution) {
+        var params = execution.parameters();
         return new PipelineExecutionResponse(
                 execution.getId()
                 , execution.getTicketId()
@@ -72,6 +78,7 @@ public record PipelineExecutionResponse(
                 , null
                 , null
                 , null
+                , params.isEmpty() ? null : params
                 , buildTrackingUrl(execution)
         );
     }

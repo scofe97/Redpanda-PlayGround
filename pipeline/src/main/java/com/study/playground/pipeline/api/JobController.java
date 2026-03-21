@@ -1,5 +1,6 @@
 package com.study.playground.pipeline.api;
 
+import com.study.playground.pipeline.dag.dto.PipelineExecuteRequest;
 import com.study.playground.pipeline.dto.JobRequest;
 import com.study.playground.pipeline.dto.JobResponse;
 import com.study.playground.pipeline.dto.PipelineExecutionResponse;
@@ -52,8 +53,11 @@ public class JobController {
     }
 
     @PostMapping("/{id}/execute")
-    public ResponseEntity<PipelineExecutionResponse> execute(@PathVariable Long id) {
-        return ResponseEntity.status(HttpStatus.ACCEPTED).body(service.execute(id));
+    public ResponseEntity<PipelineExecutionResponse> execute(
+            @PathVariable Long id
+            , @RequestBody(required = false) PipelineExecuteRequest request) {
+        var params = request != null ? request.getParams() : null;
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(service.execute(id, params));
     }
 
     @PostMapping("/{id}/retry-provision")

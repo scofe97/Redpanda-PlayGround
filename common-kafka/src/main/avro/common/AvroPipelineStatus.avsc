@@ -1,0 +1,6 @@
+{
+  "type": "enum",
+  "name": "AvroPipelineStatus",
+  "namespace": "com.study.playground.avro.common",
+  "symbols": ["PENDING", "RUNNING", "SUCCESS", "FAILED"]
+}

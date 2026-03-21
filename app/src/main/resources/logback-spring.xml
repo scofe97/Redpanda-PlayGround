@@ -8,7 +8,7 @@
         <appender-ref ref="CONSOLE"/>
     </appender>
 
-    <!-- Loki4j Appender — 항상 정의 (gcp 프로필에서만 root에 등록) -->
+    <!-- Loki4j Appender (GCP) — GCP Loki 직접 push -->
     <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
         <http>
             <url>http://34.22.78.240:3100/loki/api/v1/push</url>
@@ -25,14 +25,39 @@
         </format>
     </appender>
 
-    <!-- 로컬 (gcp 프로필 아닐 때): 콘솔만 -->
-    <springProfile name="!gcp">
+    <!-- Loki4j Appender (Local) — Alloy(23100)를 경유하여 Loki로 push -->
+    <appender name="LOKI_LOCAL" class="com.github.loki4j.logback.Loki4jAppender">
+        <http>
+            <url>http://localhost:23100/loki/api/v1/push</url>
+            <connectionTimeoutMs>5000</connectionTimeoutMs>
+            <requestTimeoutMs>5000</requestTimeoutMs>
+        </http>
+        <format>
+            <label>
+                <pattern>service_name=redpanda-playground,level=%level,logger=%logger{36},profile=local</pattern>
+            </label>
+            <message>
+                <pattern>{"timestamp":"%d{yyyy-MM-dd'T'HH:mm:ss.SSS}","level":"%level","logger":"%logger{36}","thread":"%thread","traceId":"%mdc{trace_id:-}","spanId":"%mdc{span_id:-}","message":"%message%n%exception"}</pattern>
+            </message>
+        </format>
+    </appender>
+
+    <!-- 기본 (프로필 없을 때): 콘솔만 -->
+    <springProfile name="!gcp &amp; !local">
         <root level="INFO">
             <appender-ref ref="OTEL_CONSOLE"/>
         </root>
     </springProfile>
 
-    <!-- GCP 프로필: 콘솔 + Loki -->
+    <!-- 로컬 모니터링 (local 프로필): 콘솔 + Loki(Alloy 경유) -->
+    <springProfile name="local">
+        <root level="INFO">
+            <appender-ref ref="OTEL_CONSOLE"/>
+            <appender-ref ref="LOKI_LOCAL"/>
+        </root>
+    </springProfile>
+
+    <!-- GCP 프로필: 콘솔 + Loki(GCP 직접) -->
     <springProfile name="gcp">
         <root level="INFO">
             <appender-ref ref="OTEL_CONSOLE"/>

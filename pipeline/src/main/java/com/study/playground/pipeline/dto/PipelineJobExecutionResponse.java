@@ -23,14 +23,13 @@ public record PipelineJobExecutionResponse(
         /** enum 이름 문자열. 예: "PENDING", "RUNNING", "SUCCESS", "FAILED", "WAITING_WEBHOOK" */
         String status,
         String log,
+        /** 동기 실행 실패 시 재시도 횟수. 0이면 재시도 없이 최초 실행만 수행된 것이다. */
+        int retryCount,
         LocalDateTime startedAt,
         LocalDateTime completedAt
 ) {
     /**
      * 도메인 객체를 DTO로 변환하는 팩토리 메서드.
-     *
-     * <p>스트림 처리 등 함수형 컨텍스트에서 메서드 레퍼런스({@code PipelineJobExecutionResponse::from})로
-     * 사용할 수 있도록 정적 팩토리로 구성했다.</p>
      *
      * @param je 변환할 도메인 Job 실행 객체
      */
@@ -42,6 +41,7 @@ public record PipelineJobExecutionResponse(
                 , je.getJobName()
                 , je.getStatus().name()
                 , je.getLog()
+                , je.getRetryCount()
                 , je.getStartedAt()
                 , je.getCompletedAt()
         );

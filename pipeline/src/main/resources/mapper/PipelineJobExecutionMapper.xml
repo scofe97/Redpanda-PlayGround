@@ -4,15 +4,15 @@
 <mapper namespace="com.study.playground.pipeline.mapper.PipelineJobExecutionMapper">
 
     <insert id="insertBatch">
-        INSERT INTO pipeline_job_execution (execution_id, job_order, job_type, job_name, job_id, status)
+        INSERT INTO pipeline_job_execution (execution_id, job_order, job_type, job_name, job_id, status, retry_count)
         VALUES
         <foreach collection="jobExecutions" item="je" separator=",">
-            (#{executionId}, #{je.jobOrder}, #{je.jobType}, #{je.jobName}, #{je.jobId}, 'PENDING')
+            (#{executionId}, #{je.jobOrder}, #{je.jobType}, #{je.jobName}, #{je.jobId}, #{je.status}, #{je.retryCount})
         </foreach>
     </insert>
 
     <select id="findByExecutionId" resultType="com.study.playground.pipeline.domain.PipelineJobExecution">
-        SELECT id, execution_id, job_order, job_type, job_name, job_id, status, log, started_at, completed_at
+        SELECT id, execution_id, job_order, job_type, job_name, job_id, status, log, started_at, completed_at, retry_count
         FROM pipeline_job_execution
         WHERE execution_id = #{executionId}
         ORDER BY job_order
@@ -31,13 +31,13 @@
     </update>
 
     <select id="findByExecutionIdAndJobOrder" resultType="com.study.playground.pipeline.domain.PipelineJobExecution">
-        SELECT id, execution_id, job_order, job_type, job_name, job_id, status, log, started_at, completed_at
+        SELECT id, execution_id, job_order, job_type, job_name, job_id, status, log, started_at, completed_at, retry_count
         FROM pipeline_job_execution
         WHERE execution_id = #{executionId} AND job_order = #{jobOrder}
     </select>
 
     <select id="findWaitingWebhookOlderThan" resultType="com.study.playground.pipeline.domain.PipelineJobExecution">
-        SELECT id, execution_id, job_order, job_type, job_name, job_id, status, log, started_at, completed_at
+        SELECT id, execution_id, job_order, job_type, job_name, job_id, status, log, started_at, completed_at, retry_count
         FROM pipeline_job_execution
         WHERE status = 'WAITING_WEBHOOK'
           AND started_at &lt; NOW() - INTERVAL '1 minute' * #{minutes}
@@ -50,6 +50,12 @@
             completed_at = #{completedAt}
         WHERE id = #{id}
           AND status = #{expectedStatus}
+    </update>
+
+    <update id="incrementRetryCount">
+        UPDATE pipeline_job_execution
+        SET retry_count = retry_count + 1
+        WHERE id = #{id}
     </update>
 
 </mapper>

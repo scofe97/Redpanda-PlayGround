@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: alloy
+  namespace: argocd
+spec:
+  project: playground
+  sources:
+    - repoURL: https://github.com/scofe97/Redpanda-PlayGround.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://grafana.github.io/helm-charts
+      chart: alloy
+      targetRevision: "*"
+      helm:
+        valueFiles:
+          - $values/infra/k8s/monitoring/alloy/values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: rp-mgm
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true

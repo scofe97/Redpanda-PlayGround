@@ -72,6 +72,15 @@ public class TopicConfig {
     }
 
     @Bean
+    public NewTopic pipelineEvtDagJobTopic() {
+        return TopicBuilder.name(Topics.PIPELINE_EVT_DAG_JOB)
+                .partitions(3)
+                .replicas(1) // TODO: Production에서는 replicas(3) + min.insync.replicas=2로 변경 필요
+                .config("retention.ms", String.valueOf(7L * 24 * 60 * 60 * 1000))
+                .build();
+    }
+
+    @Bean
     public NewTopic dlqTopic() {
         return TopicBuilder.name(Topics.DLQ)
                 .partitions(1)

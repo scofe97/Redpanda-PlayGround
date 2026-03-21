@@ -33,4 +33,7 @@ public class JobRequest {
 
     /** 사용자 정의 Jenkinsfile 스크립트. */
     private String jenkinsScript;
+
+    /** 파라미터 스키마 JSON. */
+    private String parameterSchemaJson;
 }

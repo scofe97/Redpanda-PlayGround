@@ -1,0 +1,37 @@
+# ============================================================================
+# Redpanda Console Helm Chart Values — Redpanda Playground
+# ============================================================================
+# Chart: redpanda/console (v3.x — Console v3.3.2)
+# Namespace: rp-oss
+#
+# 설치:
+#   helm install console redpanda/console -n rp-oss -f values.yaml
+# ============================================================================
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    memory: 256Mi
+
+service:
+  type: NodePort
+  port: 8080
+  nodePort: 31880
+  targetPort: 8080
+
+# Console v3.x config structure
+config:
+  kafka:
+    brokers:
+      - redpanda.rp-oss.svc.cluster.local:9092
+  schemaRegistry:
+    enabled: true
+    urls:
+      - http://redpanda.rp-oss.svc.cluster.local:8081
+  redpanda:
+    adminApi:
+      enabled: true
+      urls:
+        - http://redpanda.rp-oss.svc.cluster.local:9644

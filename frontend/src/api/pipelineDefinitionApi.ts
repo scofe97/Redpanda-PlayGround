@@ -1,10 +1,18 @@
 import { api } from './client';
 
+export interface ParameterSchema {
+  name: string;
+  type: string;
+  defaultValue?: string | null;
+  required: boolean;
+}
+
 export interface PipelineDefinition {
   id: number;
   name: string;
   description?: string;
   status: string;
+  failurePolicy?: string;
   createdAt: string;
   updatedAt: string;
   jobs?: PipelineJobResponse[];
@@ -17,6 +25,7 @@ export interface PipelineJobResponse {
   configJson?: string;
   presetId?: number;
   presetName?: string;
+  parameterSchemas?: ParameterSchema[];
   executionOrder: number;
   dependsOnJobIds: number[];
 }
@@ -51,6 +60,7 @@ export interface PipelineExecutionResponse {
   startedAt?: string;
   completedAt?: string;
   errorMessage?: string;
+  parameters?: Record<string, string> | null;
   jobExecutions?: JobExecutionResponse[];
 }
 
@@ -70,7 +80,8 @@ export const pipelineDefinitionApi = {
   get: (id: number) => api.get<PipelineDefinition>(`/pipelines/${id}`),
   create: (data: CreatePipelineRequest) => api.post<PipelineDefinition>('/pipelines', data),
   updateMappings: (id: number, data: UpdateMappingsRequest) => api.put<PipelineDefinition>(`/pipelines/${id}/mappings`, data),
-  execute: (id: number) => api.post<PipelineExecutionResponse>(`/pipelines/${id}/execute`),
+  execute: (id: number, params?: Record<string, string>) =>
+    api.post<PipelineExecutionResponse>(`/pipelines/${id}/execute`, params ? { params } : undefined),
   delete: (id: number) => api.delete(`/pipelines/${id}`),
   getExecutions: (id: number) => api.get<PipelineExecutionResponse[]>(`/pipelines/${id}/executions`),
   getExecution: (executionId: string) => api.get<PipelineExecutionResponse>(`/pipelines/executions/${executionId}`),

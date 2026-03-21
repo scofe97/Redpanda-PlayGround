@@ -1,0 +1,106 @@
+# ============================================================================
+# Grafana Helm Chart Values — Redpanda Playground
+# ============================================================================
+# Chart: grafana/grafana
+# Namespace: rp-mgm
+#
+# 설치:
+#   helm install grafana grafana/grafana -n rp-mgm -f values.yaml
+#
+# 업그레이드:
+#   helm upgrade grafana grafana/grafana -n rp-mgm -f values.yaml
+# ============================================================================
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    memory: 256Mi
+
+persistence:
+  enabled: true
+  size: 1Gi
+  storageClass: local-path
+
+# NodePort로 외부 접근 (K8s NodePort 범위: 30000-32767)
+service:
+  type: NodePort
+  nodePort: 30000
+
+# 익명 인증 (PoC 환경)
+grafana.ini:
+  server:
+    root_url: "http://34.22.78.240:30000"
+  auth.anonymous:
+    enabled: true
+    org_role: Admin
+  auth:
+    disable_login_form: true
+
+# ---- 데이터소스 프로비저닝 ----
+# Docker 환경의 datasources.yaml을 K8s Service DNS로 변환
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Loki
+        type: loki
+        access: proxy
+        uid: loki
+        url: http://loki.rp-mgm.svc.cluster.local:3100
+        isDefault: false
+        jsonData:
+          derivedFields:
+            - name: TraceID
+              datasourceUid: tempo
+              matcherRegex: "traceId=(\\w+)"
+              url: "$${__value.raw}"
+
+      - name: Tempo
+        type: tempo
+        access: proxy
+        uid: tempo
+        url: http://tempo.rp-mgm.svc.cluster.local:3200
+        isDefault: false
+        jsonData:
+          tracesToLogs:
+            datasourceUid: loki
+            filterByTraceID: true
+            mapTagNamesEnabled: true
+            mappedTags:
+              - key: service.name
+                value: service_name
+          serviceMap:
+            datasourceUid: prometheus
+
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        uid: prometheus
+        url: http://prometheus-server.rp-mgm.svc.cluster.local:80
+        isDefault: true
+        jsonData:
+          httpMethod: POST
+
+# ---- 대시보드 프로비저닝 ----
+# dashboardProviders + dashboardsConfigMaps로 기존 JSON 대시보드를 로드
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+      - name: default
+        orgId: 1
+        folder: ""
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 30
+        options:
+          path: /var/lib/grafana/dashboards/default
+
+# 대시보드 JSON은 ConfigMap으로 마운트
+# ConfigMap 생성 명령어:
+#   kubectl create configmap grafana-dashboards -n rp-mgm \
+#     --from-file=infra/k8s/monitoring/grafana/dashboards/
+dashboardsConfigMaps:
+  default: grafana-dashboards

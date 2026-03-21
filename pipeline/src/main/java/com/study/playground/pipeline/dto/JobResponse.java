@@ -1,9 +1,11 @@
 package com.study.playground.pipeline.dto;
 
-import com.study.playground.pipeline.domain.PipelineJob;
+import com.study.playground.pipeline.dag.domain.ParameterSchema;
+import com.study.playground.pipeline.dag.domain.PipelineJob;
 import com.study.playground.pipeline.domain.PipelineJobType;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * Job 독립 CRUD 응답 DTO.
@@ -20,6 +22,7 @@ public record JobResponse(
         , String configJson
         , String jenkinsScript
         , String jenkinsStatus
+        , List<ParameterSchema> parameterSchemas
         , LocalDateTime createdAt
 ) {
 
@@ -34,6 +37,7 @@ public record JobResponse(
                 , job.getConfigJson()
                 , job.getJenkinsScript()
                 , job.getJenkinsStatus()
+                , job.parameterSchemas()
                 , job.getCreatedAt()
         );
     }

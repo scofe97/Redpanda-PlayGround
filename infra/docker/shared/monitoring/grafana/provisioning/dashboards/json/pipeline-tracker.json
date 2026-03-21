@@ -1,0 +1,254 @@
+{
+  "uid": "rp-pipeline-tracker",
+  "title": "Pipeline Execution Tracker",
+  "description": "executionId로 파이프라인 실행 흐름을 추적한다. 각 Job의 상태 변화(PENDING→RUNNING→SUCCESS/FAILED/COMPENSATED)를 시각화한다.",
+  "editable": true,
+  "refresh": "",
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "templating": {
+    "list": [
+      {
+        "name": "executionId",
+        "type": "textbox",
+        "label": "Execution ID",
+        "description": "추적할 파이프라인 executionId를 입력",
+        "current": { "value": "", "text": "" },
+        "options": []
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 100,
+      "type": "row",
+      "title": "Overview",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Pipeline Status",
+      "description": "파이프라인 최종 상태. ExecutionCompleted 이벤트에서 추출한다.",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "expr": "{service_name=\"redpanda-playground\"} |= `${executionId}` |= `ExecutionCompleted` | json | line_format `{{.message}}` | regexp `status=(?P<status>[A-Z_]+)`",
+          "refId": "A",
+          "queryType": "range"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": { "source": "labels", "format": "auto" }
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "reducers": ["last"],
+            "includeTimeField": false
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "SUCCESS": { "text": "SUCCESS", "color": "green" } } },
+            { "type": "value", "options": { "FAILED": { "text": "FAILED", "color": "red" } } },
+            { "type": "value", "options": { "RUNNING": { "text": "RUNNING", "color": "blue" } } },
+            { "type": "value", "options": { "PENDING": { "text": "PENDING", "color": "#808080" } } }
+          ],
+          "color": { "mode": "fixed", "fixedColor": "text" },
+          "noValue": "No Data (executionId를 입력하세요)"
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "textMode": "value",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Total Events",
+      "description": "이 executionId에 대한 전체 로그 이벤트 수",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "expr": "count_over_time({service_name=\"redpanda-playground\"} |= `${executionId}` [$__range])",
+          "refId": "A",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "blue" },
+          "noValue": "0"
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "textMode": "value",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Step Changes",
+      "description": "Job 상태 변경 이벤트 수 (StepChanged 이벤트 기준)",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "expr": "count_over_time({service_name=\"redpanda-playground\"} |= `${executionId}` |= `StepChanged` [$__range])",
+          "refId": "A",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "purple" },
+          "noValue": "0"
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "textMode": "value",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Failures",
+      "description": "FAILED 또는 COMPENSATED 상태 이벤트 수",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "expr": "count_over_time({service_name=\"redpanda-playground\"} |= `${executionId}` |~ `FAILED|COMPENSATED` [$__range])",
+          "refId": "A",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "red" },
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": null, "color": "green" },
+              { "value": 1, "color": "red" }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "textMode": "value",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "id": 101,
+      "type": "row",
+      "title": "Step Flow Timeline",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 5,
+      "type": "state-timeline",
+      "title": "Step Status Timeline",
+      "description": "각 Job의 상태 변화를 시간축으로 표시한다. 가로축은 시간, 세로축은 jobName. 색상으로 상태를 구분한다.\n\n쿼리 튜닝 필요: Spring Boot 로그 형식에 맞게 regexp 패턴을 조정할 것.",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 6 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "expr": "{service_name=\"redpanda-playground\"} |= `${executionId}` |= `StepChanged` | json | line_format `{{.message}}` | regexp `jobName=(?P<jobName>[^,\\s\\]]+).*status=(?P<status>[A-Z_]+)` | line_format `{{.status}}` | label_format jobName=`{{.jobName}}`",
+          "refId": "A",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed" },
+          "mappings": [
+            { "type": "value", "options": { "PENDING":          { "text": "PENDING",          "color": "#808080" } } },
+            { "type": "value", "options": { "RUNNING":          { "text": "RUNNING",          "color": "#3274D9" } } },
+            { "type": "value", "options": { "SUCCESS":          { "text": "SUCCESS",          "color": "#73BF69" } } },
+            { "type": "value", "options": { "FAILED":           { "text": "FAILED",           "color": "#F2495C" } } },
+            { "type": "value", "options": { "COMPENSATED":      { "text": "COMPENSATED",      "color": "#FF9830" } } },
+            { "type": "value", "options": { "WAITING_WEBHOOK":  { "text": "WAITING_WEBHOOK",  "color": "#B877D9" } } },
+            { "type": "value", "options": { "SKIPPED":          { "text": "SKIPPED",          "color": "#C0C0C0" } } }
+          ],
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 0
+          }
+        }
+      },
+      "options": {
+        "showValue": "auto",
+        "mergeValues": true,
+        "alignValue": "left",
+        "rowHeight": 0.8,
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single" }
+      }
+    },
+    {
+      "id": 102,
+      "type": "row",
+      "title": "Detail",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 15 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 6,
+      "type": "logs",
+      "title": "Execution Logs",
+      "description": "executionId로 필터링된 전체 로그. traceId 클릭 시 Tempo 트레이스로 이동한다.",
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 16 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "expr": "{service_name=\"redpanda-playground\"} |= `${executionId}`",
+          "refId": "A",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Ascending"
+      }
+    }
+  ]
+}

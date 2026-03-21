@@ -6,22 +6,40 @@
 
 ## 문서 인덱스
 
-### backend/
+### 프로젝트 공통
 
 | 문서 | 내용 |
 |------|------|
-| [01-architecture.md](backend/01-architecture.md) | DB 설계(ERD, Flyway), 핵심 기능 흐름, 이벤트/메시지 설계, 동시성 보장 |
-| [02-pipeline-flow.md](backend/02-pipeline-flow.md) | 파이프라인 실행 흐름도 (Phase 1~3) + 토픽/커넥터 상세 |
-| [03-domain-guide.md](backend/03-domain-guide.md) | 도메인 온보딩 가이드 (Ticket → Pipeline → Webhook) |
-| [04-patterns.md](backend/04-patterns.md) | 아키텍처 패턴 카탈로그 (10개 패턴) |
-| [05-demo-script.md](backend/05-demo-script.md) | 데모 시나리오 스크립트 |
+| [architecture.md](architecture.md) | DB 설계(ERD, Flyway), 핵심 기능 흐름, 이벤트/메시지 설계, 동시성 보장 |
+| [domain-guide.md](domain-guide.md) | 도메인 온보딩 가이드 (Ticket → Pipeline → Webhook) |
+| [patterns.md](patterns.md) | 아키텍처 패턴 카탈로그 (14개 패턴) |
+| [demo-script.md](demo-script.md) | 데모 시나리오 스크립트 |
 
-### frontend/
+### app 모듈 (Phase 1)
 
 | 문서 | 내용 |
 |------|------|
-| [01-architecture.md](frontend/01-architecture.md) | 기술 스택, 페이지 구성, 핵심 훅, SSE + TanStack Query 연동 |
-| [02-ui-styling-guide.md](frontend/02-ui-styling-guide.md) | Google Stitch UI 디자인 적용 가이드 |
+| [app/review/01-structure-overview.md](app/review/01-structure-overview.md) | app 모듈 구조 오버뷰 |
+| [app/review/02-db-migration.md](app/review/02-db-migration.md) | DB 마이그레이션 리뷰 |
+| [app/review/03-service-layer-and-connector.md](app/review/03-service-layer-and-connector.md) | 서비스 계층 및 커넥터 리뷰 |
+| [app/review/04-preset-domain.md](app/review/04-preset-domain.md) | 프리셋 도메인 리뷰 |
+
+### pipeline 모듈 (Phase 2-3)
+
+| 문서 | 내용 |
+|------|------|
+| [pipeline/pipeline-flow.md](pipeline/pipeline-flow.md) | 파이프라인 실행 흐름도 + 토픽/커넥터 상세 |
+| [pipeline/review/05-phase2-structure-overview.md](pipeline/review/05-phase2-structure-overview.md) | Phase 2 전체 구조 오버뷰 (DAG 엔진) |
+| [pipeline/review/06-phase2-db-migration.md](pipeline/review/06-phase2-db-migration.md) | Phase 2 DB 마이그레이션 리뷰 |
+| [pipeline/review/07-phase2-dag-engine.md](pipeline/review/07-phase2-dag-engine.md) | DAG 엔진 핵심 리뷰 |
+| [pipeline/review/08-phase3-dag-hardening.md](pipeline/review/08-phase3-dag-hardening.md) | Phase 3 DAG 엔진 고도화 리뷰 |
+
+### frontend 모듈
+
+| 문서 | 내용 |
+|------|------|
+| [frontend/01-architecture.md](frontend/01-architecture.md) | 기술 스택, 페이지 구성, 핵심 훅, SSE + TanStack Query 연동 |
+| [frontend/02-ui-styling-guide.md](frontend/02-ui-styling-guide.md) | Google Stitch UI 디자인 적용 가이드 |
 
 ### requirements/
 
@@ -145,16 +163,16 @@ TPS(CI/CD 플랫폼)에서 사용하는 이벤트 기반 아키텍처 패턴을 
 
 | # | 패턴 | 핵심 한 줄 | 상세 |
 |---|------|-----------|------|
-| 1 | **202 Accepted** | 긴 작업은 즉시 응답 + 추적 URL 제공 | [backend/04-patterns.md](backend/04-patterns.md#1-202-accepted) |
-| 2 | **SAGA Orchestrator** | PipelineEngine이 오케스트레이터, 실패 시 완료 스텝 역순 보상 | [backend/04-patterns.md](backend/04-patterns.md#2-saga-orchestrator) |
-| 3 | **Transactional Outbox** | DB 트랜잭션 + 이벤트 발행 원자성, 500ms 폴링 | [backend/04-patterns.md](backend/04-patterns.md#3-transactional-outbox) |
-| 4 | **SSE 실시간 알림** | 서버→클라이언트 단방향 스트리밍, TanStack Query 캐시 무효화 | [backend/04-patterns.md](backend/04-patterns.md#4-sse-실시간-알림) |
-| 5 | **Break-and-Resume** | 웹훅 대기 시 스레드 해제, CAS로 경쟁 조건 방지 | [backend/04-patterns.md](backend/04-patterns.md#5-break-and-resume) |
-| 6 | **Redpanda Connect** | HTTP↔Kafka 브릿지 (전송만, 비즈니스 로직 없음) | [backend/04-patterns.md](backend/04-patterns.md#6-redpanda-connect) |
-| 7 | **토픽/메시지 설계** | 도메인별 토픽, EventMetadata 공통 스키마, CloudEvents | [backend/04-patterns.md](backend/04-patterns.md#7-토픽메시지-설계) |
-| 8 | **Adapter/Fallback** | 외부 시스템별 어댑터 분리, ToolRegistry 기반 동적 해석 | [backend/04-patterns.md](backend/04-patterns.md#8-adapterfallback) |
-| 9 | **Idempotency** | (correlationId, eventType) 복합 키, preemptive acquire | [backend/04-patterns.md](backend/04-patterns.md#9-idempotency) |
-| 10 | **Dynamic Connector** | 런타임 Connect 스트림 등록/삭제, DB 영속화 | [backend/04-patterns.md](backend/04-patterns.md#10-dynamic-connector-management) |
+| 1 | **202 Accepted** | 긴 작업은 즉시 응답 + 추적 URL 제공 | [patterns.md](patterns.md#1-202-accepted) |
+| 2 | **SAGA Orchestrator** | PipelineEngine이 오케스트레이터, 실패 시 완료 스텝 역순 보상 | [patterns.md](patterns.md#2-saga-orchestrator) |
+| 3 | **Transactional Outbox** | DB 트랜잭션 + 이벤트 발행 원자성, 500ms 폴링 | [patterns.md](patterns.md#3-transactional-outbox) |
+| 4 | **SSE 실시간 알림** | 서버→클라이언트 단방향 스트리밍, TanStack Query 캐시 무효화 | [patterns.md](patterns.md#4-sse-실시간-알림) |
+| 5 | **Break-and-Resume** | 웹훅 대기 시 스레드 해제, CAS로 경쟁 조건 방지 | [patterns.md](patterns.md#5-break-and-resume) |
+| 6 | **Redpanda Connect** | HTTP↔Kafka 브릿지 (전송만, 비즈니스 로직 없음) | [patterns.md](patterns.md#6-redpanda-connect) |
+| 7 | **토픽/메시지 설계** | 도메인별 토픽, EventMetadata 공통 스키마, CloudEvents | [patterns.md](patterns.md#7-토픽메시지-설계) |
+| 8 | **Adapter/Fallback** | 외부 시스템별 어댑터 분리, ToolRegistry 기반 동적 해석 | [patterns.md](patterns.md#8-adapterfallback) |
+| 9 | **Idempotency** | (correlationId, eventType) 복합 키, preemptive acquire | [patterns.md](patterns.md#9-idempotency) |
+| 10 | **Dynamic Connector** | 런타임 Connect 스트림 등록/삭제, DB 영속화 | [patterns.md](patterns.md#10-dynamic-connector-management) |
 
 ---
 
@@ -174,12 +192,18 @@ TPS(CI/CD 플랫폼)에서 사용하는 이벤트 기반 아키텍처 패턴을 
 
 | 패키지 | 구성 |
 |--------|------|
-| **pipeline/domain** | Pipeline, PipelineStep, PipelineStatus, StepEvent |
-| **pipeline/mapper** | PipelineMapper, PipelineStepMapper |
+| **pipeline/domain** | PipelineExecution, PipelineStep, PipelineStatus, StepEvent |
+| **pipeline/mapper** | PipelineExecutionMapper, PipelineStepMapper |
 | **pipeline/service** | PipelineCommandService (202 Accepted), PipelineQueryService |
-| **pipeline/engine** | PipelineEngine (SAGA Orchestrator), StepExecutor |
-| **pipeline/event** | PipelineStartedEvent, StepCompletedEvent, PipelineCompletedEvent |
-| **pipeline/sse** | PipelineSseController, SseEmitterRegistry |
+| **pipeline/engine** | PipelineEngine (SAGA Orchestrator), SagaCompensator, WebhookTimeoutChecker |
+| **pipeline/event** | PipelineEventConsumer, PipelineEventProducer, PipelineCommandProducer |
+| **pipeline/sse** | PipelineSseConsumer, SseEmitterRegistry |
+| **pipeline/dag/domain** | PipelineDefinition, PipelineJob, PipelineJobMapping, FailurePolicy |
+| **pipeline/dag/engine** | DagExecutionCoordinator, DagExecutionState, DagValidator |
+| **pipeline/dag/event** | DagEventProducer |
+| **pipeline/dag/service** | PipelineDefinitionService |
+| **pipeline/dag/api** | PipelineDefinitionController |
+| **pipeline/dag/mapper** | PipelineDefinitionMapper, PipelineJobMapper, PipelineJobMappingMapper |
 
 ### 3. common (공통 인프라)
 
@@ -198,7 +222,7 @@ TPS(CI/CD 플랫폼)에서 사용하는 이벤트 기반 아키텍처 패턴을 
 | **adapter** | Jenkins, GitLab, Nexus, Registry 어댑터 (인터페이스 기반) |
 | **supporttool** | 외부 도구 연결 정보 런타임 관리 (DB 기반, 앱 재시작 불필요) |
 
-> 상세: [backend/01-architecture.md](backend/01-architecture.md)
+> 상세: [architecture.md](architecture.md)
 
 ---
 
@@ -256,7 +280,7 @@ make frontend
 #    도구 → 티켓 생성 → 파이프라인 시작 → SSE로 실시간 모니터링
 ```
 
-> 상세: [backend/05-demo-script.md](backend/05-demo-script.md)
+> 상세: [demo-script.md](demo-script.md)
 
 ---
 

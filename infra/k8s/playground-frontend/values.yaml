@@ -1,0 +1,21 @@
+replicaCount: 1
+
+image:
+  repository: playground-frontend
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: NodePort
+  port: 80
+  nodePort: 31080
+
+backend:
+  url: http://playground.rp-oss.svc.cluster.local:8070
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 128Mi

@@ -1,0 +1,13 @@
+{
+  "type": "record",
+  "name": "DagJobDispatchedEvent",
+  "namespace": "com.study.playground.avro.pipeline",
+  "fields": [
+    {"name": "executionId", "type": "string"},
+    {"name": "jobId", "type": "long"},
+    {"name": "jobName", "type": "string"},
+    {"name": "jobType", "type": "string"},
+    {"name": "jobOrder", "type": "int"},
+    {"name": "dispatchedAt", "type": "string"}
+  ]
+}

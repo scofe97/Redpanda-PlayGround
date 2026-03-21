@@ -49,6 +49,20 @@ function ExecutionCard({ execution, defaultOpen }: { execution: PipelineExecutio
       </summary>
 
       <div className="px-4 pb-4 pt-2 space-y-3 border-t border-slate-200 dark:border-slate-700">
+        {execution.parameters && Object.keys(execution.parameters).length > 0 && (
+          <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
+            <p className="text-[10px] font-bold text-primary/60 uppercase tracking-wider mb-1.5">파라미터</p>
+            <div className="flex flex-wrap gap-1.5">
+              {Object.entries(execution.parameters).map(([k, v]) => (
+                <span key={k} className="inline-flex items-center gap-1 px-2 py-0.5 bg-white dark:bg-slate-800 rounded text-[11px] font-mono border border-slate-200 dark:border-slate-700">
+                  <span className="text-slate-500">{k}=</span>
+                  <span className="text-slate-700 dark:text-slate-300 font-semibold">{v}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {execution.errorMessage && (
           <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
             <p className="text-xs text-red-700 dark:text-red-400 font-mono break-all">{execution.errorMessage}</p>

@@ -15,5 +15,6 @@ public final class Topics {
     public static final String TICKET_EVENTS = "playground.ticket.events";
     public static final String WEBHOOK_INBOUND = "playground.webhook.inbound";
     public static final String AUDIT_EVENTS = "playground.audit.events";
+    public static final String PIPELINE_EVT_DAG_JOB = "playground.pipeline.events.dag-job";
     public static final String DLQ = "playground.dlq";
 }
