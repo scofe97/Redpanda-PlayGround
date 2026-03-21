@@ -11,7 +11,7 @@
     <!-- Loki4j Appender (GCP) — GCP Loki 직접 push -->
     <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
         <http>
-            <url>http://34.22.78.240:3100/loki/api/v1/push</url>
+            <url>http://34.47.83.38:30100/loki/api/v1/push</url>
             <connectionTimeoutMs>5000</connectionTimeoutMs>
             <requestTimeoutMs>5000</requestTimeoutMs>
         </http>
