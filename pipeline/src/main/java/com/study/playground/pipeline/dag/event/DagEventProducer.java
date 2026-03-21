@@ -54,6 +54,9 @@ public class DagEventProducer {
                 , avroSerializer.serialize(event)
                 , Topics.PIPELINE_EVT_DAG_JOB, executionId
         );
+
+        log.info("[DagJobDispatched] executionId={}, jobName={}, jobType={}, jobOrder={}"
+                , executionId, jobName, jobType, jobOrder);
     }
 
     /**
@@ -88,5 +91,8 @@ public class DagEventProducer {
                 , avroSerializer.serialize(event)
                 , Topics.PIPELINE_EVT_DAG_JOB, executionId
         );
+
+        log.info("[StepChanged] executionId={}, jobName={}, status={}, jobType={}, durationMs={}"
+                , executionId, jobName, status, jobType, durationMs);
     }
 }

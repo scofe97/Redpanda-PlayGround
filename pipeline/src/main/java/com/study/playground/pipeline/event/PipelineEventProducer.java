@@ -63,6 +63,9 @@ public class PipelineEventProducer {
                 , Topics.PIPELINE_EVT_STEP_CHANGED
                 , executionId
         );
+
+        log.info("[StepChanged] executionId={}, jobName={}, status={}, jobType={}"
+                , executionId, jobExecution.getJobName(), status, jobExecution.getJobType());
     }
 
     /**
@@ -93,6 +96,9 @@ public class PipelineEventProducer {
                 , avroSerializer.serialize(event)
                 , Topics.PIPELINE_EVT_COMPLETED, executionId
         );
+
+        log.info("[ExecutionCompleted] executionId={}, status={}, durationMs={}, error={}"
+                , executionId, status, durationMs, errorMessage);
     }
 
 }
