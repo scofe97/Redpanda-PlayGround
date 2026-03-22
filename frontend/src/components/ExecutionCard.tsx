@@ -161,11 +161,6 @@ export default function ExecutionCard({ execution, defaultOpen, isSelected, onSe
                         {job.completedAt && ` → ${formatTime(job.completedAt)}`}
                       </p>
                     )}
-                    {job.log && (
-                      <pre className="mt-2 text-[11px] font-mono text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 rounded p-2 overflow-x-auto whitespace-pre-wrap break-all max-h-32">
-                        {job.log}
-                      </pre>
-                    )}
                   </div>
                 </div>
               ))}

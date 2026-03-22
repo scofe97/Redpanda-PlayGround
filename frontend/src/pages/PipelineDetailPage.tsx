@@ -459,7 +459,7 @@ export default function PipelineDetailPage() {
                             </div>
                           </div>
                           {job.log && (
-                            <pre className="px-4 py-3 text-[11px] font-mono text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 whitespace-pre-wrap break-all max-h-48 overflow-y-auto">
+                            <pre className="px-4 py-3 text-[11px] font-mono text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 whitespace-pre-wrap break-all max-h-[500px] overflow-y-auto">
                               {job.log}
                             </pre>
                           )}
