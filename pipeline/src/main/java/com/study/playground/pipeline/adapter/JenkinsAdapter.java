@@ -34,9 +34,9 @@ public class JenkinsAdapter {
     /** 지정한 Job과 빌드 번호의 빌드 정보를 조회한다. */
     public JenkinsBuildInfo getBuildInfo(String jobName, int buildNumber) {
         try {
-            AdapterInputValidator.validatePathParam(jobName, "jobName");
             String url = UriComponentsBuilder.fromHttpUrl(getTool().url())
-                    .pathSegment("job", jobName, String.valueOf(buildNumber))
+                    .path(toJobPath(jobName))
+                    .pathSegment(String.valueOf(buildNumber))
                     .path("/api/json")
                     .toUriString();
             ResponseEntity<JenkinsBuildInfo> response = restTemplate.exchange(
@@ -53,9 +53,9 @@ public class JenkinsAdapter {
     /** Job의 마지막 빌드 번호를 조회한다. 실패 시 -1 반환. */
     public int getLastBuildNumber(String jobName) {
         try {
-            AdapterInputValidator.validatePathParam(jobName, "jobName");
             String url = UriComponentsBuilder.fromHttpUrl(getTool().url())
-                    .pathSegment("job", jobName, "lastBuild")
+                    .path(toJobPath(jobName))
+                    .pathSegment("lastBuild")
                     .path("/api/json")
                     .toUriString();
             ResponseEntity<JenkinsBuildInfo> response = restTemplate.exchange(
@@ -88,9 +88,9 @@ public class JenkinsAdapter {
     /** 지정한 Job과 빌드 번호의 콘솔 로그 전문을 조회한다. */
     public String getConsoleLog(String jobName, int buildNumber) {
         try {
-            AdapterInputValidator.validatePathParam(jobName, "jobName");
             String url = UriComponentsBuilder.fromHttpUrl(getTool().url())
-                    .pathSegment("job", jobName, String.valueOf(buildNumber), "consoleText")
+                    .path(toJobPath(jobName))
+                    .pathSegment(String.valueOf(buildNumber), "consoleText")
                     .toUriString();
             ResponseEntity<String> response = restTemplate.exchange(
                     url, HttpMethod.GET,
@@ -449,6 +449,19 @@ public class JenkinsAdapter {
                   </definition>
                 </flow-definition>
                 """.formatted(scriptContent));
+        return sb.toString();
+    }
+
+    /**
+     * "deploy/playground-job-50" → "/job/deploy/job/playground-job-50" 변환.
+     * 슬래시로 구분된 폴더/Job 이름을 Jenkins REST API 경로로 변환한다.
+     */
+    private String toJobPath(String jobName) {
+        String[] parts = jobName.split("/");
+        var sb = new StringBuilder();
+        for (String part : parts) {
+            sb.append("/job/").append(part);
+        }
         return sb.toString();
     }
 
