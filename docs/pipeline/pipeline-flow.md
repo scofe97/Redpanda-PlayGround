@@ -1,5 +1,7 @@
 # 파이프라인 흐름
 
+> **DAG 모드**: PipelineEngine.execute()에서 `pipelineDefinitionId`가 null이 아니면 DagExecutionCoordinator로 분기하여 DAG 병렬 실행을 수행한다. DAG 엔진의 상세 동작은 `dag/README.md`를 참조한다.
+
 파이프라인 실행의 전체 흐름을 Mermaid graph로 표현한다. 각 흐름은 독립적인 다이어그램으로 분리하여 한 눈에 파악할 수 있도록 했다. 토픽과 커넥터의 입출력도 함께 정리하여, 각 토픽이 어디서 생산되고 어디서 소비되는지 한눈에 파악할 수 있다.
 
 ---

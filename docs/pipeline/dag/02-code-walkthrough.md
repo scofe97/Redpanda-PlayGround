@@ -496,3 +496,88 @@ public List<ParameterSchema> collectParameterSchemas() {
 파이프라인에 속한 모든 Job의 파라미터 스키마를 `flatMap`으로 평탄화하여 하나의 리스트로 합산한다. 파이프라인 실행 시 사용자에게 "이 파이프라인을 실행하려면 어떤 파라미터가 필요한가"를 한 번에 보여주기 위한 용도이다.
 
 PipelineDefinition과 PipelineExecution의 분리는 "설계도 vs 시공 기록"에 비유할 수 있다. failurePolicy는 정의 수준에서 설정하므로 실행마다 바꿀 수 없고, 정책을 변경하려면 정의 자체를 수정해야 한다.
+
+> **설계 이력.** DagExecutionState는 초기에 Java record로 구현되었으나, completedJobIds·runningJobIds·failedJobIds·skippedJobIds처럼 런타임에 변경되는 상태 집합을 record의 불변 필드로 관리하면 매번 새 인스턴스를 생성해야 하는 문제가 있었다. 이를 해결하기 위해 class로 전환하고 가변 상태 집합만 별도 필드로 분리했다. 구조적 불변 필드(dependencyGraph, successorGraph 등)는 `Collections.unmodifiableMap`으로 보호하고, 가변 상태 집합에 대한 접근은 ReentrantLock으로 직렬화하여 스레드 안전성을 유지했다.
+
+---
+
+## 4. ParameterResolver — 파라미터 검증과 치환
+
+파이프라인 실행 시 사용자 파라미터를 Job 설정에 주입하는 3단계 처리기다.
+
+### 4.1 validate(schemas, userParams)
+
+ParameterSchema 목록과 사용자 파라미터를 대조하여 누락된 필수 파라미터를 탐지하고 기본값을 적용한다. 로직은 다음과 같다.
+
+1. 각 스키마의 `required` 필드를 확인한다
+2. 사용자 파라미터에 해당 키가 없으면:
+   - `defaultValue`가 있으면 자동 적용
+   - `required=true`이고 기본값도 없으면 `IllegalArgumentException` 발생
+3. 검증을 통과한 최종 파라미터 맵을 반환한다
+
+실행 전에 파라미터 누락을 감지하므로, Jenkins Job이 시작된 뒤에야 파라미터 오류를 발견하는 상황을 방지한다.
+
+### 4.2 resolve(template, params)
+
+configJson이나 jenkinsScript 문자열에서 `${PARAM_NAME}` 패턴을 정규식으로 찾아 실제 값으로 치환한다.
+
+- 정규식: `\$\{([A-Za-z0-9_]+)\}`
+- 매칭된 키가 params에 존재하면 치환, 없으면 원본 유지
+- 보안: 파라미터 이름을 `[A-Za-z0-9_]`로 제한하여 경로 순회나 인젝션을 차단한다
+
+### 4.3 merge(systemParams, userParams)
+
+시스템 파라미터(EXECUTION_ID, STEP_ORDER)와 사용자 파라미터를 병합한다. 시스템 파라미터가 우선하므로, 사용자가 EXECUTION_ID를 임의로 덮어쓸 수 없다.
+
+---
+
+## 5. DagEventProducer — DAG 이벤트 발행
+
+DAG 실행 상태를 Avro 이벤트로 직렬화하여 Kafka에 발행한다. Grafana Pipeline Tracker 대시보드와 프론트엔드 LiveDagGraph가 이 이벤트를 실시간으로 소비한다.
+
+### 5.1 publishDagJobDispatched(executionId, jobId, jobName, jobType, jobOrder)
+
+Job이 RUNNING 상태로 전환될 때 호출된다. DagJobDispatchedEvent Avro 레코드를 생성하고 `Topics.PIPELINE_EVT_DAG_JOB` 토픽에 executionId를 파티션 키로 발행한다. 동일 실행의 이벤트가 같은 파티션에 모이므로 소비자가 순서대로 처리할 수 있다.
+
+### 5.2 publishDagJobCompleted(executionId, jobId, jobName, jobType, jobOrder, status, durationMs, retryCount, logSnippet)
+
+Job 실행이 완료(성공 또는 실패)되면 호출된다. status, 소요 시간(durationMs), 재시도 횟수(retryCount), 로그 스니펫(500자 이내)을 포함한다. logSnippet은 전체 로그가 아닌 마지막 500자를 잘라낸 것으로, 이벤트 크기를 제한하면서도 디버깅에 필요한 최소 정보를 전달하기 위함이다.
+
+---
+
+## 6. DagGraphResponse — DAG 시각화 응답
+
+DAG 실행 상태를 Grafana Node Graph 패널과 ReactFlow에서 소비할 수 있는 형식으로 변환한다.
+
+### 6.1 구조
+
+```java
+record DagGraphResponse(List<Node> nodes, List<Edge> edges)
+
+record Node(
+    String id,        // Job ID
+    String title,     // Job 이름
+    String subTitle,  // Job 타입 (BUILD, DEPLOY 등)
+    String mainStat,  // 상태 (SUCCESS, FAILED, RUNNING 등)
+    String color      // 상태별 색상 코드
+)
+
+record Edge(
+    String id,        // 엣지 ID (e0, e1, ...)
+    String source,    // 선행 Job ID
+    String target     // 후속 Job ID
+)
+```
+
+### 6.2 상태→색상 매핑
+
+| 상태 | 색상 | 용도 |
+|------|------|------|
+| SUCCESS | green | 성공 완료 |
+| FAILED | red | 실패 |
+| RUNNING | blue | 실행 중 |
+| WAITING_WEBHOOK | purple | 웹훅 대기 |
+| PENDING | orange | 대기 중 |
+| SKIPPED | gray | 건너뜀 |
+
+PipelineDefinitionService.getDagGraph()에서 Job 정의와 실행 상태를 조합하여 응답을 생성한다. dependsOnJobIds를 Edge로 변환하고, JobExecution 상태를 Node의 mainStat과 color에 매핑한다.

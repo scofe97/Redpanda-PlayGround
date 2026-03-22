@@ -1,5 +1,7 @@
 # DAG 엔진 vs 파이프라인 — 분리 분석
 
+> **문서 상태**: Phase 2 시점에 작성된 분석이다. 여기서 제안한 인터페이스 추출(DagExecutionRepository, DagJobExecutionRepository, DagJobDispatcher)은 아직 구현되지 않았다. Phase 3에서 DagEventProducer만 Event 계층으로 추가되었다. 향후 엔진을 독립 모듈로 분리할 때 이 분석을 참조한다.
+
 DAG 엔진(`dag.engine`)은 현재 파이프라인 인프라(`pipeline.domain`, `pipeline.mapper`, `pipeline.engine`, `pipeline.event`)에 직접 의존한다. 이 문서는 두 모듈 사이의 결합 지점을 소스 코드 import 기준으로 식별하고, 분리 가능성과 전략을 분석한다.
 
 ---

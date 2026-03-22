@@ -1,5 +1,11 @@
 # Redpanda Playground — 프로젝트 스펙
 
+> **이 문서는 2026-03-22 기준으로 동결되었습니다.** 최신 스펙은 `specs/` 디렉토리를 참조하세요.
+> - 도메인 스펙: `specs/domains/`
+> - 아키텍처 스펙: `specs/architecture/`
+> - Phase 계획/회고: `specs/phases/`
+> - 아키텍처 결정: `specs/decisions/`
+
 ## 개발 목적
 
 TPS(CI/CD 플랫폼) 실무에서 사용하는 이벤트 기반 아키텍처 패턴을 학습용으로 축소 구현한 PoC 프로젝트이다.
