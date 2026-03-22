@@ -95,15 +95,21 @@ public class JenkinsOutboxHandler implements OutboxEventHandler {
         log.info("Jenkins 파이프라인 업데이트 완료: {}/{} (configParams={})", folderName, jenkinsJobName, configParams);
     }
 
-    /** DB에서 Job의 configJson을 조회하여 키 목록을 추출한다. */
+    /** DB에서 Job의 configJson 키와 parameterSchema 이름을 합산하여 반환한다. */
     private Set<String> extractConfigJsonKeys(Long jobId) {
         try {
             var job = jobMapper.findById(jobId);
-            if (job != null && job.getConfigJson() != null && !job.getConfigJson().isBlank()) {
+            if (job == null) {
+                return Set.of();
+            }
+            var params = new java.util.HashSet<String>();
+            if (job.getConfigJson() != null && !job.getConfigJson().isBlank()) {
                 Map<String, Object> config = objectMapper.readValue(
                         job.getConfigJson(), new TypeReference<>() {});
-                return config.keySet();
+                params.addAll(config.keySet());
             }
+            job.parameterSchemas().forEach(s -> params.add(s.name()));
+            return params;
         } catch (Exception e) {
             log.warn("configJson 키 추출 실패: jobId={}: {}", jobId, e.getMessage());
         }

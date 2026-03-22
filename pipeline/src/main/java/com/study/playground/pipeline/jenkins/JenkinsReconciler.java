@@ -101,11 +101,14 @@ public class JenkinsReconciler {
 
     private Set<String> extractConfigJsonKeys(PipelineJob job) {
         try {
+            var params = new java.util.HashSet<String>();
             if (job.getConfigJson() != null && !job.getConfigJson().isBlank()) {
                 Map<String, Object> config = objectMapper.readValue(
                         job.getConfigJson(), new TypeReference<>() {});
-                return config.keySet();
+                params.addAll(config.keySet());
             }
+            job.parameterSchemas().forEach(s -> params.add(s.name()));
+            return params;
         } catch (Exception e) {
             log.warn("configJson 키 추출 실패: jobId={}: {}", job.getId(), e.getMessage());
         }
