@@ -276,18 +276,26 @@ public class JenkinsAdapter {
      * 폴더가 없으면 먼저 생성한다.
      */
     public void upsertPipelineJob(String folderName, String jobName, String scriptContent) {
+        upsertPipelineJob(folderName, jobName, scriptContent, Set.of());
+    }
+
+    public void upsertPipelineJob(String folderName, String jobName, String scriptContent, Set<String> configParams) {
         AdapterInputValidator.validatePathParam(folderName, "folderName");
         AdapterInputValidator.validatePathParam(jobName, "jobName");
         ensureFolderExists(folderName);
         try {
-            createPipelineJobInFolder(folderName, jobName, scriptContent);
+            createPipelineJobInFolder(folderName, jobName, scriptContent, configParams);
         } catch (HttpClientErrorException.BadRequest e) {
             log.debug("Jenkins Job 이미 존재, update 전환: {}/{}", folderName, jobName);
-            updatePipelineJobInFolder(folderName, jobName, scriptContent);
+            updatePipelineJobInFolder(folderName, jobName, scriptContent, configParams);
         }
     }
 
     private void createPipelineJobInFolder(String folderName, String jobName, String scriptContent) {
+        createPipelineJobInFolder(folderName, jobName, scriptContent, Set.of());
+    }
+
+    private void createPipelineJobInFolder(String folderName, String jobName, String scriptContent, Set<String> configParams) {
         JenkinsToolInfo tool = getTool();
         String url = UriComponentsBuilder.fromHttpUrl(tool.url())
                 .pathSegment("job", folderName, "createItem")
@@ -298,12 +306,16 @@ public class JenkinsAdapter {
         headers.setContentType(MediaType.APPLICATION_XML);
 
         restTemplate.exchange(url, HttpMethod.POST
-                , new HttpEntity<>(buildConfigXml(scriptContent), headers)
+                , new HttpEntity<>(buildConfigXml(scriptContent, configParams), headers)
                 , String.class);
-        log.info("Jenkins 파이프라인 생성: {}/{}", folderName, jobName);
+        log.info("Jenkins 파이프라인 생성: {}/{} (params={})", folderName, jobName, configParams);
     }
 
     private void updatePipelineJobInFolder(String folderName, String jobName, String scriptContent) {
+        updatePipelineJobInFolder(folderName, jobName, scriptContent, Set.of());
+    }
+
+    private void updatePipelineJobInFolder(String folderName, String jobName, String scriptContent, Set<String> configParams) {
         JenkinsToolInfo tool = getTool();
         String url = UriComponentsBuilder.fromHttpUrl(tool.url())
                 .pathSegment("job", folderName, "job", jobName, "config.xml")
@@ -313,9 +325,9 @@ public class JenkinsAdapter {
         headers.setContentType(MediaType.APPLICATION_XML);
 
         restTemplate.exchange(url, HttpMethod.POST
-                , new HttpEntity<>(buildConfigXml(scriptContent), headers)
+                , new HttpEntity<>(buildConfigXml(scriptContent, configParams), headers)
                 , String.class);
-        log.info("Jenkins 파이프라인 업데이트: {}/{}", folderName, jobName);
+        log.info("Jenkins 파이프라인 업데이트: {}/{} (params={})", folderName, jobName, configParams);
     }
 
     /** 폴더 안의 Jenkins 파이프라인 Job을 삭제한다. 존재하지 않으면 무시한다. */
@@ -392,7 +404,17 @@ public class JenkinsAdapter {
      * sandbox=true로 보안을 적용하고, CDATA로 스크립트를 이스케이프한다.
      */
     private String buildConfigXml(String scriptContent) {
-        return """
+        return buildConfigXml(scriptContent, Set.of());
+    }
+
+    /**
+     * 추가 파라미터 이름을 포함하여 config.xml을 생성한다.
+     * configJson의 키를 Jenkins parameterDefinitions에 등록하면
+     * buildWithParameters로 전달된 값이 env로 접근 가능해진다.
+     */
+    String buildConfigXml(String scriptContent, Set<String> additionalParams) {
+        var sb = new StringBuilder();
+        sb.append("""
                 <?xml version='1.1' encoding='UTF-8'?>
                 <flow-definition plugin="workflow-job">
                   <properties>
@@ -406,6 +428,18 @@ public class JenkinsAdapter {
                           <name>STEP_ORDER</name>
                           <defaultValue>1</defaultValue>
                         </hudson.model.StringParameterDefinition>
+                """);
+        for (String param : additionalParams) {
+            if (!"EXECUTION_ID".equals(param) && !"STEP_ORDER".equals(param)) {
+                sb.append("""
+                        <hudson.model.StringParameterDefinition>
+                          <name>%s</name>
+                          <defaultValue></defaultValue>
+                        </hudson.model.StringParameterDefinition>
+                """.formatted(param));
+            }
+        }
+        sb.append("""
                       </parameterDefinitions>
                     </hudson.model.ParametersDefinitionProperty>
                   </properties>
@@ -414,7 +448,8 @@ public class JenkinsAdapter {
                     <sandbox>true</sandbox>
                   </definition>
                 </flow-definition>
-                """.formatted(scriptContent);
+                """.formatted(scriptContent));
+        return sb.toString();
     }
 
     private HttpHeaders buildHeaders() {

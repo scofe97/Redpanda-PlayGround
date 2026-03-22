@@ -1,5 +1,7 @@
 package com.study.playground.pipeline.reconciler;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.study.playground.pipeline.adapter.JenkinsAdapter;
 import com.study.playground.pipeline.dag.domain.PipelineJob;
 import com.study.playground.pipeline.mapper.JobMapper;
@@ -33,6 +35,7 @@ public class JenkinsReconciler {
 
     private final JenkinsAdapter jenkinsAdapter;
     private final JobMapper jobMapper;
+    private final ObjectMapper objectMapper;
 
     /**
      * 60초 주기로 desired state(DB)와 actual state(Jenkins)를 비교한다.
@@ -77,7 +80,8 @@ public class JenkinsReconciler {
             if (!folderJobs.contains(jenkinsJobName) || isFailed) {
                 // Jenkins에 없거나 FAILED 상태 → upsert로 동기화
                 try {
-                    jenkinsAdapter.upsertPipelineJob(folder, jenkinsJobName, script);
+                    Set<String> configParams = extractConfigJsonKeys(job);
+                    jenkinsAdapter.upsertPipelineJob(folder, jenkinsJobName, script, configParams);
                     if (isFailed) {
                         jobMapper.updateJenkinsStatus(job.getId(), "ACTIVE");
                         log.info("Reconciler: FAILED → ACTIVE 복구: {}/{}", folder, jenkinsJobName);
@@ -93,5 +97,18 @@ public class JenkinsReconciler {
         if (created > 0) {
             log.info("Reconciliation 완료: created={}", created);
         }
+    }
+
+    private Set<String> extractConfigJsonKeys(PipelineJob job) {
+        try {
+            if (job.getConfigJson() != null && !job.getConfigJson().isBlank()) {
+                Map<String, Object> config = objectMapper.readValue(
+                        job.getConfigJson(), new TypeReference<>() {});
+                return config.keySet();
+            }
+        } catch (Exception e) {
+            log.warn("configJson 키 추출 실패: jobId={}: {}", job.getId(), e.getMessage());
+        }
+        return Set.of();
     }
 }

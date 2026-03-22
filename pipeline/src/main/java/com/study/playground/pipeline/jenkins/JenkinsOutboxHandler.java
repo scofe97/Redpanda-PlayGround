@@ -7,9 +7,13 @@ import com.study.playground.pipeline.domain.PipelineJobType;
 import com.study.playground.kafka.outbox.OutboxEvent;
 import com.study.playground.kafka.outbox.OutboxEventHandler;
 import com.study.playground.pipeline.mapper.JobMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+
+import java.util.Map;
+import java.util.Set;
 
 /**
  * JENKINS aggregate 타입의 Outbox 이벤트를 처리하여 Jenkins API를 호출한다.
@@ -71,10 +75,11 @@ public class JenkinsOutboxHandler implements OutboxEventHandler {
         String folderName = PipelineJobType.valueOf(jobType).toFolderName();
         String jenkinsJobName = "playground-job-%d".formatted(jobId);
 
-        jenkinsAdapter.upsertPipelineJob(folderName, jenkinsJobName, script);
+        Set<String> configParams = extractConfigJsonKeys(jobId);
+        jenkinsAdapter.upsertPipelineJob(folderName, jenkinsJobName, script, configParams);
         jobMapper.updateJenkinsStatus(jobId, "ACTIVE");
 
-        log.info("Jenkins 파이프라인 생성 완료: {}/{}", folderName, jenkinsJobName);
+        log.info("Jenkins 파이프라인 생성 완료: {}/{} (configParams={})", folderName, jenkinsJobName, configParams);
     }
 
     private void handleUpdate(JsonNode payload) {
@@ -84,9 +89,25 @@ public class JenkinsOutboxHandler implements OutboxEventHandler {
         String folderName = PipelineJobType.valueOf(jobType).toFolderName();
         String jenkinsJobName = "playground-job-%d".formatted(jobId);
 
-        jenkinsAdapter.upsertPipelineJob(folderName, jenkinsJobName, script);
+        Set<String> configParams = extractConfigJsonKeys(jobId);
+        jenkinsAdapter.upsertPipelineJob(folderName, jenkinsJobName, script, configParams);
 
-        log.info("Jenkins 파이프라인 업데이트 완료: {}/{}", folderName, jenkinsJobName);
+        log.info("Jenkins 파이프라인 업데이트 완료: {}/{} (configParams={})", folderName, jenkinsJobName, configParams);
+    }
+
+    /** DB에서 Job의 configJson을 조회하여 키 목록을 추출한다. */
+    private Set<String> extractConfigJsonKeys(Long jobId) {
+        try {
+            var job = jobMapper.findById(jobId);
+            if (job != null && job.getConfigJson() != null && !job.getConfigJson().isBlank()) {
+                Map<String, Object> config = objectMapper.readValue(
+                        job.getConfigJson(), new TypeReference<>() {});
+                return config.keySet();
+            }
+        } catch (Exception e) {
+            log.warn("configJson 키 추출 실패: jobId={}: {}", jobId, e.getMessage());
+        }
+        return Set.of();
     }
 
     private void handleDelete(JsonNode payload) {

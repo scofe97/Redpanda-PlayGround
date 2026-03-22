@@ -33,6 +33,7 @@ controller:
     -Xmx1g -Xms512m
     -Dfile.encoding=UTF-8
     -Dsun.jnu.encoding=UTF-8
+    -Dhudson.model.ParametersAction.keepUndefinedParameters=true
 
   serviceType: NodePort
   nodePort: 31080
