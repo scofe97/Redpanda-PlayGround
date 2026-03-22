@@ -33,7 +33,7 @@ export default function PipelineCreatePage() {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className="max-w-2xl mx-auto py-10 px-8">
+      <div className="max-w-[1200px] mx-auto py-10 px-8">
         {/* Header */}
         <div className="flex items-center gap-3 mb-8">
           <button
