@@ -287,16 +287,6 @@ export default function PipelineDetailPage() {
               </div>
             </div>
 
-            {/* Section C: Execution */}
-            <PipelineExecutionPanel
-              pipelineId={pipelineId}
-              onExecute={handleExecuteClick}
-              isPending={executePipeline.isPending}
-              onSelectExecution={setSelectedExecutionId}
-              selectedExecutionId={effectiveSelectedId}
-              rawSelectedExecutionId={selectedExecutionId}
-            />
-
             {showParamModal && (
               <ParameterInputModal
                 schemas={schemas}
@@ -416,6 +406,16 @@ export default function PipelineDetailPage() {
                 <LiveDagGraph jobs={dagJobs} execution={selectedExecution} />
               </div>
             </div>
+
+            {/* Execution Panel — DAG 하단 */}
+            <PipelineExecutionPanel
+              pipelineId={pipelineId}
+              onExecute={handleExecuteClick}
+              isPending={executePipeline.isPending}
+              onSelectExecution={setSelectedExecutionId}
+              selectedExecutionId={effectiveSelectedId}
+              rawSelectedExecutionId={selectedExecutionId}
+            />
           </div>
         </div>
       </div>
