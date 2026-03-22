@@ -378,8 +378,11 @@ GCP에 kubeadm으로 구축한 3대 K8s 클러스터에서 운영한다.
 | **rp-jenkins** | Jenkins | 8080 | 31080 | Helm |
 | **rp-mgm** | Grafana | 80 | 30000 | |
 | **rp-mgm** | Alloy (OTLP) | 4317/4318 | 30317/30318 | |
+| **rp-gitlab** | GitLab CE | 8181 | 31480 | Helm |
 | **ingress-nginx** | Ingress | 80/443 | 31292/31726 | |
 | **argocd** | ArgoCD | - | 31134 | |
+
+> dev-server의 control-plane taint 제거됨 (GitLab 스케줄링을 위해). 모든 노드에 Pod 배치 가능.
 
 ### 앱 연결 (`application-gcp.yml`)
 
@@ -406,7 +409,7 @@ make monitoring   # Grafana, Loki, Tempo, Alloy, Prometheus
 
 ## DB 마이그레이션 (Flyway)
 
-V1~V35까지 35개 마이그레이션. 주요 변경점만 기술한다.
+V1~V38까지 38개 마이그레이션. 주요 변경점만 기술한다.
 
 ### 기반 테이블 (V1~V9)
 
