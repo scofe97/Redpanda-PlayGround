@@ -220,7 +220,7 @@ export default function PipelineDetailPage() {
 
   return (
     <div className="flex-1 overflow-y-auto p-8">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-[1600px] mx-auto">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div className="flex items-center gap-4">
@@ -286,6 +286,16 @@ export default function PipelineDetailPage() {
                 </div>
               </div>
             </div>
+
+            {/* Section C: Execution */}
+            <PipelineExecutionPanel
+              pipelineId={pipelineId}
+              onExecute={handleExecuteClick}
+              isPending={executePipeline.isPending}
+              onSelectExecution={setSelectedExecutionId}
+              selectedExecutionId={effectiveSelectedId}
+              rawSelectedExecutionId={selectedExecutionId}
+            />
 
             {showParamModal && (
               <ParameterInputModal
@@ -407,15 +417,58 @@ export default function PipelineDetailPage() {
               </div>
             </div>
 
-            {/* Execution Panel — DAG 하단 */}
-            <PipelineExecutionPanel
-              pipelineId={pipelineId}
-              onExecute={handleExecuteClick}
-              isPending={executePipeline.isPending}
-              onSelectExecution={setSelectedExecutionId}
-              selectedExecutionId={effectiveSelectedId}
-              rawSelectedExecutionId={selectedExecutionId}
-            />
+            {/* Job Execution Logs — DAG 하단 */}
+            {selectedExecution && selectedExecution.jobExecutions && selectedExecution.jobExecutions.length > 0 && (
+              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+                <div className="p-5 border-b border-slate-100 dark:border-slate-800">
+                  <h3 className="font-bold">실행 로그</h3>
+                </div>
+                <div className="p-5 space-y-3">
+                  {[...selectedExecution.jobExecutions]
+                    .sort((a, b) => a.jobOrder - b.jobOrder)
+                    .map((job) => {
+                      const statusMap: Record<string, { icon: string; className: string }> = {
+                        PENDING: { icon: 'hourglass_empty', className: 'text-amber-600' },
+                        RUNNING: { icon: 'sync', className: 'text-blue-600' },
+                        SUCCESS: { icon: 'check_circle', className: 'text-emerald-600' },
+                        FAILED: { icon: 'error', className: 'text-red-600' },
+                        WAITING_WEBHOOK: { icon: 'webhook', className: 'text-purple-600' },
+                        COMPENSATED: { icon: 'undo', className: 'text-orange-600' },
+                        SKIPPED: { icon: 'skip_next', className: 'text-slate-500' },
+                      };
+                      const s = statusMap[job.status] ?? { icon: 'help', className: 'text-slate-500' };
+                      return (
+                        <div key={job.id} className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+                          <div className="flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-800/50">
+                            <div className="flex items-center gap-3">
+                              <span className="text-xs font-bold text-slate-400 w-5 text-center">{job.jobOrder}</span>
+                              <span className={`material-symbols-outlined text-[16px] ${s.className}${job.status === 'RUNNING' ? ' animate-spin' : ''}`}>{s.icon}</span>
+                              <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{job.jobName}</span>
+                              <span className="text-[10px] uppercase text-slate-400">{job.jobType}</span>
+                            </div>
+                            <div className="flex items-center gap-3 text-[11px] text-slate-400">
+                              {job.retryCount > 0 && (
+                                <span className="text-amber-500 font-medium">retry: {job.retryCount}</span>
+                              )}
+                              {job.startedAt && (
+                                <span>{new Date(job.startedAt).toLocaleTimeString()}</span>
+                              )}
+                              {job.completedAt && (
+                                <span>→ {new Date(job.completedAt).toLocaleTimeString()}</span>
+                              )}
+                            </div>
+                          </div>
+                          {job.log && (
+                            <pre className="px-4 py-3 text-[11px] font-mono text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 whitespace-pre-wrap break-all max-h-48 overflow-y-auto">
+                              {job.log}
+                            </pre>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
