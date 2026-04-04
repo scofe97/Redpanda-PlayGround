@@ -24,7 +24,7 @@ RunListener.all().add(new RunListener<Run>() {
         def executionId  = paramsAction?.getParameter('EXECUTION_ID')?.value
         if (!executionId) return
 
-        def stepOrder  = paramsAction?.getParameter('STEP_ORDER')?.value ?: '0'
+        def jobId = paramsAction?.getParameter('JOB_ID')?.value ?: '0'
 
         // --- 2. 빌드 메타데이터 수집 ---
 
@@ -39,7 +39,7 @@ RunListener.all().add(new RunListener<Run>() {
         def payload = """\
             {
               "executionId": "${executionId}",
-              "stepOrder":   ${stepOrder},
+              "jobId":       ${jobId},
               "result":      "${result}",
               "buildNumber": ${buildNumber},
               "jobName":     "${jobName}",

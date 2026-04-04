@@ -1,0 +1,18 @@
+{
+  "type": "record",
+  "name": "ControlSignal",
+  "namespace": "com.study.playground.avro.pipeline",
+  "fields": [
+    {"name": "executionId", "type": "string"},
+    {"name": "signalType", "type": {
+      "type": "enum",
+      "name": "ControlSignalType",
+      "namespace": "com.study.playground.avro.pipeline",
+      "symbols": ["EXECUTION_PIPELINE_START", "EXECUTION_JOB_COMPLETE", "EXECUTION_JOB_RETRY"]
+    }},
+    {"name": "jenkinsUrl", "type": ["null", "string"], "default": null},
+    {"name": "jobId", "type": ["null", "long"], "default": null},
+    {"name": "attempt", "type": "int", "default": 0},
+    {"name": "timestamp", "type": "string"}
+  ]
+}

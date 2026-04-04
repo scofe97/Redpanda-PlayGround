@@ -1,0 +1,21 @@
+{
+  "type": "record",
+  "name": "JobDispatchCommand",
+  "namespace": "com.study.playground.avro.pipeline",
+  "fields": [
+    {"name": "executionId", "type": "string"},
+    {"name": "jobId", "type": "long"},
+    {"name": "jobName", "type": "string"},
+    {"name": "jobType", "type": "string"},
+    {"name": "jenkinsUrl", "type": "string"},
+    {"name": "jenkinsUser", "type": ["null", "string"], "default": null},
+    {"name": "jenkinsToken", "type": ["null", "string"], "default": null},
+    {"name": "purposeId", "type": ["null", "long"], "default": null},
+    {"name": "configJson", "type": ["null", "string"], "default": null},
+    {"name": "resolvedParams", "type": {"type": "map", "values": "string"}, "default": {}},
+    {"name": "executionContext", "type": {"type": "map", "values": "string"}, "default": {}},
+    {"name": "attempt", "type": "int", "default": 0},
+    {"name": "idempotencyKey", "type": "string"},
+    {"name": "timestamp", "type": "string"}
+  ]
+}

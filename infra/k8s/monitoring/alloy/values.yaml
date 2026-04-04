@@ -184,7 +184,7 @@ alloy:
         forward_to      = [prometheus.remote_write.default.receiver]
       }
 
-      // Redpanda, Connect (rp-oss 네임스페이스) — 고정 주소로 직접 scrape
+      // Redpanda (rp-oss 네임스페이스) — 고정 주소로 직접 scrape
       prometheus.scrape "redpanda" {
         targets = [{
           __address__ = "redpanda.rp-oss.svc.cluster.local:9644",
@@ -193,22 +193,8 @@ alloy:
         forward_to      = [prometheus.remote_write.default.receiver]
       }
 
-      // Redpanda Connect
-      prometheus.scrape "connect_command" {
-        targets = [{
-          __address__ = "connect.rp-oss.svc.cluster.local:4195",
-        }]
-        scrape_interval = "15s"
-        forward_to      = [prometheus.remote_write.default.receiver]
-      }
-
-      prometheus.scrape "connect_webhook" {
-        targets = [{
-          __address__ = "connect.rp-oss.svc.cluster.local:4198",
-        }]
-        scrape_interval = "15s"
-        forward_to      = [prometheus.remote_write.default.receiver]
-      }
+      // Redpanda Connect 제거됨 — JenkinsCommandConsumer가 Kafka 직접 소비,
+      // Jenkins가 rpk로 Kafka에 직접 produce하므로 Connect 불필요
 
       prometheus.remote_write "default" {
         endpoint {

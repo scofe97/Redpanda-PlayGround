@@ -8,83 +8,49 @@ import org.springframework.kafka.config.TopicBuilder;
 @Configuration
 public class TopicConfig {
 
+    // --- Executor topics ---
+
     @Bean
-    public NewTopic pipelineCmdExecutionTopic() {
-        return TopicBuilder.name(Topics.PIPELINE_CMD_EXECUTION)
+    public NewTopic executorCmdJobDispatchTopic() {
+        return TopicBuilder.name(Topics.EXECUTOR_CMD_JOB_DISPATCH)
                 .partitions(3)
-                .replicas(1) // TODO: Production에서는 replicas(3) + min.insync.replicas=2로 변경 필요
+                .replicas(1)
                 .config("retention.ms", String.valueOf(7L * 24 * 60 * 60 * 1000))
                 .build();
     }
 
     @Bean
-    public NewTopic pipelineCmdJenkinsTopic() {
-        return TopicBuilder.name(Topics.PIPELINE_CMD_JENKINS)
+    public NewTopic executorCmdJobExecuteTopic() {
+        return TopicBuilder.name(Topics.EXECUTOR_CMD_JOB_EXECUTE)
                 .partitions(3)
-                .replicas(1) // TODO: Production에서는 replicas(3) + min.insync.replicas=2로 변경 필요
+                .replicas(1)
                 .config("retention.ms", String.valueOf(7L * 24 * 60 * 60 * 1000))
                 .build();
     }
 
     @Bean
-    public NewTopic pipelineEvtStepChangedTopic() {
-        return TopicBuilder.name(Topics.PIPELINE_EVT_STEP_CHANGED)
-                .partitions(3)
-                .replicas(1) // TODO: Production에서는 replicas(3) + min.insync.replicas=2로 변경 필요
-                .config("retention.ms", String.valueOf(7L * 24 * 60 * 60 * 1000))
-                .build();
-    }
-
-    @Bean
-    public NewTopic pipelineEvtCompletedTopic() {
-        return TopicBuilder.name(Topics.PIPELINE_EVT_COMPLETED)
-                .partitions(3)
-                .replicas(1) // TODO: Production에서는 replicas(3) + min.insync.replicas=2로 변경 필요
-                .config("retention.ms", String.valueOf(7L * 24 * 60 * 60 * 1000))
-                .build();
-    }
-
-    @Bean
-    public NewTopic ticketEventsTopic() {
-        return TopicBuilder.name(Topics.TICKET_EVENTS)
-                .partitions(3)
-                .replicas(1) // TODO: Production에서는 replicas(3) + min.insync.replicas=2로 변경 필요
-                .config("retention.ms", String.valueOf(7L * 24 * 60 * 60 * 1000))
-                .build();
-    }
-
-    @Bean
-    public NewTopic webhookInboundTopic() {
-        return TopicBuilder.name(Topics.WEBHOOK_INBOUND)
-                .partitions(2)
-                .replicas(1) // TODO: Production에서는 replicas(3) + min.insync.replicas=2로 변경 필요
-                .config("retention.ms", String.valueOf(3L * 24 * 60 * 60 * 1000))
-                .build();
-    }
-
-    @Bean
-    public NewTopic auditEventsTopic() {
-        return TopicBuilder.name(Topics.AUDIT_EVENTS)
+    public NewTopic executorEvtJobStartedTopic() {
+        return TopicBuilder.name(Topics.EXECUTOR_EVT_JOB_STARTED)
                 .partitions(1)
-                .replicas(1) // TODO: Production에서는 replicas(3) + min.insync.replicas=2로 변경 필요
-                .config("retention.ms", String.valueOf(30L * 24 * 60 * 60 * 1000))
-                .build();
-    }
-
-    @Bean
-    public NewTopic pipelineEvtDagJobTopic() {
-        return TopicBuilder.name(Topics.PIPELINE_EVT_DAG_JOB)
-                .partitions(3)
-                .replicas(1) // TODO: Production에서는 replicas(3) + min.insync.replicas=2로 변경 필요
+                .replicas(1)
                 .config("retention.ms", String.valueOf(7L * 24 * 60 * 60 * 1000))
                 .build();
     }
 
     @Bean
-    public NewTopic dlqTopic() {
-        return TopicBuilder.name(Topics.DLQ)
+    public NewTopic executorEvtJobCompletedTopic() {
+        return TopicBuilder.name(Topics.EXECUTOR_EVT_JOB_COMPLETED)
                 .partitions(1)
-                .replicas(1) // TODO: Production에서는 replicas(3) + min.insync.replicas=2로 변경 필요
+                .replicas(1)
+                .config("retention.ms", String.valueOf(7L * 24 * 60 * 60 * 1000))
+                .build();
+    }
+
+    @Bean
+    public NewTopic executorDlqJobTopic() {
+        return TopicBuilder.name(Topics.EXECUTOR_DLQ_JOB)
+                .partitions(1)
+                .replicas(1)
                 .config("retention.ms", String.valueOf(30L * 24 * 60 * 60 * 1000))
                 .build();
     }

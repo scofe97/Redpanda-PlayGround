@@ -3,8 +3,8 @@ plugins {
 }
 
 dependencies {
-    // MyBatis (ProcessedEventMapper 등에서 @Mapper 사용)
-    api 'org.mybatis.spring.boot:mybatis-spring-boot-starter:3.0.3'
+    // JPA (ProcessedEventRepository 등에서 사용)
+    api 'org.springframework.boot:spring-boot-starter-data-jpa'
 
     // Spring Web (GlobalExceptionHandler에서 @RestControllerAdvice 사용)
     compileOnly 'org.springframework.boot:spring-boot-starter-web'

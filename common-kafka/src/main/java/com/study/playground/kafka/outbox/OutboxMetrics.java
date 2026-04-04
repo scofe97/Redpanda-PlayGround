@@ -17,7 +17,7 @@ public class OutboxMetrics {
     private final Counter failedCounter;
     private final Counter deadCounter;
 
-    public OutboxMetrics(MeterRegistry registry, OutboxMapper outboxMapper) {
+    public OutboxMetrics(MeterRegistry registry, OutboxEventRepository outboxEventRepository) {
         this.publishedCounter = Counter.builder("outbox.events.published")
                 .description("Number of outbox events successfully published to Kafka")
                 .register(registry);
@@ -28,8 +28,8 @@ public class OutboxMetrics {
                 .description("Number of outbox events marked as DEAD after max retries")
                 .register(registry);
         registry.gauge("outbox.queue.pending"
-                , outboxMapper
-                , OutboxMapper::countPending);
+                , outboxEventRepository
+                , OutboxEventRepository::countPending);
     }
 
     public void incrementPublished() { publishedCounter.increment(); }

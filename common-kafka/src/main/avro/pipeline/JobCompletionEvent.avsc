@@ -1,0 +1,20 @@
+{
+  "type": "record",
+  "name": "JobCompletionEvent",
+  "namespace": "com.study.playground.avro.pipeline",
+  "fields": [
+    {"name": "executionId", "type": "string"},
+    {"name": "jobId", "type": "long"},
+    {"name": "jobName", "type": "string"},
+    {"name": "jobType", "type": "string"},
+    {"name": "success", "type": "boolean"},
+    {"name": "jenkinsUrl", "type": "string"},
+    {"name": "durationMs", "type": "long", "default": 0},
+    {"name": "retryCount", "type": "int", "default": 0},
+    {"name": "logSnippet", "type": ["null", "string"], "default": null},
+    {"name": "errorMessage", "type": ["null", "string"], "default": null},
+    {"name": "artifactUrl", "type": ["null", "string"], "default": null},
+    {"name": "idempotencyKey", "type": "string"},
+    {"name": "timestamp", "type": "string"}
+  ]
+}

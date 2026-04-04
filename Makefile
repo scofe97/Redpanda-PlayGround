@@ -3,7 +3,8 @@ export JAVA_HOME := $(JAVA_HOME_21)
 
 .PHONY: help infra db nexus infra-all infra-down infra-logs backend build test frontend frontend-build dev clean console asyncapi app \
        setup-gitlab setup-nexus setup-nexus-k8s setup-registry setup-jenkins setup-all demo-deploy demo-full \
-       monitoring monitoring-down grafana
+       monitoring monitoring-down grafana \
+       executor executor-local operator-stub operator-stub-local
 
 help: ## 사용 가능한 명령어 목록
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -37,6 +38,18 @@ backend: ## Spring Boot 백엔드 실행 (GCP 프로필 기본 — 로컬은 mak
 
 backend-local: ## Spring Boot 백엔드 실행 (로컬 DB/Redpanda)
 	./gradlew :app:bootRun
+
+executor: ## Executor 서비스 실행 (GCP 프로필)
+	SPRING_PROFILES_ACTIVE=gcp ./gradlew :executor:bootRun
+
+executor-local: ## Executor 서비스 실행 (로컬)
+	./gradlew :executor:bootRun
+
+operator-stub: ## Operator Stub 실행 (GCP 프로필)
+	SPRING_PROFILES_ACTIVE=gcp ./gradlew :operator-stub:bootRun
+
+operator-stub-local: ## Operator Stub 실행 (로컬)
+	./gradlew :operator-stub:bootRun
 
 build: ## 백엔드 빌드 (테스트 제외)
 	./gradlew clean build -x test

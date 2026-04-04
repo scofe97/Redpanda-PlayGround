@@ -55,15 +55,6 @@ serverFiles:
               summary: "Redpanda broker is down"
               description: "Redpanda broker has been unreachable for more than 1 minute."
 
-          - alert: ConnectDown
-            expr: up{job=~"connect.*"} == 0
-            for: 1m
-            labels:
-              severity: critical
-            annotations:
-              summary: "Redpanda Connect is down"
-              description: "Connect pipeline has been unreachable for more than 1 minute."
-
           - alert: SpringBootDown
             expr: up{job="spring_boot"} == 0
             for: 2m
@@ -120,24 +111,14 @@ serverFiles:
       - name: business
         rules:
           - alert: DLQAccumulating
-            expr: rate(output_error[5m]) > 0
+            expr: |
+              sum(rate(spring_kafka_listener_seconds_count{result="failure"}[5m])) > 0
             for: 10m
             labels:
               severity: warning
             annotations:
               summary: "DLQ messages accumulating"
-              description: "Connect is sending messages to DLQ for more than 10 minutes."
-
-          - alert: PipelineStuckInProgress
-            expr: |
-              (time() - max(output_sent{job=~"connect.*"}) > 300)
-              and on() (rate(input_received[5m]) > 0)
-            for: 5m
-            labels:
-              severity: warning
-            annotations:
-              summary: "Pipeline stuck - receiving but not sending"
-              description: "Connect is receiving messages but hasn't sent any in 5 minutes."
+              description: "Kafka consumer failures detected for more than 10 minutes. Check DLT topics."
 
 # ---- 불필요한 서브컴포넌트 비활성화 ----
 # Alloy가 수집 담당이므로 node-exporter, pushgateway 등 불필요

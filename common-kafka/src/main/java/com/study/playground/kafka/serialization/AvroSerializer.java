@@ -29,6 +29,7 @@ import java.util.Map;
 @Component
 public class AvroSerializer {
 
+    /** Avro logical type(Instant 등)을 올바르게 변환하기 위한 커스텀 SpecificData 모델 */
     private static final SpecificData MODEL;
 
     static {
@@ -39,12 +40,18 @@ public class AvroSerializer {
     private final KafkaAvroSerializer serializer;
     private final KafkaAvroDeserializer deserializer;
 
+    /**
+     * Schema Registry URL을 주입받아 Confluent serializer/deserializer를 초기화한다.
+     * RecordNameStrategy를 사용하여 레코드 클래스명으로 subject를 결정한다.
+     * Outbox 패턴에서 직렬화 시점에 topic을 알 수 없으므로(serialize(null, record))
+     * TopicNameStrategy는 사용할 수 없다. 토픽 분리(1토픽-1스키마)는 코드 레벨에서 보장한다.
+     */
     public AvroSerializer(@Value("${spring.kafka.properties.schema.registry.url}") String schemaRegistryUrl) {
         Map<String, Object> config = Map.of(
-                "schema.registry.url", schemaRegistryUrl,
-                "auto.register.schemas", true,
-                "specific.avro.reader", true,
-                "value.subject.name.strategy", "io.confluent.kafka.serializers.subject.RecordNameStrategy"
+                "schema.registry.url", schemaRegistryUrl
+                , "auto.register.schemas", true
+                , "specific.avro.reader", true
+                , "value.subject.name.strategy", "io.confluent.kafka.serializers.subject.RecordNameStrategy"
         );
         this.serializer = new KafkaAvroSerializer();
         this.serializer.configure(config, false);
@@ -52,6 +59,7 @@ public class AvroSerializer {
         this.deserializer.configure(config, false);
     }
 
+    /** Confluent wire format(0x00 + schema ID + binary)으로 직렬화한다. topic은 null — RecordNameStrategy이므로 불필요. */
     public byte[] serialize(SpecificRecord record) {
         try {
             return serializer.serialize(null, record);
@@ -60,7 +68,7 @@ public class AvroSerializer {
         }
     }
 
-    @SuppressWarnings("unchecked")
+    /** Confluent wire format 바이트 배열을 SpecificRecord로 역직렬화한다. schema 파라미터는 타입 힌트용. */
     public <T extends SpecificRecord> T deserialize(byte[] data, Schema schema) {
         try {
             return (T) deserializer.deserialize(null, data);
