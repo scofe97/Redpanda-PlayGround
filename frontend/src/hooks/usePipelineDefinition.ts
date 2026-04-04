@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { pipelineDefinitionApi, CreatePipelineRequest, UpdateMappingsRequest } from '../api/pipelineDefinitionApi';
-import { presetApi, PresetRequest } from '../api/presetApi';
+import { purposeApi, PurposeRequest } from '../api/purposeApi';
 
 export function usePipelineDefinitionList() {
   return useQuery({
@@ -17,45 +17,45 @@ export function usePipelineDefinition(id: number) {
   });
 }
 
-export function usePresetList() {
+export function usePurposeList() {
   return useQuery({
-    queryKey: ['presets'],
-    queryFn: () => presetApi.list(),
+    queryKey: ['purposes'],
+    queryFn: () => purposeApi.list(),
   });
 }
 
-export function usePreset(id: number) {
+export function usePurpose(id: number) {
   return useQuery({
-    queryKey: ['preset', id],
-    queryFn: () => presetApi.get(id),
+    queryKey: ['purpose', id],
+    queryFn: () => purposeApi.get(id),
     enabled: id > 0,
   });
 }
 
-export function useCreatePreset() {
+export function useCreatePurpose() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: PresetRequest) => presetApi.create(data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['presets'] }),
+    mutationFn: (data: PurposeRequest) => purposeApi.create(data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['purposes'] }),
   });
 }
 
-export function useUpdatePreset() {
+export function useUpdatePurpose() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: number; data: PresetRequest }) => presetApi.update(id, data),
+    mutationFn: ({ id, data }: { id: number; data: PurposeRequest }) => purposeApi.update(id, data),
     onSuccess: (_, { id }) => {
-      queryClient.invalidateQueries({ queryKey: ['preset', id] });
-      queryClient.invalidateQueries({ queryKey: ['presets'] });
+      queryClient.invalidateQueries({ queryKey: ['purpose', id] });
+      queryClient.invalidateQueries({ queryKey: ['purposes'] });
     },
   });
 }
 
-export function useDeletePreset() {
+export function useDeletePurpose() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => presetApi.delete(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['presets'] }),
+    mutationFn: (id: number) => purposeApi.delete(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['purposes'] }),
   });
 }
 

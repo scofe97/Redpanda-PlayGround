@@ -90,7 +90,7 @@ export default function JobListPage() {
               <th className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">ID</th>
               <th className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">이름</th>
               <th className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">타입</th>
-              <th className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">프리셋</th>
+              <th className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">목적</th>
               <th className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">Jenkins</th>
               <th className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">생성일</th>
               <th className="px-6 py-4 border-b border-slate-200 dark:border-slate-800">액션</th>
@@ -110,7 +110,7 @@ export default function JobListPage() {
                   <td className="px-6 py-4 text-sm font-medium text-slate-500">#{job.id}</td>
                   <td className="px-6 py-4 text-sm font-semibold text-slate-700 dark:text-slate-200">{job.jobName}</td>
                   <td className="px-6 py-4 text-sm text-slate-500">{JOB_TYPE_LABEL[job.jobType] ?? job.jobType}</td>
-                  <td className="px-6 py-4 text-sm text-slate-500">{job.presetName || '-'}</td>
+                  <td className="px-6 py-4 text-sm text-slate-500">{job.purposeName || '-'}</td>
                   <td className="px-6 py-4 text-sm">
                     {badge ? (
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${badge.className}`}>

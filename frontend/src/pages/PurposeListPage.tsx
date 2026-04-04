@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { usePresetList, useDeletePreset } from '../hooks/usePipelineDefinition';
-import PresetFormDrawer from '../components/PresetFormDrawer';
+import { usePurposeList, useDeletePurpose } from '../hooks/usePipelineDefinition';
+import { useProjectList } from '../hooks/useProject';
+import PurposeFormDrawer from '../components/PurposeFormDrawer';
 
 const CATEGORY_DISPLAY: Record<string, { label: string; icon: string }> = {
   CI_CD_TOOL: { label: 'CI/CD', icon: 'build' },
@@ -12,16 +13,24 @@ const CATEGORY_DISPLAY: Record<string, { label: string; icon: string }> = {
   CLUSTER_APPLICATION: { label: 'Cluster App', icon: 'hub' },
 };
 
-export default function PresetListPage() {
-  const { data: presets, isLoading, error } = usePresetList();
-  const deletePreset = useDeletePreset();
+export default function PurposeListPage() {
+  const { data: purposes, isLoading, error } = usePurposeList();
+  const { data: projects } = useProjectList();
+  const deletePurpose = useDeletePurpose();
+
+  const projectNameMap = new Map(projects?.map((p) => [p.id, p.name]) ?? []);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [editPresetId, setEditPresetId] = useState<number | undefined>();
+  const [editPurposeId, setEditPurposeId] = useState<number | undefined>();
+  const [selectedProjectId, setSelectedProjectId] = useState<number | 'all'>('all');
+
+  const filteredPurposes = purposes?.filter((p) =>
+    selectedProjectId === 'all' ? true : p.projectId === selectedProjectId
+  ) ?? [];
 
   const handleDelete = async (id: number, name: string) => {
-    if (!confirm(`"${name}" 프리셋을 삭제하시겠습니까?`)) return;
+    if (!confirm(`"${name}" 목적을 삭제하시겠습니까?`)) return;
     try {
-      await deletePreset.mutateAsync(id);
+      await deletePurpose.mutateAsync(id);
       toast.success('삭제되었습니다');
     } catch {
       toast.error('삭제에 실패했습니다');
@@ -29,18 +38,18 @@ export default function PresetListPage() {
   };
 
   const openCreate = () => {
-    setEditPresetId(undefined);
+    setEditPurposeId(undefined);
     setDrawerOpen(true);
   };
 
   const openEdit = (id: number) => {
-    setEditPresetId(id);
+    setEditPurposeId(id);
     setDrawerOpen(true);
   };
 
   const closeDrawer = () => {
     setDrawerOpen(false);
-    setEditPresetId(undefined);
+    setEditPurposeId(undefined);
   };
 
   if (isLoading) {
@@ -55,7 +64,7 @@ export default function PresetListPage() {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-lg font-bold">Failed to load presets</h2>
+          <h2 className="text-lg font-bold">Failed to load purposes</h2>
           <p className="text-red-600 mt-2 text-sm">{error.message}</p>
         </div>
       </div>
@@ -69,48 +78,77 @@ export default function PresetListPage() {
         <header className="h-16 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-8 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-primary">tune</span>
-            <h2 className="text-lg font-bold">프리셋 관리</h2>
+            <h2 className="text-lg font-bold">목적 관리</h2>
           </div>
           <button
             onClick={openCreate}
             className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all"
           >
             <span className="material-symbols-outlined text-sm">add</span>
-            프리셋 추가
+            목적 추가
           </button>
         </header>
 
+        {/* Project Filter */}
+        {projects && projects.length > 0 && (
+          <div className="px-8 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-500 uppercase">프로젝트:</span>
+            <button
+              onClick={() => setSelectedProjectId('all')}
+              className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${selectedProjectId === 'all' ? 'bg-primary text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'}`}
+            >
+              전체
+            </button>
+            {projects.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => setSelectedProjectId(p.id)}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${selectedProjectId === p.id ? 'bg-primary text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'}`}
+              >
+                {p.name}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-8 space-y-6">
-          {(!presets || presets.length === 0) ? (
+          {filteredPurposes.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-24 text-slate-400">
               <span className="material-symbols-outlined text-4xl mb-3">tune</span>
-              <p className="text-sm font-medium">등록된 프리셋이 없습니다</p>
-              <p className="text-xs mt-1">프리셋 추가 버튼을 눌러 시작하세요</p>
+              <p className="text-sm font-medium">등록된 목적이 없습니다</p>
+              <p className="text-xs mt-1">목적 추가 버튼을 눌러 시작하세요</p>
             </div>
           ) : (
-            presets.map((preset) => (
+            filteredPurposes.map((purpose) => (
               <div
-                key={preset.id}
+                key={purpose.id}
                 className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden"
               >
                 {/* Card Header */}
                 <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <p className="font-bold text-slate-900 dark:text-slate-100 truncate">{preset.name}</p>
-                    {preset.description && (
-                      <p className="text-xs text-slate-500 mt-0.5 truncate">{preset.description}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-bold text-slate-900 dark:text-slate-100 truncate">{purpose.name}</p>
+                      {purpose.projectId && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                          {projectNameMap.get(purpose.projectId) ?? '프로젝트'}
+                        </span>
+                      )}
+                    </div>
+                    {purpose.description && (
+                      <p className="text-xs text-slate-500 mt-0.5 truncate">{purpose.description}</p>
                     )}
                   </div>
                   <div className="flex items-center gap-3 flex-shrink-0">
                     <button
-                      onClick={() => openEdit(preset.id)}
+                      onClick={() => openEdit(purpose.id)}
                       className="text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-primary underline"
                     >
                       수정
                     </button>
                     <button
-                      onClick={() => handleDelete(preset.id, preset.name)}
+                      onClick={() => handleDelete(purpose.id, purpose.name)}
                       className="text-xs font-bold text-red-500 hover:text-red-600 underline"
                     >
                       삭제
@@ -120,11 +158,11 @@ export default function PresetListPage() {
 
                 {/* Card Body */}
                 <div className="px-6 py-4">
-                  {preset.entries.length === 0 ? (
+                  {purpose.entries.length === 0 ? (
                     <p className="text-xs text-slate-400">도구 항목이 없습니다</p>
                   ) : (
                     <div className="flex flex-wrap gap-2">
-                      {preset.entries.map((entry) => {
+                      {purpose.entries.map((entry) => {
                         const cat = CATEGORY_DISPLAY[entry.category];
                         return (
                           <div
@@ -153,7 +191,7 @@ export default function PresetListPage() {
         </div>
       </div>
 
-      <PresetFormDrawer isOpen={drawerOpen} onClose={closeDrawer} editPresetId={editPresetId} />
+      <PurposeFormDrawer isOpen={drawerOpen} onClose={closeDrawer} editPurposeId={editPurposeId} />
     </>
   );
 }

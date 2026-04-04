@@ -24,7 +24,7 @@ export default function PipelineExecutionPanel({ pipelineId, onExecute, isPendin
 
   const latest = sorted[0];
   const history = sorted.slice(1, 5);
-  const isRunning = latest?.status === 'RUNNING' || latest?.status === 'WAITING_WEBHOOK';
+  const isRunning = latest?.status === 'RUNNING' || latest?.status === 'WAITING_WEBHOOK' || latest?.status === 'WAITING_EXECUTOR';
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">

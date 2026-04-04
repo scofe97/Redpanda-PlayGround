@@ -5,11 +5,12 @@ interface SidebarProps {
 }
 
 const navItems = [
-  { to: '/tickets', icon: 'confirmation_number', label: '티켓' },
   { to: '/jobs', icon: 'work', label: 'Job' },
   { to: '/pipelines', icon: 'account_tree', label: '파이프라인' },
-  { to: '/presets', icon: 'tune', label: '프리셋' },
+  { to: '/projects', icon: 'folder', label: '프로젝트' },
+  { to: '/purposes', icon: 'tune', label: '목적' },
   { to: '/tools', icon: 'construction', label: '도구' },
+  { to: '/artifacts', icon: 'upload_file', label: '아티팩트' },
 ];
 
 export default function Sidebar({ currentPath }: SidebarProps) {

@@ -23,8 +23,8 @@ export interface PipelineJobResponse {
   jobName: string;
   jobType: string;
   configJson?: string;
-  presetId?: number;
-  presetName?: string;
+  purposeId?: number;
+  purposeName?: string;
   parameterSchemas?: ParameterSchema[];
   executionOrder: number;
   dependsOnJobIds: number[];
@@ -35,6 +35,7 @@ export interface PipelineJobLocal {
   id?: number;
   jobName: string;
   jobType: string;
+  purposeName?: string;
   executionOrder: number;
   dependsOn: string[];
 }

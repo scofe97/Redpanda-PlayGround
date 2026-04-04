@@ -21,7 +21,7 @@ function toMappingLocals(jobs: PipelineJobResponse[]): PipelineJobMappingLocal[]
     jobId: j.id,
     jobName: j.jobName,
     jobType: j.jobType,
-    presetName: j.presetName,
+    purposeName: j.purposeName,
     executionOrder: j.executionOrder,
     dependsOnJobIds: j.dependsOnJobIds,
   }));
@@ -68,7 +68,7 @@ export default function PipelineDetailPage() {
 
     // 자동 선택: RUNNING 우선, 없으면 최신 실행
     const running = executions.find(
-      (e) => e.status === 'RUNNING' || e.status === 'PENDING' || e.status === 'WAITING_WEBHOOK'
+      (e) => e.status === 'RUNNING' || e.status === 'PENDING' || e.status === 'WAITING_WEBHOOK' || e.status === 'WAITING_EXECUTOR'
     );
     if (running) return running;
 
@@ -94,6 +94,7 @@ export default function PipelineDetailPage() {
     id: m.jobId,
     jobName: m.jobName,
     jobType: m.jobType,
+    purposeName: m.purposeName,
     executionOrder: m.executionOrder,
     dependsOn: mappings
       .filter((other) => m.dependsOnJobIds.includes(other.jobId))
@@ -367,9 +368,9 @@ export default function PipelineDetailPage() {
                                 <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{mapping.jobName}</p>
                                 <div className="flex items-center gap-2 mt-0.5">
                                   <span className="text-[10px] uppercase font-bold text-slate-500">{mapping.jobType}</span>
-                                  {mapping.presetName && (
+                                  {mapping.purposeName && (
                                     <span className="text-[10px] text-slate-400">
-                                      preset: {mapping.presetName}
+                                      목적: {mapping.purposeName}
                                     </span>
                                   )}
                                   {mapping.dependsOnJobIds.length > 0 && (
@@ -433,6 +434,7 @@ export default function PipelineDetailPage() {
                         SUCCESS: { icon: 'check_circle', className: 'text-emerald-600' },
                         FAILED: { icon: 'error', className: 'text-red-600' },
                         WAITING_WEBHOOK: { icon: 'webhook', className: 'text-purple-600' },
+                        WAITING_EXECUTOR: { icon: 'pending', className: 'text-amber-600' },
                         COMPENSATED: { icon: 'undo', className: 'text-orange-600' },
                         SKIPPED: { icon: 'skip_next', className: 'text-slate-500' },
                       };

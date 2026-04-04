@@ -37,7 +37,8 @@ export const EXECUTION_STATUS_BADGE: Record<string, { icon: string; label: strin
   RUNNING:         { icon: 'sync',            label: '실행 중',      className: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20' },
   SUCCESS:         { icon: 'check_circle',    label: '성공',         className: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20' },
   FAILED:          { icon: 'error',           label: '실패',         className: 'text-red-600 bg-red-50 dark:bg-red-900/20' },
-  WAITING_WEBHOOK: { icon: 'webhook',         label: '웹훅 대기',    className: 'text-purple-600 bg-purple-50 dark:bg-purple-900/20' },
+  WAITING_WEBHOOK:  { icon: 'webhook',         label: '웹훅 대기',    className: 'text-purple-600 bg-purple-50 dark:bg-purple-900/20' },
+  WAITING_EXECUTOR: { icon: 'pending',          label: 'Executor 대기', className: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20' },
   COMPENSATED:     { icon: 'undo',            label: '보상 처리',    className: 'text-orange-600 bg-orange-50 dark:bg-orange-900/20' },
   SKIPPED:         { icon: 'skip_next',       label: '건너뜀',       className: 'text-slate-500 bg-slate-50 dark:bg-slate-800' },
 };

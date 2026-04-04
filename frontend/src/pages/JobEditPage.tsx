@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { useJob, useUpdateJob } from '../hooks/useJobs';
-import { usePresetList } from '../hooks/usePipelineDefinition';
+import { useJob, useUpdateJob, useJobList } from '../hooks/useJobs';
+import { usePurposeList } from '../hooks/usePipelineDefinition';
+import { useProjectList } from '../hooks/useProject';
 import ConfigJsonEditor from '../components/ConfigJsonEditor';
 
 const JOB_TYPES = [
@@ -27,33 +28,46 @@ export default function JobEditPage() {
   const isValidId = !isNaN(jobId) && jobId > 0;
 
   const { data: job, isLoading, error } = useJob(isValidId ? jobId : -1);
-  const { data: presets } = usePresetList();
+  const { data: purposes } = usePurposeList();
+  const { data: projects } = useProjectList();
+  const { data: allJobs } = useJobList();
+  const buildJobs = allJobs?.filter((j) => j.jobType === 'BUILD') ?? [];
   const updateJob = useUpdateJob();
 
   const [jobName, setJobName] = useState('');
   const [jobType, setJobType] = useState('BUILD');
-  const [presetId, setPresetId] = useState<number | undefined>();
+  const [projectId, setProjectId] = useState<number | undefined>();
+  const [purposeId, setPurposeId] = useState<number | undefined>();
+
+  const filteredPurposes = purposes?.filter((p) => projectId ? p.projectId === projectId : true) ?? [];
   const [configJson, setConfigJson] = useState('');
   const [jenkinsScript, setJenkinsScript] = useState('');
-  const [artifactSource, setArtifactSource] = useState<'build' | 'nexus'>('build');
+  const [deployMode, setDeployMode] = useState<'BUILD_REQUIRED' | 'IMPORT'>('BUILD_REQUIRED');
+  const [requiredBuildJobId, setRequiredBuildJobId] = useState<number | undefined>();
   const [nexusUrl, setNexusUrl] = useState('');
 
   useEffect(() => {
     if (job) {
       setJobName(job.jobName);
       setJobType(job.jobType);
-      setPresetId(job.presetId);
+      setPurposeId(job.purposeId);
+      // 목적의 projectId로 프로젝트 자동 선택
+      const purpose = purposes?.find((p) => p.id === job.purposeId);
+      if (purpose?.projectId) setProjectId(purpose.projectId);
       setConfigJson(job.configJson ?? '');
       setJenkinsScript(job.jenkinsScript ?? '');
-      // Detect artifact source from existing configJson for DEPLOY jobs
-      if (job.jobType === 'DEPLOY' && job.configJson) {
-        try {
-          const parsed = JSON.parse(job.configJson);
-          if (parsed.ARTIFACT_URL) {
-            setArtifactSource('nexus');
-            setNexusUrl(parsed.ARTIFACT_URL);
-          }
-        } catch { /* ignore */ }
+      if (job.jobType === 'DEPLOY') {
+        setDeployMode(job.deployMode ?? 'BUILD_REQUIRED');
+        setRequiredBuildJobId(job.requiredBuildJobId);
+        // IMPORT 모드에서 Nexus URL 복원
+        if (job.deployMode === 'IMPORT' && job.configJson) {
+          try {
+            const parsed = JSON.parse(job.configJson);
+            if (parsed.ARTIFACT_URL) {
+              setNexusUrl(parsed.ARTIFACT_URL);
+            }
+          } catch { /* ignore */ }
+        }
       }
     }
   }, [job]);
@@ -113,7 +127,7 @@ export default function JobEditPage() {
 
   const resolveConfigJson = (): string | undefined => {
     if (jobType === 'DEPLOY') {
-      if (artifactSource === 'nexus' && nexusUrl.trim()) {
+      if (deployMode === 'IMPORT' && nexusUrl.trim()) {
         return JSON.stringify({ ARTIFACT_URL: nexusUrl.trim() });
       }
       return undefined;
@@ -123,16 +137,20 @@ export default function JobEditPage() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!jobName.trim() || !presetId) return;
+    if (!jobName.trim() || !purposeId) return;
     try {
       await updateJob.mutateAsync({
         id: jobId,
         data: {
           jobName: jobName.trim(),
           jobType,
-          presetId,
+          purposeId,
           configJson: resolveConfigJson(),
           jenkinsScript: jenkinsScript.trim() || undefined,
+          ...(jobType === 'DEPLOY' && {
+            deployMode,
+            requiredBuildJobId: deployMode === 'BUILD_REQUIRED' ? requiredBuildJobId : undefined,
+          }),
         },
       });
       navigate(`/jobs/${jobId}`);
@@ -181,7 +199,7 @@ export default function JobEditPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                     타입 <span className="text-red-500">*</span>
@@ -199,16 +217,34 @@ export default function JobEditPage() {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                    프리셋 <span className="text-red-500">*</span>
+                    프로젝트 <span className="text-red-500">*</span>
                   </label>
                   <select
-                    value={presetId ?? ''}
-                    onChange={(e) => setPresetId(e.target.value ? Number(e.target.value) : undefined)}
+                    value={projectId ?? ''}
+                    onChange={(e) => { setProjectId(e.target.value ? Number(e.target.value) : undefined); setPurposeId(undefined); }}
                     required
                     className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
                   >
-                    <option value="">프리셋 선택</option>
-                    {presets?.map((p) => (
+                    <option value="">프로젝트 선택</option>
+                    {projects?.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                    목적 <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={purposeId ?? ''}
+                    onChange={(e) => setPurposeId(e.target.value ? Number(e.target.value) : undefined)}
+                    required
+                    disabled={!projectId}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all disabled:opacity-50"
+                  >
+                    <option value="">{projectId ? '목적 선택' : '프로젝트를 먼저 선택'}</option>
+                    {filteredPurposes.map((p) => (
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                   </select>
@@ -232,28 +268,48 @@ export default function JobEditPage() {
             </div>
           </div>
 
-          {/* DEPLOY: Artifact Source */}
+          {/* DEPLOY: 배포 모드 */}
           {jobType === 'DEPLOY' && (
             <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
               <div className="p-5 border-b border-slate-100 dark:border-slate-800">
-                <h3 className="font-bold text-slate-700 dark:text-slate-200">아티팩트 소스</h3>
+                <h3 className="font-bold text-slate-700 dark:text-slate-200">배포 모드</h3>
               </div>
               <div className="p-5 space-y-4">
                 <label className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                  <input type="radio" name="artifactSource" value="build" checked={artifactSource === 'build'} onChange={() => setArtifactSource('build')} className="mt-0.5" />
+                  <input type="radio" name="deployMode" value="BUILD_REQUIRED" checked={deployMode === 'BUILD_REQUIRED'} onChange={() => { setDeployMode('BUILD_REQUIRED'); setNexusUrl(''); }} className="mt-0.5" />
                   <div>
                     <p className="font-semibold text-sm text-slate-700 dark:text-slate-200">빌드 연계</p>
-                    <p className="text-xs text-slate-500 mt-0.5">파이프라인에서 BUILD Job에 의존성을 설정하면 빌드 결과물이 자동으로 주입됩니다.</p>
+                    <p className="text-xs text-slate-500 mt-0.5">빌드 Job의 결과물을 배포합니다. 파이프라인에서 빌드 Job이 자동으로 연결됩니다.</p>
                   </div>
                 </label>
+                {deployMode === 'BUILD_REQUIRED' && (
+                  <div className="pl-8">
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                      빌드 Job 선택 <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={requiredBuildJobId ?? ''}
+                      onChange={(e) => setRequiredBuildJobId(e.target.value ? Number(e.target.value) : undefined)}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                    >
+                      <option value="">빌드 Job을 선택하세요</option>
+                      {buildJobs.map((j) => (
+                        <option key={j.id} value={j.id}>{j.jobName}</option>
+                      ))}
+                    </select>
+                    {buildJobs.length === 0 && (
+                      <p className="text-xs text-amber-600 mt-1.5">등록된 빌드 Job이 없습니다. 먼저 빌드 Job을 생성하세요.</p>
+                    )}
+                  </div>
+                )}
                 <label className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                  <input type="radio" name="artifactSource" value="nexus" checked={artifactSource === 'nexus'} onChange={() => setArtifactSource('nexus')} className="mt-0.5" />
+                  <input type="radio" name="deployMode" value="IMPORT" checked={deployMode === 'IMPORT'} onChange={() => { setDeployMode('IMPORT'); setRequiredBuildJobId(undefined); }} className="mt-0.5" />
                   <div>
-                    <p className="font-semibold text-sm text-slate-700 dark:text-slate-200">Nexus 직접 입력</p>
-                    <p className="text-xs text-slate-500 mt-0.5">Nexus 저장소에 이미 올라가 있는 아티팩트 URL을 직접 입력합니다.</p>
+                    <p className="font-semibold text-sm text-slate-700 dark:text-slate-200">반입 (Nexus URL)</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Nexus 저장소에 이미 올라가 있는 아티팩트 URL을 직접 입력합니다. 단독 실행 가능.</p>
                   </div>
                 </label>
-                {artifactSource === 'nexus' && (
+                {deployMode === 'IMPORT' && (
                   <div className="pl-8">
                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">ARTIFACT_URL</label>
                     <input
@@ -294,7 +350,7 @@ export default function JobEditPage() {
             </button>
             <button
               type="submit"
-              disabled={!jobName.trim() || !presetId || updateJob.isPending}
+              disabled={!jobName.trim() || !purposeId || updateJob.isPending}
               className="px-8 py-2.5 text-sm font-bold text-white bg-primary hover:bg-primary/90 rounded-lg shadow-lg shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {updateJob.isPending ? '저장 중...' : '변경사항 저장'}

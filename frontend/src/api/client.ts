@@ -59,4 +59,33 @@ export const api = {
     request<T>(path, { method: 'PUT', body: JSON.stringify(data) }),
   delete: (path: string) =>
     request<void>(path, { method: 'DELETE' }),
+  upload: <T>(path: string, formData: FormData, onProgress?: (pct: number) => void): Promise<T> => {
+    return new Promise<T>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${BASE_URL}${path}`);
+
+      if (onProgress) {
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+        });
+      }
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          const text = xhr.responseText;
+          resolve(text ? JSON.parse(text) as T : undefined as T);
+        } else {
+          try {
+            const body: ApiErrorBody = JSON.parse(xhr.responseText);
+            reject(new ApiError(body.code ?? 'UNKNOWN', body.message ?? `HTTP ${xhr.status}`, xhr.status));
+          } catch {
+            reject(new ApiError('UNKNOWN', `HTTP ${xhr.status}`, xhr.status));
+          }
+        }
+      };
+
+      xhr.onerror = () => reject(new ApiError('NETWORK', 'Network error', 0));
+      xhr.send(formData);
+    });
+  },
 };

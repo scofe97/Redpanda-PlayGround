@@ -5,7 +5,7 @@ export interface PipelineJobMappingLocal {
   jobId: number;
   jobName: string;
   jobType: string;
-  presetName?: string;
+  purposeName?: string;
   executionOrder: number;
   dependsOnJobIds: number[];
 }
@@ -41,7 +41,7 @@ export default function JobSelector({ selectedMappings, onUpdate, onCancel }: Jo
           jobId: job.id,
           jobName: job.jobName,
           jobType: job.jobType,
-          presetName: job.presetName,
+          purposeName: job.purposeName,
           executionOrder: prev.length + 1,
           dependsOnJobIds: [],
         },

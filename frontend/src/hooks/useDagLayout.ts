@@ -9,6 +9,40 @@ import { getEdgeStyle } from '../components/dag/dagStyles';
 const NODE_WIDTH = 200;
 const NODE_HEIGHT = 56;
 
+/**
+ * Transitive reduction: A→C 직접 엣지가 있어도 A→B→C 경로로 도달 가능하면
+ * 시각화에서 A→C를 제거한다. 실행 의존성은 유지하되 그래프를 깔끔하게 보여준다.
+ */
+function transitiveReduction(
+  edgeDefs: { source: string; target: string }[]
+  , jobNames: Set<string>
+): { source: string; target: string }[] {
+  const adj = new Map<string, Set<string>>();
+  for (const name of jobNames) adj.set(name, new Set());
+  for (const e of edgeDefs) adj.get(e.source)!.add(e.target);
+
+  return edgeDefs.filter((e) => {
+    // e.source → e.target 직접 엣지를 임시 제거 후,
+    // e.source에서 e.target에 도달 가능하면 전이적 엣지 → 제거
+    const neighbors = adj.get(e.source)!;
+    neighbors.delete(e.target);
+
+    const visited = new Set<string>();
+    const queue = [...neighbors];
+    let reachable = false;
+    while (queue.length > 0) {
+      const cur = queue.pop()!;
+      if (cur === e.target) { reachable = true; break; }
+      if (visited.has(cur)) continue;
+      visited.add(cur);
+      for (const next of adj.get(cur) ?? []) queue.push(next);
+    }
+
+    neighbors.add(e.target); // 복원
+    return !reachable;
+  });
+}
+
 function buildLayout(
   jobs: PipelineJobLocal[]
   , jobStatusMap: Map<string, JobExecutionResponse>
@@ -23,14 +57,19 @@ function buildLayout(
     g.setNode(job.jobName, { width: NODE_WIDTH, height: NODE_HEIGHT });
   }
 
-  const edgeDefs: { source: string; target: string }[] = [];
+  const allEdges: { source: string; target: string }[] = [];
+  const jobNames = new Set(jobs.map((j) => j.jobName));
   for (const job of jobs) {
     for (const dep of job.dependsOn) {
-      if (jobs.some((j) => j.jobName === dep)) {
-        g.setEdge(dep, job.jobName);
-        edgeDefs.push({ source: dep, target: job.jobName });
+      if (jobNames.has(dep)) {
+        allEdges.push({ source: dep, target: job.jobName });
       }
     }
+  }
+
+  const edgeDefs = transitiveReduction(allEdges, jobNames);
+  for (const e of edgeDefs) {
+    g.setEdge(e.source, e.target);
   }
 
   dagre.layout(g);

@@ -44,8 +44,13 @@ export default function DagJobNode({ data }: NodeProps<Node<DagJobNodeData>>) {
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{job.jobName}</p>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-[10px] text-slate-500 uppercase">{job.jobType}</span>
+            {job.purposeName && (
+              <span className="text-[9px] px-1 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300 font-medium">
+                {job.purposeName}
+              </span>
+            )}
             {jobExecution?.retryCount !== undefined && jobExecution.retryCount > 0 && (
               <span className="text-[10px] text-amber-500 font-medium">retry:{jobExecution.retryCount}</span>
             )}

@@ -6,22 +6,27 @@ export interface Job {
   id: number;
   jobName: string;
   jobType: string;
-  presetId?: number;
-  presetName?: string;
+  purposeId?: number;
+  purposeName?: string;
   configJson?: string;
   jenkinsScript?: string;
   jenkinsStatus?: string;
   parameterSchemas?: ParameterSchema[];
+  deployMode?: 'IMPORT' | 'BUILD_REQUIRED';
+  requiredBuildJobId?: number;
+  requiredBuildJobName?: string;
   createdAt: string;
 }
 
 export interface CreateJobRequest {
   jobName: string;
   jobType: string;
-  presetId?: number;
+  purposeId?: number;
   configJson?: string;
   jenkinsScript?: string;
   parameterSchemaJson?: string;
+  deployMode?: 'IMPORT' | 'BUILD_REQUIRED';
+  requiredBuildJobId?: number;
 }
 
 export interface UpdateJobRequest extends CreateJobRequest {}

@@ -44,6 +44,8 @@ export function getNodeStyle(status?: string, jobType?: string): DagNodeStyle {
       return { borderClass: 'border-slate-300 border-dashed', bgClass: 'bg-slate-50 dark:bg-slate-800 opacity-60', icon: 'skip_next' };
     case 'WAITING_WEBHOOK':
       return { borderClass: 'border-purple-500', bgClass: 'bg-purple-50 dark:bg-purple-900/30', icon: 'webhook', nodeAnimation: 'dag-node-running' };
+    case 'WAITING_EXECUTOR':
+      return { borderClass: 'border-amber-500 border-dashed', bgClass: 'bg-amber-50 dark:bg-amber-900/30', icon: 'pending', nodeAnimation: 'dag-node-running' };
     default:
       return { borderClass: 'border-slate-300', bgClass: 'bg-slate-50 dark:bg-slate-800', icon: 'help' };
   }
@@ -53,7 +55,7 @@ export function getEdgeStyle(fromStatus?: string, toStatus?: string): DagEdgeSty
   if (toStatus === 'COMPENSATED') {
     return { stroke: '#f97316', animated: false, className: 'dag-edge-compensating' };
   }
-  if (toStatus === 'RUNNING' || toStatus === 'WAITING_WEBHOOK') {
+  if (toStatus === 'RUNNING' || toStatus === 'WAITING_WEBHOOK' || toStatus === 'WAITING_EXECUTOR') {
     return { stroke: '#3b82f6', animated: true };
   }
   if (fromStatus === 'SUCCESS' && toStatus === 'SUCCESS') {

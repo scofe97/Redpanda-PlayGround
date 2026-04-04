@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { useToolList } from '../hooks/useTools';
-import { usePreset, useCreatePreset, useUpdatePreset } from '../hooks/usePipelineDefinition';
+import { usePurpose, useCreatePurpose, useUpdatePurpose } from '../hooks/usePipelineDefinition';
+import { useProjectList } from '../hooks/useProject';
 
 const CATEGORY_OPTIONS = [
   { value: 'CI_CD_TOOL', label: 'CI/CD' },
@@ -17,21 +18,23 @@ interface EntryRow {
   toolId: number | '';
 }
 
-interface PresetFormDrawerProps {
+interface PurposeFormDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  editPresetId?: number;
+  editPurposeId?: number;
 }
 
-export default function PresetFormDrawer({ isOpen, onClose, editPresetId }: PresetFormDrawerProps) {
-  const isEdit = !!editPresetId;
-  const { data: existing } = usePreset(editPresetId ?? 0);
+export default function PurposeFormDrawer({ isOpen, onClose, editPurposeId }: PurposeFormDrawerProps) {
+  const isEdit = !!editPurposeId;
+  const { data: existing } = usePurpose(editPurposeId ?? 0);
   const { data: tools = [] } = useToolList();
-  const createPreset = useCreatePreset();
-  const updatePreset = useUpdatePreset();
+  const { data: projects = [] } = useProjectList();
+  const createPurpose = useCreatePurpose();
+  const updatePurpose = useUpdatePurpose();
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [projectId, setProjectId] = useState<number | ''>('');
   const [entries, setEntries] = useState<EntryRow[]>([{ category: 'CI_CD_TOOL', toolId: '' }]);
 
   // Populate form when editing
@@ -52,6 +55,7 @@ export default function PresetFormDrawer({ isOpen, onClose, editPresetId }: Pres
     if (!isOpen) {
       setName('');
       setDescription('');
+      setProjectId('');
       setEntries([{ category: 'CI_CD_TOOL', toolId: '' }]);
     }
   }, [isOpen]);
@@ -108,10 +112,10 @@ export default function PresetFormDrawer({ isOpen, onClose, editPresetId }: Pres
     };
 
     try {
-      if (isEdit && editPresetId) {
-        await updatePreset.mutateAsync({ id: editPresetId, data });
+      if (isEdit && editPurposeId) {
+        await updatePurpose.mutateAsync({ id: editPurposeId, data });
       } else {
-        await createPreset.mutateAsync(data);
+        await createPurpose.mutateAsync(data);
       }
       toast.success('저장되었습니다');
       onClose();
@@ -120,7 +124,7 @@ export default function PresetFormDrawer({ isOpen, onClose, editPresetId }: Pres
     }
   };
 
-  const isPending = createPreset.isPending || updatePreset.isPending;
+  const isPending = createPurpose.isPending || updatePurpose.isPending;
   const allCategoriesUsed = usedCategories.length >= CATEGORY_OPTIONS.length;
 
   if (!isOpen) return null;
@@ -139,7 +143,7 @@ export default function PresetFormDrawer({ isOpen, onClose, editPresetId }: Pres
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-primary">{isEdit ? 'edit' : 'add'}</span>
-            <h3 className="text-lg font-bold">{isEdit ? '프리셋 수정' : '프리셋 추가'}</h3>
+            <h3 className="text-lg font-bold">{isEdit ? '목적 수정' : '목적 추가'}</h3>
           </div>
           <button
             onClick={onClose}
@@ -162,7 +166,7 @@ export default function PresetFormDrawer({ isOpen, onClose, editPresetId }: Pres
                 onChange={(e) => setName(e.target.value)}
                 required
                 maxLength={100}
-                placeholder="예: 기본 CI/CD 프리셋"
+                placeholder="예: 기본 CI/CD 목적"
                 className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
               />
             </div>
@@ -175,9 +179,24 @@ export default function PresetFormDrawer({ isOpen, onClose, editPresetId }: Pres
                 onChange={(e) => setDescription(e.target.value)}
                 maxLength={500}
                 rows={3}
-                placeholder="프리셋에 대한 설명을 입력하세요 (선택)"
+                placeholder="목적에 대한 설명을 입력하세요 (선택)"
                 className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all resize-none"
               />
+            </div>
+
+            {/* Project (optional) */}
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">프로젝트</label>
+              <select
+                value={projectId}
+                onChange={(e) => setProjectId(e.target.value ? Number(e.target.value) : '')}
+                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+              >
+                <option value="">프로젝트 선택 (선택)</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
             </div>
 
             {/* Tool Mappings */}

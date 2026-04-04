@@ -160,8 +160,8 @@ export default function JobDetailPage() {
               <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">{job.jobType}</p>
             </div>
             <div>
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">프리셋</label>
-              <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">{job.presetName || '-'}</p>
+              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">목적</label>
+              <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">{job.purposeName || '-'}</p>
             </div>
             <div className="col-span-2">
               <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Jenkins 상태</label>
