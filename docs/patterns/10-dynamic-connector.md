@@ -1,5 +1,7 @@
 # 동적 커넥터 관리 패턴
 
+> **[DEPRECATED]** 이 문서는 더 이상 사용되지 않는 Redpanda Connect 기반 아키텍처를 설명한다. 현재는 `JenkinsCommandConsumer`가 `commands.jenkins` 토픽에서 직접 소비하여 Jenkins REST API를 호출하고, Jenkins가 `rpk` CLI로 `webhook.inbound` 토픽에 직접 produce한다. Connect Streams API를 통한 동적 커넥터 관리 기능은 제거되었다.
+
 ## 1. 개요
 
 Redpanda Connect를 Streams 모드로 운영하면 여러 파이프라인을 하나의 프로세스에서 관리할 수 있다. 현재 이 프로젝트는 3개의 정적 YAML 파일(`jenkins-webhook`, `gitlab-webhook`, `jenkins-command`)을 docker-compose 기동 시 로드하는 방식으로 동작한다. 새로운 외부 도구(Nexus, ArgoCD 등)를 추가하려면 YAML 파일을 수동으로 작성하고 컨테이너를 재기동해야 한다.

@@ -432,8 +432,25 @@ Jenkins와의 통신은 관리와 실행 두 가지 경로를 사용하며, 각 
 
 ---
 
+### REQ-03-022: BUILD_REQUIRED 배포 Job 매핑 검증 [P0] — 미구현
+
+`deployMode = BUILD_REQUIRED`인 배포 Job을 파이프라인에 추가할 때, `requiredBuildJobId`로 지정된 빌드 Job이 동일 파이프라인에 포함되어 있는지 검증한다. 검증 통과 시 DAG 의존성을 자동 생성하고, 빌드 Job 제거 시 의존하는 배포 Job이 있으면 제거를 거부한다.
+
+**수용 기준**:
+- [ ] BUILD_REQUIRED 배포 Job 매핑 시 `requiredBuildJobId`가 동일 파이프라인 `pipeline_job_mapping`에 존재하는지 검증
+- [ ] 미포함 시 400 에러 반환
+- [ ] 포함 시 `pipeline_job_dependency` 자동 생성 (빌드 → 배포)
+- [ ] 빌드 Job 제거 시, 해당 빌드를 참조하는 BUILD_REQUIRED 배포 Job이 있으면 제거 거부 (400 에러)
+
+**구현 참조**: (미구현). 검증 로직은 `PipelineJobService` 또는 `PipelineJobMappingService`에 추가.
+
+**Phase**: 4
+
+---
+
 ## 미해결 사항
 
+- **BUILD_REQUIRED 매핑 검증 (REQ-03-022)**: 배포 Job의 `requiredBuildJobId`와 파이프라인 Job 매핑 간 무결성 검증. `06-deploy-job.md` REQ-06-009와 연계.
 - **가이드형 Job 템플릿 (REQ-03-003)**: BUILD/DEPLOY 템플릿으로 자동 config 구성. 자유형만 지원하므로 사용자가 Jenkinsfile을 직접 작성해야 한다.
 - **파이프라인 복제 (REQ-03-008)**: Job 구성을 그대로 복사하여 새 파이프라인 생성. 반복적인 파이프라인 설정 작업을 줄이는 편의 기능이다.
 - **CiAdapter/CdAdapter 인터페이스 추상화**: 현재 Jenkins에 강하게 결합된 구조. `JenkinsAdapter`를 `CiAdapter` 인터페이스 뒤로 추상화하면 GitLab CI 등 다른 CI 도구를 추가할 때 기존 서비스 로직을 건드리지 않아도 된다.

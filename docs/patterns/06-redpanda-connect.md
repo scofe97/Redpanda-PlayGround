@@ -1,5 +1,11 @@
 # Redpanda Connect (HTTP → Kafka 브릿지)
 
+> **[DEPRECATED]** 이 문서는 더 이상 사용되지 않는 Redpanda Connect 기반 아키텍처를 설명한다. 현재는 `JenkinsCommandConsumer`가 `commands.jenkins` 토픽에서 직접 소비하여 Jenkins REST API를 호출하고, Jenkins가 `rpk` CLI로 `webhook.inbound` 토픽에 직접 produce한다.
+>
+> 현재 아키텍처:
+> - 빌드 커맨드: App (PipelineCommandProducer) → Outbox → `commands.jenkins` → **JenkinsCommandConsumer** → Jenkins REST API
+> - 빌드 결과: Jenkins **rpk** → `webhook.inbound` → WebhookEventConsumer → JenkinsWebhookHandler
+
 ## 1. 개요
 
 Redpanda Connect는 외부 시스템이 Kafka 프로토콜을 직접 구현하지 않아도 이벤트를 토픽에 발행할 수 있게 해주는 데이터 파이프라인 도구다. HTTP, gRPC, 파일, AWS S3 등 다양한 입력 소스를 Kafka 토픽으로 연결하거나, 반대로 Kafka 토픽에서 데이터를 꺼내 외부 시스템으로 전달하는 역할을 한다.

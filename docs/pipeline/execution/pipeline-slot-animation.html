@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Redpanda Playground — Pipeline Slot Flow Animation</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Pretendard', -apple-system, sans-serif; background: #1a1a2e; color: #e0e0e0; padding: 20px; }
+h1 { text-align: center; margin-bottom: 6px; font-size: 1.4em; color: #fff; }
+.subtitle { text-align: center; color: #888; margin-bottom: 16px; font-size: 0.9em; }
+.container { max-width: 980px; margin: 0 auto; }
+
+/* Controls */
+.controls { text-align: center; margin-bottom: 14px; }
+.controls button {
+  padding: 8px 20px; margin: 0 5px; border: none; border-radius: 6px;
+  cursor: pointer; font-size: 0.9em; font-weight: 600; transition: all 0.2s;
+}
+.btn-next { background: #4fc3f7; color: #1a1a2e; }
+.btn-next:hover { background: #81d4fa; }
+.btn-reset { background: #555; color: #fff; }
+.btn-reset:hover { background: #777; }
+.btn-auto { background: #66bb6a; color: #1a1a2e; }
+.btn-auto:hover { background: #81c784; }
+.step-info { margin-top: 8px; font-size: 0.85em; color: #aaa; }
+.step-counter { color: #4fc3f7; font-weight: bold; }
+
+/* Narration */
+.narration {
+  background: #16213e; border: 1px solid #333; border-radius: 8px;
+  padding: 14px 18px; margin-bottom: 14px; min-height: 50px;
+  font-size: 0.9em; line-height: 1.6;
+}
+.hl { color: #4fc3f7; font-weight: bold; }
+.warn { color: #ff8a65; font-weight: bold; }
+.ok { color: #66bb6a; font-weight: bold; }
+.bf { color: #ce93d8; font-weight: bold; }
+.p1c { color: #64b5f6; font-weight: bold; }
+.p2c { color: #ce93d8; font-weight: bold; }
+.p3c { color: #4dd0e1; font-weight: bold; }
+
+/* Pipeline Info */
+.pipeline-info {
+  background: #16213e; border: 1px solid #333; border-radius: 8px;
+  padding: 14px 18px; margin-bottom: 14px;
+}
+.pipeline-info h3 { font-size: 0.8em; color: #aaa; margin-bottom: 10px; letter-spacing: 1px; }
+.info-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.info-card { border-radius: 6px; padding: 10px; font-size: 0.78em; line-height: 1.5; }
+.info-card.p1 { background: #0d2744; border: 1px solid #1565c0; }
+.info-card.p2 { background: #1a0d2e; border: 1px solid #6a1b9a; }
+.info-card.p3 { background: #0d2627; border: 1px solid #00838f; }
+.info-card .ct { font-weight: 700; margin-bottom: 5px; font-size: 1.05em; }
+.info-card.p1 .ct { color: #64b5f6; }
+.info-card.p2 .ct { color: #ce93d8; }
+.info-card.p3 .ct { color: #4dd0e1; }
+.info-card .cd { color: #999; font-size: 0.9em; margin-bottom: 2px; }
+.info-card .cd span { color: #ccc; }
+
+/* DAG Nodes (info panel) */
+.dag-visual { display: flex; align-items: center; gap: 0; margin-top: 6px; }
+.dag-node { padding: 4px 7px; border-radius: 5px; font-size: 0.8em; font-weight: 600; text-align: center; min-width: 48px; }
+.dag-node .nt { font-size: 0.75em; margin-top: 1px; }
+.dag-node.n-p1 { background: #1b3a5c; border: 2px solid #42a5f5; color: #90caf9; }
+.dag-node.n-p2 { background: #2e1540; border: 2px solid #ab47bc; color: #ce93d8; }
+.dag-node.n-p3 { background: #0d3333; border: 2px solid #00acc1; color: #80deea; }
+.dag-edge { width: 20px; height: 2px; background: #555; position: relative; flex-shrink: 0; }
+.dag-edge::after {
+  content: ''; position: absolute; right: -1px; top: -4px;
+  border: 5px solid transparent; border-left: 6px solid #555;
+}
+.jt { display: inline-block; padding: 1px 4px; border-radius: 3px; font-size: 0.75em; }
+.jt1 { background: #1b5e20; color: #a5d6a7; }
+.jt2 { background: #4a148c; color: #ce93d8; }
+
+/* Layers */
+.layers { display: flex; flex-direction: column; gap: 10px; }
+.layer { border-radius: 10px; padding: 12px; transition: box-shadow 0.3s; }
+.layer.active { box-shadow: 0 0 12px rgba(79,195,247,0.3); }
+.lt { font-size: 0.76em; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+.l-rp { background: #1b2838; border: 1px solid #e65100; }
+.l-rp .lt { color: #ffb74d; }
+.l-dag { background: #1b2838; border: 1px solid #2e7d32; }
+.l-dag .lt { color: #81c784; }
+.l-jk { background: #1b2838; border: 1px solid #6a1b9a; }
+.l-jk .lt { color: #ce93d8; }
+
+/* Messages */
+.msgs { display: flex; gap: 6px; }
+.mg { padding: 4px 10px; border-radius: 4px; font-size: 0.75em; font-weight: 600; transition: all 0.3s; }
+.mg.pd { background: #333; color: #aaa; }
+.mg.cs { background: #1565c0; color: #fff; }
+.mg.cs2 { background: #6a1b9a; color: #fff; }
+.mg.cs3 { background: #00838f; color: #fff; }
+.mg.wt { background: #e65100; color: #fff; animation: pulse 1.5s infinite; }
+
+/* Slots */
+.sls { display: flex; gap: 8px; }
+.sl {
+  width: 85px; height: 40px; border-radius: 6px; display: flex;
+  align-items: center; justify-content: center; font-size: 0.72em;
+  font-weight: 600; transition: all 0.4s; border: 2px solid transparent;
+}
+.sl.em { background: #2a2a4a; color: #555; border-color: #333; }
+.sl.s1 { background: #1565c0; color: #fff; border-color: #42a5f5; }
+.sl.s2 { background: #6a1b9a; color: #fff; border-color: #ce93d8; }
+.sl.s3 { background: #00838f; color: #fff; border-color: #4dd0e1; }
+.sl.bf { background: #6a1b9a; color: #fff; border-color: #ce93d8; animation: glow 1s; }
+.sl.bf3 { background: #00838f; color: #fff; border-color: #4dd0e1; animation: glow 1s; }
+.sl.dn { background: #2e7d32; color: #fff; border-color: #66bb6a; }
+
+/* DAG rows */
+.pr { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; }
+.pl { width: 34px; font-size: 0.78em; font-weight: 700; text-align: center; padding: 3px; border-radius: 4px; }
+.pl1 { background: #1565c0; color: #fff; }
+.pl2 { background: #6a1b9a; color: #fff; }
+.pl3 { background: #00838f; color: #fff; }
+
+.jb {
+  width: 60px; height: 32px; border-radius: 4px; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; font-size: 0.63em;
+  font-weight: 600; transition: all 0.4s; line-height: 1.2;
+}
+.jb.pd { background: #333; color: #777; }
+.jb.r1 { background: #1565c0; color: #fff; animation: pulse 1.5s infinite; }
+.jb.r2 { background: #6a1b9a; color: #fff; animation: pulse 1.5s infinite; }
+.jb.r3 { background: #00838f; color: #fff; animation: pulse 1.5s infinite; }
+.jb.ok { background: #2e7d32; color: #fff; }
+.ar { color: #555; font-size: 0.8em; }
+
+/* Jenkins */
+.jg { display: flex; gap: 14px; }
+.ji { flex: 1; }
+.jl { font-size: 0.72em; color: #aaa; margin-bottom: 4px; }
+
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+@keyframes glow { 0% { box-shadow: 0 0 18px rgba(206,147,216,0.8); } 100% { box-shadow: none; } }
+</style>
+</head>
+<body>
+<h1>Redpanda Playground — Pipeline Slot Flow</h1>
+<p class="subtitle">하나의 파이프라인 안에서 Job마다 다른 Jenkins를 바라본다 (Purpose 기반 라우팅)</p>
+
+<div class="container">
+  <div class="pipeline-info">
+    <h3>PIPELINE CONFIGURATION & DAG</h3>
+    <div class="info-grid">
+      <div class="info-card p1">
+        <div class="ct">P1 — 빌드+테스트+배포</div>
+        <div class="cd">createdAt: <span>08:00:00</span> (1st)</div>
+        <div class="dag-visual">
+          <div class="dag-node n-p1">Build<div class="nt"><span class="jt jt1">J1</span></div></div>
+          <div class="dag-edge"></div>
+          <div class="dag-node n-p1">Test<div class="nt"><span class="jt jt1">J1</span></div></div>
+          <div class="dag-edge"></div>
+          <div class="dag-node n-p1">Deploy<div class="nt"><span class="jt jt2">J2</span></div></div>
+        </div>
+      </div>
+      <div class="info-card p2">
+        <div class="ct">P2 — 빌드+배포</div>
+        <div class="cd">createdAt: <span>08:00:05</span> (2nd)</div>
+        <div class="dag-visual">
+          <div class="dag-node n-p2">Build<div class="nt"><span class="jt jt2">J2</span></div></div>
+          <div class="dag-edge"></div>
+          <div class="dag-node n-p2">Deploy<div class="nt"><span class="jt jt1">J1</span></div></div>
+        </div>
+      </div>
+      <div class="info-card p3">
+        <div class="ct">P3 — 빌드+테스트+배포</div>
+        <div class="cd">createdAt: <span>08:00:10</span> (3rd)</div>
+        <div class="dag-visual">
+          <div class="dag-node n-p3">Build<div class="nt"><span class="jt jt1">J1</span></div></div>
+          <div class="dag-edge"></div>
+          <div class="dag-node n-p3">Test<div class="nt"><span class="jt jt2">J2</span></div></div>
+          <div class="dag-edge"></div>
+          <div class="dag-node n-p3">Deploy<div class="nt"><span class="jt jt1">J1</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn-next" onclick="nextStep()">다음 단계 ▶</button>
+    <button class="btn-auto" onclick="autoPlay()">자동 재생 ▶▶</button>
+    <button class="btn-reset" onclick="resetAll()">처음으로 ↺</button>
+    <div class="step-info"><span class="step-counter" id="sd">Step 0 / 12</span></div>
+  </div>
+
+  <div class="narration" id="nr">
+    <strong>▶ 다음 단계</strong>를 눌러 흐름을 따라가세요.<br>
+    각 파이프라인은 고유 색상으로 표시됩니다. <span class="p1c">P1(파랑)</span> <span class="p2c">P2(보라)</span> <span class="p3c">P3(청록)</span><br>
+    DAG 노드의 <span class="jt jt1">J1</span> <span class="jt jt2">J2</span> 태그는 해당 Job이 어느 Jenkins로 가는지를 나타냅니다.
+  </div>
+
+  <div class="layers">
+    <div class="layer l-rp" id="lRP">
+      <div class="lt">① Redpanda (commands.execution)</div>
+      <div class="msgs">
+        <div class="mg pd" id="m1">P1</div>
+        <div class="mg pd" id="m2">P2</div>
+        <div class="mg pd" id="m3">P3</div>
+      </div>
+    </div>
+
+    <div class="layer l-dag" id="lDag">
+      <div class="lt">② DAG 실행 상태 + dispatchByPriority()
+        <span style="font-size:0.8em;color:#888;">— Job의 purposeId로 Jenkins 결정</span>
+      </div>
+      <div id="dagArea">
+        <div class="pr" id="d1" style="display:none;">
+          <div class="pl pl1">P1</div>
+          <div class="jb pd" id="p1j1">Build<br><span style="font-size:0.85em;color:#5c8db8;">J1</span></div>
+          <div class="ar">→</div>
+          <div class="jb pd" id="p1j2">Test<br><span style="font-size:0.85em;color:#5c8db8;">J1</span></div>
+          <div class="ar">→</div>
+          <div class="jb pd" id="p1j3">Deploy<br><span style="font-size:0.85em;color:#8e5f8e;">J2</span></div>
+        </div>
+        <div class="pr" id="d2" style="display:none;">
+          <div class="pl pl2">P2</div>
+          <div class="jb pd" id="p2j1">Build<br><span style="font-size:0.85em;color:#8e5f8e;">J2</span></div>
+          <div class="ar">→</div>
+          <div class="jb pd" id="p2j2">Deploy<br><span style="font-size:0.85em;color:#5c8db8;">J1</span></div>
+        </div>
+        <div class="pr" id="d3" style="display:none;">
+          <div class="pl pl3">P3</div>
+          <div class="jb pd" id="p3j1">Build<br><span style="font-size:0.85em;color:#5c8db8;">J1</span></div>
+          <div class="ar">→</div>
+          <div class="jb pd" id="p3j2">Test<br><span style="font-size:0.85em;color:#8e5f8e;">J2</span></div>
+          <div class="ar">→</div>
+          <div class="jb pd" id="p3j3">Deploy<br><span style="font-size:0.85em;color:#5c8db8;">J1</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="layer l-jk" id="lJK">
+      <div class="lt">③ Jenkins Executor 슬롯
+        <span style="font-size:0.8em;color:#888;">— Purpose가 가리키는 Jenkins에 Job 배치</span>
+      </div>
+      <div class="jg">
+        <div class="ji">
+          <div class="jl">Jenkins 1 :31080 (executor 2개)</div>
+          <div class="sls">
+            <div class="sl em" id="j1a">빈칸</div>
+            <div class="sl em" id="j1b">빈칸</div>
+          </div>
+        </div>
+        <div class="ji">
+          <div class="jl">Jenkins 2 :31082 (executor 1개)</div>
+          <div class="sls">
+            <div class="sl em" id="j2a">빈칸</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let step=0; const mx=12; let tm=null;
+function $(x){return document.getElementById(x);}
+function h(id,cls,txt){$(id).className=cls;$(id).innerHTML=txt;}
+
+const S=[
+{n:'<strong>▶ 다음 단계</strong>를 눌러 흐름을 따라가세요.<br><span class="p1c">P1(파랑)</span> <span class="p2c">P2(보라)</span> <span class="p3c">P3(청록)</span> — DAG 노드의 <span class="jt jt1">J1</span><span class="jt jt2">J2</span> 태그가 타겟 Jenkins를 나타냅니다.',f:()=>{}},
+
+// 1: P1 소비 → Build(J1)
+{n:'<span class="p1c">P1 소비</span> → startExecution() → priorityQueue.register(P1)<br>→ dispatchByPriority() → P1-Build ready, purpose=default → <span class="jt jt1">Jenkins 1</span> 가용 2개 → <span class="ok">디스패치!</span>',
+f:()=>{
+  h('m1','mg cs','P1');
+  $('d1').style.display='flex';
+  h('p1j1','jb r1','Build 🔨');
+  h('j1a','sl s1','P1-Build');
+  $('lRP').classList.add('active');$('lDag').classList.add('active');
+}},
+
+// 2: P2 소비 → Build(J2)
+{n:'<span class="p2c">P2 소비</span> → dispatchByPriority(): P1 순회 → ready 없음 → P2 순회<br>→ P2-Build, purpose=jenkins-2 → <span class="jt jt2">Jenkins 2</span> 가용 1개 → <span class="ok">디스패치!</span><br><span class="bf">P1(J1)과 P2(J2)가 동시에 서로 다른 Jenkins에서 빌드</span>',
+f:()=>{
+  $('lRP').classList.remove('active');$('lDag').classList.remove('active');
+  h('m2','mg cs2','P2');
+  $('d2').style.display='flex';
+  h('p2j1','jb r2','Build 🔨');
+  h('j2a','sl s2','P2-Build');
+  $('lJK').classList.add('active');
+}},
+
+// 3: P3 소비 → Build(J1) — Jenkins 1 가용 1개
+{n:'<span class="p3c">P3 소비</span> → dispatchByPriority(): P1 ready 없음, P2 ready 없음 → P3 순회<br>→ P3-Build, purpose=default → <span class="jt jt1">Jenkins 1</span> 가용 1개 → <span class="ok">디스패치!</span><br>모든 executor가 꽉 참 (J1: 2/2, J2: 1/1)',
+f:()=>{
+  $('lJK').classList.remove('active');
+  h('m3','mg cs3','P3');
+  $('d3').style.display='flex';
+  h('p3j1','jb r3','Build 🔨');
+  h('j1b','sl s3','P3-Build');
+  $('lDag').classList.add('active');$('lJK').classList.add('active');
+}},
+
+// 4: P1-Build 완료 → P1-Test(J1) 우선 디스패치
+{n:'<span class="ok">P1-Build 완료!</span> webhook → Jenkins 1 executor 반환<br>→ dispatchByPriority(): <span class="p1c">P1(우선)</span> 순회 → P1-Test ready, purpose=default → <span class="jt jt1">J1</span><br>→ <span class="hl">P1-Test 디스패치 (우선순위 보장 — P2-Deploy보다 P1이 먼저)</span>',
+f:()=>{
+  $('lDag').classList.remove('active');$('lJK').classList.remove('active');
+  h('p1j1','jb ok','Build ✓');
+  h('p1j2','jb r1','Test 🔨');
+  h('j1a','sl s1','P1-Test');
+  $('lDag').classList.add('active');$('lJK').classList.add('active');
+}},
+
+// 5: P2-Build 완료 → P1 ready 없음 → P2-Deploy(J1) 백필 시도 → J1 꽉 참 → WAITING
+{n:'<span class="ok">P2-Build 완료!</span> <span class="jt jt2">Jenkins 2</span> executor 반환<br>→ dispatchByPriority(): P1 순회 → P1-Deploy는 Test 완료 대기 → <span class="warn">P1 ready 없음</span><br>→ P2 순회 → P2-Deploy, purpose=default → <span class="jt jt1">J1</span> 가용 0개 → <span class="warn">WAITING_EXECUTOR</span><br>→ P3 순회 → P3-Test, purpose=jenkins-2 → <span class="jt jt2">J2</span> 가용 1개 → <span class="p3c">P3-Test 백필!</span>',
+f:()=>{
+  $('lDag').classList.remove('active');$('lJK').classList.remove('active');
+  h('p2j1','jb ok','Build ✓');
+  h('j2a','sl em','빈칸');
+  h('p3j2','jb r3','Test 🔨');
+  h('j2a','sl s3','P3-Test');
+  $('lDag').classList.add('active');$('lJK').classList.add('active');
+}},
+
+// 6: P3-Build 완료 → executor 반환 → P1-Test 실행 중이라 J1 꽉 참 → 변화 없음
+{n:'<span class="ok">P3-Build 완료!</span> <span class="jt jt1">Jenkins 1</span> executor 반환<br>→ dispatchByPriority(): P1 순회 → Deploy는 Test 대기 → ready 없음<br>→ P2 순회 → P2-Deploy(J1) → <span class="jt jt1">J1</span> 가용 1개 → <span class="bf">P2-Deploy 백필!</span>',
+f:()=>{
+  $('lDag').classList.remove('active');$('lJK').classList.remove('active');
+  h('p3j1','jb ok','Build ✓');
+  h('p2j2','jb r2','Deploy 🔨');
+  h('j1b','sl bf','P2-Dply');
+  $('lDag').classList.add('active');$('lJK').classList.add('active');
+}},
+
+// 7: P1-Test 완료 → P1-Deploy(J2) — Jenkins 바뀜!
+{n:'<span class="ok">P1-Test 완료!</span> <span class="jt jt1">Jenkins 1</span> executor 반환<br>→ dispatchByPriority(): <span class="p1c">P1</span> 순회 → P1-Deploy ready, <span class="hl">purpose=jenkins-2 → Jenkins 2!</span><br>→ <span class="warn">J2 가용 0개 (P3-Test 실행 중)</span> → WAITING_EXECUTOR',
+f:()=>{
+  $('lDag').classList.remove('active');$('lJK').classList.remove('active');
+  h('p1j2','jb ok','Test ✓');
+  h('j1a','sl em','빈칸');
+  $('lDag').classList.add('active');
+}},
+
+// 8: P3-Test 완료 → J2 반환 → P1-Deploy(J2) 우선 디스패치
+{n:'<span class="ok">P3-Test 완료!</span> <span class="jt jt2">Jenkins 2</span> executor 반환<br>→ dispatchByPriority(): <span class="p1c">P1(우선)</span> → P1-Deploy(J2) → <span class="ok">디스패치!</span><br><span class="hl">같은 P1인데 Build/Test는 J1, Deploy는 J2 — Purpose 기반 라우팅</span>',
+f:()=>{
+  $('lDag').classList.remove('active');
+  h('p3j2','jb ok','Test ✓');
+  h('p1j3','jb r1','Deploy 🔨');
+  h('j2a','sl s1','P1-Dply');
+  $('lDag').classList.add('active');$('lJK').classList.add('active');
+}},
+
+// 9: P2-Deploy 완료 → P2 완료 → P3-Deploy(J1) 진행
+{n:'<span class="ok">P2-Deploy 완료!</span> P2 모든 Job 완료 → finalizeExecution(P2)<br>→ <span class="jt jt1">J1</span> executor 반환 → dispatchByPriority() → P3-Deploy(J1) → <span class="ok">디스패치!</span>',
+f:()=>{
+  $('lDag').classList.remove('active');$('lJK').classList.remove('active');
+  h('p2j2','jb ok','Deploy ✓');
+  h('j1b','sl em','빈칸');
+  h('p3j3','jb r3','Deploy 🔨');
+  h('j1b','sl s3','P3-Dply');
+  $('lJK').classList.add('active');
+}},
+
+// 10: P1-Deploy 완료 → P1 완료
+{n:'<span class="ok">P1-Deploy 완료!</span> P1 모든 Job 완료 → finalizeExecution(P1)<br>→ <span class="jt jt2">J2</span> executor 반환',
+f:()=>{
+  $('lJK').classList.remove('active');
+  h('p1j3','jb ok','Deploy ✓');
+  h('j2a','sl em','빈칸');
+}},
+
+// 11: P3-Deploy 완료 → 전체 완료
+{n:'<span class="ok">P3-Deploy 완료!</span> P3 모든 Job 완료 → finalizeExecution(P3)<br>→ 모든 파이프라인 종료. executor 전부 반환.',
+f:()=>{
+  h('p3j3','jb ok','Deploy ✓');
+  h('j1b','sl em','빈칸');
+}},
+
+// 12: 요약
+{n:'<strong>핵심 정리:</strong><br>'+
+'① Purpose는 <span class="hl">Job 단위</span>로 결정 — P1의 Build/Test → J1, Deploy → J2<br>'+
+'② dispatchByPriority(): createdAt ASC 순회 → <span class="hl">선순위 우선</span>, ready 없으면 → <span class="bf">백필</span><br>'+
+'③ executor 부족 시 WAITING_EXECUTOR → 다음 webhook에서 재시도 (폴링 없음)<br>'+
+'④ 색상 = 파이프라인 (<span class="p1c">P1</span> <span class="p2c">P2</span> <span class="p3c">P3</span>), Jenkins 태그 (<span class="jt jt1">J1</span><span class="jt jt2">J2</span>) = 타겟',
+f:()=>{
+  document.querySelectorAll('.layer').forEach(l=>l.classList.add('active'));
+}}
+];
+
+function nextStep(){if(step>=mx)return;step++;S[step].f();$('nr').innerHTML=S[step].n;$('sd').textContent=`Step ${step} / ${mx}`;}
+
+function resetAll(){
+  if(tm){clearInterval(tm);tm=null;}step=0;
+  h('m1','mg pd','P1');h('m2','mg pd','P2');h('m3','mg pd','P3');
+  ['d1','d2','d3'].forEach(d=>$(d).style.display='none');
+  h('p1j1','jb pd','Build<br><span style="font-size:0.85em;color:#5c8db8;">J1</span>');
+  h('p1j2','jb pd','Test<br><span style="font-size:0.85em;color:#5c8db8;">J1</span>');
+  h('p1j3','jb pd','Deploy<br><span style="font-size:0.85em;color:#8e5f8e;">J2</span>');
+  h('p2j1','jb pd','Build<br><span style="font-size:0.85em;color:#8e5f8e;">J2</span>');
+  h('p2j2','jb pd','Deploy<br><span style="font-size:0.85em;color:#5c8db8;">J1</span>');
+  h('p3j1','jb pd','Build<br><span style="font-size:0.85em;color:#5c8db8;">J1</span>');
+  h('p3j2','jb pd','Test<br><span style="font-size:0.85em;color:#8e5f8e;">J2</span>');
+  h('p3j3','jb pd','Deploy<br><span style="font-size:0.85em;color:#5c8db8;">J1</span>');
+  ['j1a','j1b','j2a'].forEach(j=>{$(j).className='sl em';$(j).textContent='빈칸';});
+  document.querySelectorAll('.layer').forEach(l=>l.classList.remove('active'));
+  $('nr').innerHTML=S[0].n;$('sd').textContent='Step 0 / '+mx;
+}
+
+function autoPlay(){
+  if(tm){clearInterval(tm);tm=null;return;}
+  tm=setInterval(()=>{if(step>=mx){clearInterval(tm);tm=null;return;}nextStep();},3000);
+}
+</script>
+</body>
+</html>

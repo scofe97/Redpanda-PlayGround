@@ -2,7 +2,7 @@
 
 ## 상태
 
-Accepted
+Superseded — `deployMode` 도입으로 대체 (2026-03-23)
 
 ## 맥락
 
@@ -49,3 +49,15 @@ IMPORT Job 타입을 별도로 만들지 않는 이유는 두 가지다.
 - DEPLOY Job `config` 스키마에 `artifactRef` 필드가 추가된다 (`nullable`, 없으면 BUILD Job 산출물 자동 참조)
 - 반입 시나리오 테스트는 DEPLOY Job만 있는 파이프라인 + `artifactRef` 설정으로 작성한다
 - Phase 4에서 아티팩트 어댑터가 구현되면 `artifactRef`의 실제 아티팩트 조회 로직을 연결한다
+
+---
+
+## Superseded 사유 (2026-03-23)
+
+이 결정의 핵심("IMPORT Job 타입을 별도로 만들지 않고 DEPLOY Job의 `artifactRef`로 대체")은 유지한다. 변경된 부분은 다음과 같다.
+
+**추가**: DEPLOY Job에 `deployMode` 필드(`IMPORT` | `BUILD_REQUIRED`)를 명시적으로 도입한다. 기존에는 `artifactRef` 유무로 암묵적으로 반입 여부를 판별하려 했으나, 단독 실행 가능 여부와 파이프라인 구성 검증이 유형에 따라 본질적으로 다르므로 명시적 선언이 더 안전하다.
+
+**추가**: `BUILD_REQUIRED` 모드에서는 `requiredBuildJobId`로 빌드 Job을 Job 엔티티 레벨에서 참조한다. 파이프라인에 매핑할 때 해당 빌드 Job이 포함되어 있는지 검증하고, 검증 통과 시 DAG 의존성을 자동 생성한다.
+
+**상세**: `specs/domains/06-deploy-job.md` REQ-06-008, REQ-06-009

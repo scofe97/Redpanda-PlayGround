@@ -24,17 +24,14 @@
 
 ## 요구사항
 
-### REQ-04-001: 빌드/반입 선택 [P0] — 부분 구현
+### REQ-04-001: 빌드 수행 [P0] — 완료
 
-빌드 Job 생성 시 빌드 수행(BUILD)과 반입(IMPORT) 중 선택할 수 있게 한다.
+빌드 Job은 소스 코드를 빌드하여 아티팩트를 생성하는 역할만 담당한다.
 
 **수용 기준**
 - [x] BUILD 경로: Git URL, 브랜치/태그, Base Image, Build Script 설정
-- [ ] IMPORT 경로: 기존 산출물 참조 (Registry URL + 이미지 태그, 또는 Nexus GAV 좌표)
-- [ ] IMPORT 시 산출물 존재 여부 검증
-- [ ] 빌드 Job config에 `buildMode: BUILD | IMPORT` 필드 추가
 
-> 설계 결정 참조: IMPORT는 PoC 범위에서 제외. DEPLOY Job만 있는 파이프라인으로 대체 가능.
+> 반입(IMPORT) 기능은 빌드 Job이 아닌 배포 Job의 `deployMode = IMPORT`로 이관되었다. 배포 Job이 `artifactRef`로 외부 아티팩트를 직접 지정하여 빌드 없이 배포하는 구조이다. 상세: `06-deploy-job.md` REQ-06-008, `decisions/005-import-mode-excluded.md`
 
 ---
 

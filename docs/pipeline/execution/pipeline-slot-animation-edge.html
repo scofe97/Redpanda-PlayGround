@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Redpanda Playground — Edge Cases (Jenkins 다운, DB 장애, Executor 타임아웃, 크래시 복구)</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Pretendard',-apple-system,sans-serif;background:#1a1a2e;color:#e0e0e0;padding:16px;}
+h1{text-align:center;margin-bottom:4px;font-size:1.3em;color:#fff;}
+.sub{text-align:center;color:#888;margin-bottom:14px;font-size:0.85em;}
+.ctn{max-width:980px;margin:0 auto;}
+
+:root{--c1:#1565c0;--c1l:#64b5f6;--c2:#6a1b9a;--c2l:#ce93d8;--c3:#00838f;--c3l:#4dd0e1;}
+
+.ctrl{text-align:center;margin-bottom:12px;}
+.ctrl button{padding:7px 18px;margin:0 4px;border:none;border-radius:6px;cursor:pointer;font-size:0.85em;font-weight:600;}
+.bn{background:#4fc3f7;color:#1a1a2e;}.br{background:#555;color:#fff;}.ba{background:#66bb6a;color:#1a1a2e;}
+.si{margin-top:6px;font-size:0.8em;color:#aaa;}.sc{color:#4fc3f7;font-weight:bold;}
+
+.nar{background:#16213e;border:1px solid #333;border-radius:8px;padding:12px 16px;margin-bottom:12px;min-height:45px;font-size:0.88em;line-height:1.6;}
+.hl{color:#4fc3f7;font-weight:bold;}.wn{color:#ff8a65;font-weight:bold;}
+.ok{color:#66bb6a;font-weight:bold;}.er{color:#ef5350;font-weight:bold;}
+.c1{color:var(--c1l);font-weight:bold;}.c2{color:var(--c2l);font-weight:bold;}.c3{color:var(--c3l);font-weight:bold;}
+
+/* Scenario tabs */
+.tabs{display:flex;gap:4px;margin-bottom:14px;}
+.tab{padding:8px 14px;border-radius:6px 6px 0 0;cursor:pointer;font-size:0.8em;font-weight:600;
+  background:#16213e;border:1px solid #333;border-bottom:none;color:#888;transition:all 0.2s;}
+.tab.active{background:#1b2838;color:#fff;border-color:#4fc3f7;}
+.tab:hover{color:#ccc;}
+
+.scenario{display:none;}
+.scenario.active{display:block;}
+
+/* Common layer styles */
+.ly{border-radius:8px;padding:10px;margin-bottom:8px;transition:box-shadow 0.3s;}
+.ly.ac{box-shadow:0 0 12px rgba(79,195,247,0.3);}
+.lt{font-size:0.72em;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;}
+.lrp{background:#1b2838;border:1px solid #e65100;}.lrp .lt{color:#ffb74d;}
+.ldg{background:#1b2838;border:1px solid #2e7d32;}.ldg .lt{color:#81c784;}
+.ljk{background:#1b2838;border:1px solid #6a1b9a;}.ljk .lt{color:#ce93d8;}
+.lrt{background:#1b2838;border:1px solid #e65100;}.lrt .lt{color:#ff8a65;}
+.lcr{background:#1b2838;border:1px solid #f9a825;}.lcr .lt{color:#ffee58;}
+
+.ss{display:flex;gap:6px;flex-wrap:wrap;}
+.s{width:85px;height:38px;border-radius:5px;display:flex;align-items:center;justify-content:center;
+  font-size:0.7em;font-weight:600;transition:all 0.4s;border:2px solid transparent;}
+.s.em{background:#2a2a4a;color:#555;border-color:#333;}
+.s.s1{background:var(--c1);color:#fff;border-color:var(--c1l);}
+.s.dn{background:#c62828;color:#fff;border-color:#ef5350;animation:shake 0.5s;}
+.s.rc{background:#f9a825;color:#1a1a2e;border-color:#ffee58;animation:compPulse 1s;}
+
+.pr{display:flex;align-items:center;gap:6px;margin-bottom:4px;}
+.pl{width:30px;font-size:0.72em;font-weight:700;text-align:center;padding:2px;border-radius:3px;color:#fff;}
+.pl1{background:var(--c1);}.pl2{background:var(--c2);}.pl3{background:var(--c3);}
+.jb{width:56px;height:30px;border-radius:3px;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;font-size:0.62em;font-weight:600;transition:all 0.4s;line-height:1.1;}
+.jb.pd{background:#333;color:#777;}
+.jb.r1{background:var(--c1);color:#fff;animation:pulse 1.5s infinite;}
+.jb.ok{background:#2e7d32;color:#fff;}
+.jb.wt{background:#e65100;color:#fff;animation:pulse 1.5s infinite;}
+.jb.fl{background:#c62828;color:#fff;}
+.jb.rc{background:#f9a825;color:#1a1a2e;}
+.ar{color:#555;font-size:0.75em;}
+
+/* Retry topic flow */
+.rt-flow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.rt-box{padding:5px 10px;border-radius:4px;font-size:0.72em;font-weight:600;transition:all 0.4s;}
+.rt-box.pd{background:#333;color:#777;}
+.rt-box.ac{background:#e65100;color:#fff;animation:pulse 1.5s infinite;}
+.rt-box.ok{background:#2e7d32;color:#fff;}
+.rt-box.fl{background:#c62828;color:#fff;}
+.rt-ar{color:#e65100;font-size:0.8em;}
+
+.jg{display:flex;gap:12px;}.ji{flex:1;}.jl{font-size:0.7em;color:#aaa;margin-bottom:3px;}
+
+/* Timer */
+.timer{display:inline-block;padding:2px 8px;border-radius:3px;font-size:0.8em;font-weight:600;
+  background:#333;color:#ff8a65;font-family:monospace;}
+
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.6;}}
+@keyframes shake{0%,100%{transform:translateX(0);}25%{transform:translateX(-5px);}75%{transform:translateX(5px);}}
+@keyframes compPulse{0%{box-shadow:0 0 15px rgba(249,168,37,0.8);}100%{box-shadow:none;}}
+</style>
+</head>
+<body>
+<h1>Edge Cases — 경계 상황 시뮬레이션</h1>
+<p class="sub">Jenkins 다운, DB 장애 → retry → DLT, WAITING_EXECUTOR 타임아웃, 크래시 복구</p>
+
+<div class="ctn">
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab(0)">A. Jenkins 다운</div>
+    <div class="tab" onclick="switchTab(1)">B. DB 장애 → DLT</div>
+    <div class="tab" onclick="switchTab(2)">C. Executor 타임아웃</div>
+    <div class="tab" onclick="switchTab(3)">D. 크래시 복구</div>
+  </div>
+
+  <div class="ctrl">
+    <button class="bn" onclick="next()">다음 단계 ▶</button>
+    <button class="ba" onclick="auto()">자동 재생 ▶▶</button>
+    <button class="br" onclick="resetCurrent()">처음으로 ↺</button>
+    <div class="si"><span class="sc" id="sd">Step 0</span></div>
+  </div>
+
+  <div class="nar" id="nr"></div>
+
+  <!-- ===== Scenario A: Jenkins Down ===== -->
+  <div class="scenario active" id="scA">
+    <div class="ly ljk">
+      <div class="lt">Jenkins 인스턴스 상태</div>
+      <div class="jg">
+        <div class="ji"><div class="jl">Jenkins 1 :31080 (2 exec)</div>
+          <div class="ss"><div class="s s1" id="ax1">P1-Build</div><div class="s em" id="ax2">빈칸</div></div></div>
+        <div class="ji"><div class="jl" id="aj2l">Jenkins 2 :31082 (1 exec)</div>
+          <div class="ss"><div class="s em" id="ay1">빈칸</div></div></div>
+      </div>
+    </div>
+    <div class="ly ldg">
+      <div class="lt">DAG 상태</div>
+      <div class="pr"><div class="pl pl1">P1</div>
+        <div class="jb r1" id="aa1">Build 🔨<br>J1</div><div class="ar">→</div>
+        <div class="jb pd" id="aa2">Test<br>J2</div><div class="ar">→</div>
+        <div class="jb pd" id="aa3">Deploy<br>J1</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Scenario B: DB 장애 → Retry → DLT ===== -->
+  <div class="scenario" id="scB">
+    <div class="ly lrp">
+      <div class="lt">Redpanda — commands.execution</div>
+      <div class="ss" style="gap:6px;">
+        <div class="s em" id="bm1" style="border-color:#e65100;">P1 (소비됨)</div>
+      </div>
+    </div>
+    <div class="ly ldg">
+      <div class="lt" id="bDbState">DB 상태: 정상</div>
+      <div style="font-size:0.8em;color:#aaa;margin-top:4px;" id="bDbDetail">
+        Consumer → pipelineEngine.execute() → startExecution() → DB 조회 필요
+      </div>
+    </div>
+    <div class="ly lrt" id="bRetry">
+      <div class="lt">@RetryableTopic Flow</div>
+      <div class="rt-flow">
+        <div class="rt-box pd" id="br0">execute()</div>
+        <div class="rt-ar">→</div>
+        <div class="rt-box pd" id="br1">retry-0 (1s)</div>
+        <div class="rt-ar">→</div>
+        <div class="rt-box pd" id="br2">retry-1 (2s)</div>
+        <div class="rt-ar">→</div>
+        <div class="rt-box pd" id="br3">retry-2 (4s)</div>
+        <div class="rt-ar">→</div>
+        <div class="rt-box pd" id="br4">DLT</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Scenario C: WAITING_EXECUTOR Timeout ===== -->
+  <div class="scenario" id="scC">
+    <div class="ly ljk">
+      <div class="lt">Jenkins 1 — executor 2/2 사용 중</div>
+      <div class="ss">
+        <div class="s s1" id="cx1">P1-Build</div>
+        <div class="s s1" id="cx2">P1-Test</div>
+      </div>
+    </div>
+    <div class="ly ldg">
+      <div class="lt">P2-Build → WAITING_EXECUTOR</div>
+      <div class="pr"><div class="pl pl2">P2</div>
+        <div class="jb pd" id="ca1">Build<br>J1</div><div class="ar">→</div>
+        <div class="jb pd" id="ca2">Deploy<br>J1</div>
+      </div>
+      <div style="margin-top:6px;font-size:0.8em;color:#888;">
+        대기 시간: <span class="timer" id="cTimer">0:00</span> / 5:00 (executorWaitTimeoutMinutes)
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Scenario D: Crash Recovery ===== -->
+  <div class="scenario" id="scD">
+    <div class="ly lcr">
+      <div class="lt">앱 상태</div>
+      <div style="font-size:0.85em;" id="dAppState">정상 운영 중</div>
+    </div>
+    <div class="ly ldg">
+      <div class="lt">인메모리 상태 (PriorityDispatchQueue + DagExecutionState)</div>
+      <div id="dMem">
+        <div class="pr"><div class="pl pl1">P1</div>
+          <div class="jb ok" id="da1">Build ✓</div><div class="ar">→</div>
+          <div class="jb r1" id="da2">Test 🔨</div><div class="ar">→</div>
+          <div class="jb pd" id="da3">Deploy</div></div>
+        <div class="pr"><div class="pl pl2">P2</div>
+          <div class="jb r1" id="db1" style="background:var(--c2);">Build 🔨</div><div class="ar">→</div>
+          <div class="jb pd" id="db2">Deploy</div></div>
+      </div>
+    </div>
+    <div class="ly ljk">
+      <div class="lt">DB (진실의 원천)</div>
+      <div style="font-size:0.78em;font-family:monospace;color:#aaa;line-height:1.6;" id="dDB">
+        pipeline_execution: P1(RUNNING, dispatch=DISPATCHING), P2(RUNNING, dispatch=DISPATCHING)<br>
+        job_execution: P1-Build(SUCCESS), P1-Test(RUNNING), P2-Build(RUNNING)
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let tab=0, steps=[[],[],[],[]], si=[0,0,0,0], tm=null;
+
+function $(x){return document.getElementById(x);}
+function h(id,c,t){$(id).className=c;$(id).innerHTML=t;}
+
+// ===== Scenario A: Jenkins Down =====
+steps[0]=[
+{n:'<span class="c1">P1</span>-Build가 <span class="jt j1" style="background:#1b5e20;color:#a5d6a7;">Jenkins 1</span>에서 실행 중. P1-Test는 <span class="jt j2" style="background:#4a148c;color:#ce93d8;">Jenkins 2</span>를 타겟한다.<br>▶를 눌러 Jenkins 2 다운 시나리오를 시작하세요.',f:()=>{}},
+{n:'<span class="ok">P1-Build 완료!</span> → dispatchByPriority() → P1-Test(J2) ready<br>→ jenkinsAdapter.getAvailableExecutors(J2) 호출...',
+f:()=>{h('aa1','jb ok','Build ✓');h('ax1','s em','빈칸');}},
+{n:'<span class="er">Jenkins 2 다운!</span> getAvailableExecutors() → 연결 실패 → return -1<br>→ K8s dynamic agent와 동일 처리: <span class="hl">앱 레벨 제한(maxExecutorsPerJenkins)으로 폴백</span><br>→ appLimit = 1 - 0 = 1 → 가용 1개로 판단 → <span class="ok">디스패치 시도!</span>',
+f:()=>{$('aj2l').innerHTML='Jenkins 2 :31082 (1 exec) <span style="color:#ef5350;">⚠ DOWN</span>';
+h('ay1','s dn','연결 실패');setTimeout(()=>{h('ay1','s em','빈칸');},1000);}},
+{n:'Jenkins REST API 호출 → <span class="er">연결 실패 → RuntimeException</span><br>→ <span class="wn">@RetryableTopic이 retry topic으로 라우팅</span><br>→ 2초 후 재시도... Jenkins 2가 복구될 때까지 반복',
+f:()=>{h('aa2','jb wt','Test ⏳<br>retry');}},
+{n:'<span class="ok">Jenkins 2 복구!</span> retry topic에서 재소비 → Jenkins 호출 성공<br>→ P1-Test 정상 실행 시작. <span class="hl">메시지 유실 없음 — Redpanda에 보존되어 있었음</span>',
+f:()=>{$('aj2l').innerHTML='Jenkins 2 :31082 (1 exec) <span style="color:#66bb6a;">✓ UP</span>';
+h('aa2','jb r1','Test 🔨');h('ay1','s s1','P1-Test');}},
+{n:'<strong>핵심:</strong> Jenkins 다운 시 Job은 Kafka retry topic에서 대기한다.<br>Jenkins가 복구되면 자동 재시도. <span class="hl">별도 헬스체크 폴링 불필요</span> — @RetryableTopic의 지수 백오프가 복구 대기 역할을 한다.',
+f:()=>{}}
+];
+
+// ===== Scenario B: DB 장애 → Retry → DLT =====
+steps[1]=[
+{n:'P1이 Redpanda에서 소비됨. Consumer → pipelineEngine.execute() → startExecution()<br>→ <span class="hl">executionMapper.findById()</span> 호출... DB 접근 필요',f:()=>{}},
+{n:'<span class="er">DB 연결 실패!</span> PostgreSQL 일시 장애 → executionMapper.findById() → SQLException<br>→ @RetryableTopic이 예외 감지 → <span class="wn">retry-0 토픽으로 이동</span> (1초 후 재시도)',
+f:()=>{$('bDbState').innerHTML='<span style="color:#ef5350;font-weight:bold;">DB 상태: ⚠ 연결 실패 (PostgreSQL 다운)</span>';
+$('bDbDetail').innerHTML='executionMapper.findById() → SQLException: Connection refused';
+h('br0','rt-box fl','execute() ✗');h('br1','rt-box ac','retry-0 ⏳');h('bm1','s em','P1 → retry');}},
+{n:'1초 후 재소비 → execute() → DB 접근... <span class="er">여전히 연결 실패</span><br>→ <span class="wn">retry-1 토픽으로 이동</span> (2초 후 재시도)',
+f:()=>{h('br1','rt-box fl','retry-0 ✗');h('br2','rt-box ac','retry-1 ⏳');}},
+{n:'2초 후 재소비 → execute() → DB 접근... <span class="er">여전히 연결 실패</span><br>→ <span class="wn">retry-2 토픽으로 이동</span> (4초 후 재시도)<br>총 재시도 3회 소진. 다음이 마지막 기회.',
+f:()=>{h('br2','rt-box fl','retry-1 ✗');h('br3','rt-box ac','retry-2 ⏳');}},
+{n:'4초 후 재소비 → execute() → DB 접근... <span class="er">4회 모두 실패!</span><br>→ <span class="er">DLT(Dead Letter Topic)로 이동</span><br>→ @DltHandler가 로깅: <code>[DLT] Pipeline failed after retries: key=P1</code>',
+f:()=>{h('br3','rt-box fl','retry-2 ✗');h('br4','rt-box fl','DLT ☠');}},
+{n:'<strong>DLT 도달 후 운영자 조치:</strong><br>'+
+'① 원인 분석: DB 연결 장애 원인 확인 (PostgreSQL 디스크 풀? 네트워크?)<br>'+
+'② DB 복구 후 수동 재처리: <code>rpk topic produce commands.execution</code>로 메시지 재발행<br>'+
+'③ 또는 REST API로 재실행: <code>POST /api/pipelines/{id}/execute</code><br><br>'+
+'<span class="hl">Semaphore 없이도 @RetryableTopic이 모든 일시 장애(DB, 직렬화, Jenkins)의 재시도를 담당한다.</span><br>'+
+'Consumer는 pipelineEngine.execute()만 호출하고, 실패 시 예외를 던지면 @RetryableTopic이 처리한다.',
+f:()=>{$('bDbState').innerHTML='<span style="color:#66bb6a;font-weight:bold;">DB 상태: ✓ 복구됨 (수동 재처리 대기)</span>';}}
+];
+
+// ===== Scenario C: WAITING_EXECUTOR Timeout =====
+steps[2]=[
+{n:'Jenkins 1 executor 2/2 사용 중 (P1-Build, P1-Test).<br>P2-Build(J1) ready → executor 없음 → <span class="wn">WAITING_EXECUTOR</span> 상태로 전환.',f:()=>{}},
+{n:'<span class="wn">P2-Build → WAITING_EXECUTOR</span><br>registerWaitingJob(P2, Build, jenkins1) 호출.<br>타이머 시작: executorWaitTimeoutMinutes = 5분',
+f:()=>{h('ca1','jb wt','Build ⏳<br>WAITING');$('cTimer').textContent='0:00';}},
+{n:'<span class="timer">1:00</span> 경과... P1의 Job이 아직 실행 중. executor 반환 안 됨.<br>checkWaitingJobTimeouts() 60초 주기로 확인 중 — 아직 5분 미만.',
+f:()=>{$('cTimer').textContent='1:00';}},
+{n:'<span class="timer">3:00</span> 경과... 여전히 대기 중. P1-Build가 비정상적으로 오래 걸리는 상황.<br>정상이라면 webhook이 도착하여 wakeUpWaitingExecutions()가 호출됐을 것.',
+f:()=>{$('cTimer').textContent='3:00';}},
+{n:'<span class="timer">5:00</span> 도달! → <span class="er">checkWaitingJobTimeouts() → FAILED 전환!</span><br>→ onJobCompleted(P2, Build, false) 호출<br>→ FailurePolicy에 따라 P2 전체 FAILED 또는 다음 Job 스킵',
+f:()=>{$('cTimer').textContent='5:00 ⏰';h('ca1','jb fl','Build ✗<br>TIMEOUT');}},
+{n:'<strong>핵심:</strong> WAITING_EXECUTOR 타임아웃은 <span class="hl">안전망</span>이다.<br>'+
+'정상: webhook 도착 → wakeUpWaitingExecutions() → 즉시 재디스패치 (폴링 없음)<br>'+
+'비정상: Jenkins가 webhook을 못 보낸 경우 → 5분 타임아웃으로 교착 방지<br>'+
+'설정: <code>pipeline.executorWaitTimeoutMinutes=5</code>',
+f:()=>{}}
+];
+
+// ===== Scenario D: Crash Recovery =====
+steps[3]=[
+{n:'P1(Build ✓, Test 실행 중), P2(Build 실행 중) — 정상 운영 중.<br>인메모리 상태와 DB 상태가 동기화되어 있다.',f:()=>{}},
+{n:'<span class="er">앱 크래시!</span> JVM이 갑자기 종료됨.<br>→ 인메모리 상태 전부 유실: PriorityDispatchQueue, DagExecutionState, executionLocks<br>→ <span class="hl">DB 상태는 유지됨</span> — pipeline_execution, job_execution 테이블',
+f:()=>{$('dAppState').innerHTML='<span style="color:#ef5350;font-weight:bold;">⚠ 앱 크래시! 인메모리 상태 유실</span>';
+$('dMem').style.opacity='0.3';}},
+{n:'<span class="ok">앱 재시작!</span> @PostConstruct 실행<br>→ ① DB 조회: <code>SELECT * FROM pipeline_execution WHERE status IN (\'RUNNING\',\'WAITING\')</code><br>→ 결과: [P1(RUNNING), P2(RUNNING)] — createdAt ASC 순서',
+f:()=>{$('dAppState').innerHTML='<span style="color:#f9a825;font-weight:bold;">앱 재시작 중... @PostConstruct</span>';
+$('dMem').style.opacity='0.6';}},
+{n:'② 각 실행에 대해 startExecution() 호출<br>→ priorityQueue.register(P1), priorityQueue.register(P2)<br>→ DagExecutionState 재구성: 이전 SUCCESS Job을 사전 등록<br>→ P1-Build = SUCCESS (DB에서 확인) → markCompleted(Build)',
+f:()=>{$('dMem').style.opacity='1';
+h('da1','jb rc','Build ✓<br>복구');h('da2','jb pd','Test<br>복구대기');h('db1','jb pd','Build<br>복구대기');}},
+{n:'③ DB에서 실행 중이던 Job 확인<br>→ <code>SELECT * FROM job_execution WHERE status IN (\'DISPATCHED\',\'RUNNING\')</code><br>→ P1-Test(RUNNING), P2-Build(RUNNING) — Jenkins에서 아직 실행 중일 수 있음<br>→ markAsDispatched() 처리',
+f:()=>{h('da2','jb r1','Test<br>복구됨');h('db1','jb r1','Build<br>복구됨');
+$('dDB').innerHTML='pipeline_execution: P1(RUNNING, dispatch=<span style="color:#66bb6a;">DISPATCHING</span>), P2(RUNNING, dispatch=<span style="color:#66bb6a;">DISPATCHING</span>)<br>job_execution: P1-Build(<span style="color:#66bb6a;">SUCCESS</span>), P1-Test(<span style="color:#4fc3f7;">RUNNING</span>), P2-Build(<span style="color:#4fc3f7;">RUNNING</span>)';}},
+{n:'④ dispatchByPriority() 호출 → 크래시 전 상태에서 자연스럽게 재개<br>→ Jenkins에서 실행 중인 Job의 webhook이 도착하면 onJobCompleted()로 정상 진행<br>→ <span class="ok">우선순위 순서 유지: P1이 P2보다 먼저 (createdAt 기반)</span>',
+f:()=>{$('dAppState').innerHTML='<span style="color:#66bb6a;font-weight:bold;">✓ 복구 완료 — 정상 운영 재개</span>';}},
+{n:'<strong>핵심:</strong> 크래시 복구가 가능한 이유는 <span class="hl">DB가 진실의 원천</span>이기 때문이다.<br>'+
+'① 인메모리 큐(ConcurrentSkipListMap)는 DB에서 완전히 재구성 가능<br>'+
+'② 우선순위 = DB의 created_at → Kafka offset에 의존하지 않음<br>'+
+'③ Jenkins에서 실행 중인 Job은 webhook이 도착하면 자연스럽게 재개<br>'+
+'④ Outbox 패턴으로 미발행 메시지도 복구 가능',
+f:()=>{}}
+];
+
+let curTab=0;
+function switchTab(t){
+  if(tm){clearInterval(tm);tm=null;}
+  document.querySelectorAll('.tab').forEach((el,i)=>{el.classList.toggle('active',i===t);});
+  document.querySelectorAll('.scenario').forEach((el,i)=>{el.classList.toggle('active',i===t);});
+  curTab=t;
+  $('nr').innerHTML=steps[t][0].n;
+  $('sd').textContent=`Step ${si[t]} / ${steps[t].length-1}`;
+}
+
+function next(){
+  let s=steps[curTab], i=si[curTab];
+  if(i>=s.length-1)return;
+  si[curTab]=++i;
+  s[i].f();
+  $('nr').innerHTML=s[i].n;
+  $('sd').textContent=`Step ${i} / ${s.length-1}`;
+}
+
+function resetCurrent(){
+  if(tm){clearInterval(tm);tm=null;}
+  si[curTab]=0;
+  // Reset scenario-specific state
+  if(curTab===0){
+    h('ax1','s s1','P1-Build');h('ax2','s em','빈칸');h('ay1','s em','빈칸');
+    $('aj2l').innerHTML='Jenkins 2 :31082 (1 exec)';
+    h('aa1','jb r1','Build 🔨<br>J1');h('aa2','jb pd','Test<br>J2');h('aa3','jb pd','Deploy<br>J1');
+  } else if(curTab===1){
+    h('bm1','s em','P1 (소비됨)');$('bm1').style.borderColor='#e65100';
+    $('bDbState').innerHTML='DB 상태: 정상';$('bDbState').className='lt';
+    $('bDbDetail').innerHTML='Consumer → pipelineEngine.execute() → startExecution() → DB 조회 필요';
+    ['br0','br1','br2','br3','br4'].forEach(x=>{$(x).className='rt-box pd';});
+    $('br0').textContent='execute()';$('br1').textContent='retry-0 (1s)';
+    $('br2').textContent='retry-1 (2s)';$('br3').textContent='retry-2 (4s)';$('br4').textContent='DLT';
+  } else if(curTab===2){
+    h('ca1','jb pd','Build<br>J1');$('cTimer').textContent='0:00';
+  } else if(curTab===3){
+    $('dAppState').innerHTML='정상 운영 중';$('dMem').style.opacity='1';
+    h('da1','jb ok','Build ✓');h('da2','jb r1','Test 🔨');h('da3','jb pd','Deploy');
+    $('db1').className='jb r1';$('db1').style.background='var(--c2)';$('db1').innerHTML='Build 🔨';
+    h('db2','jb pd','Deploy');
+    $('dDB').innerHTML='pipeline_execution: P1(RUNNING, dispatch=DISPATCHING), P2(RUNNING, dispatch=DISPATCHING)<br>job_execution: P1-Build(SUCCESS), P1-Test(RUNNING), P2-Build(RUNNING)';
+  }
+  $('nr').innerHTML=steps[curTab][0].n;
+  $('sd').textContent=`Step 0 / ${steps[curTab].length-1}`;
+}
+
+function auto(){
+  if(tm){clearInterval(tm);tm=null;return;}
+  tm=setInterval(()=>{
+    if(si[curTab]>=steps[curTab].length-1){clearInterval(tm);tm=null;return;}
+    next();
+  },3000);
+}
+
+// Init
+$('nr').innerHTML=steps[0][0].n;
+$('sd').textContent=`Step 0 / ${steps[0].length-1}`;
+</script>
+</body>
+</html>

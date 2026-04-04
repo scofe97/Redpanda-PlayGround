@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Redpanda Playground — Complex Pipeline Flow (5 Pipelines × 3 Jenkins)</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Pretendard',-apple-system,sans-serif;background:#1a1a2e;color:#e0e0e0;padding:16px;font-size:14px;}
+h1{text-align:center;margin-bottom:4px;font-size:1.3em;color:#fff;}
+.sub{text-align:center;color:#888;margin-bottom:12px;font-size:0.85em;}
+.ctn{max-width:1100px;margin:0 auto;}
+
+/* Colors per pipeline */
+:root{
+  --c1:#1565c0;--c1l:#64b5f6;--c1bg:#0d2744;
+  --c2:#6a1b9a;--c2l:#ce93d8;--c2bg:#1a0d2e;
+  --c3:#00838f;--c3l:#4dd0e1;--c3bg:#0d2627;
+  --c4:#e65100;--c4l:#ffb74d;--c4bg:#2e1a0d;
+  --c5:#ad1457;--c5l:#f48fb1;--c5bg:#2e0d1a;
+}
+
+.ctrl{text-align:center;margin-bottom:12px;}
+.ctrl button{padding:7px 18px;margin:0 4px;border:none;border-radius:6px;cursor:pointer;font-size:0.85em;font-weight:600;}
+.bn{background:#4fc3f7;color:#1a1a2e;}.bn:hover{background:#81d4fa;}
+.br{background:#555;color:#fff;}.br:hover{background:#777;}
+.ba{background:#66bb6a;color:#1a1a2e;}.ba:hover{background:#81c784;}
+.si{margin-top:6px;font-size:0.8em;color:#aaa;}
+.sc{color:#4fc3f7;font-weight:bold;}
+
+.nar{background:#16213e;border:1px solid #333;border-radius:8px;padding:12px 16px;margin-bottom:12px;min-height:45px;font-size:0.85em;line-height:1.6;}
+.hl{color:#4fc3f7;font-weight:bold;}.wn{color:#ff8a65;font-weight:bold;}
+.ok{color:#66bb6a;font-weight:bold;}.bf{color:#ce93d8;font-weight:bold;}
+.c1{color:var(--c1l);font-weight:bold;}.c2{color:var(--c2l);font-weight:bold;}
+.c3{color:var(--c3l);font-weight:bold;}.c4{color:var(--c4l);font-weight:bold;}
+.c5{color:var(--c5l);font-weight:bold;}
+
+/* Pipeline Info */
+.pi{background:#16213e;border:1px solid #333;border-radius:8px;padding:12px 16px;margin-bottom:12px;}
+.pi h3{font-size:0.75em;color:#aaa;margin-bottom:8px;letter-spacing:1px;}
+.ig{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;}
+.ic{border-radius:6px;padding:8px;font-size:0.72em;line-height:1.4;}
+.ic.i1{background:var(--c1bg);border:1px solid var(--c1);}.ic.i1 .ct{color:var(--c1l);}
+.ic.i2{background:var(--c2bg);border:1px solid var(--c2);}.ic.i2 .ct{color:var(--c2l);}
+.ic.i3{background:var(--c3bg);border:1px solid var(--c3);}.ic.i3 .ct{color:var(--c3l);}
+.ic.i4{background:var(--c4bg);border:1px solid var(--c4);}.ic.i4 .ct{color:var(--c4l);}
+.ic.i5{background:var(--c5bg);border:1px solid var(--c5);}.ic.i5 .ct{color:var(--c5l);}
+.ct{font-weight:700;margin-bottom:4px;font-size:1.05em;}
+.cd{color:#999;font-size:0.88em;}
+
+/* DAG nodes (info) */
+.dv{display:flex;align-items:center;gap:0;margin-top:5px;}
+.dn{padding:3px 5px;border-radius:4px;font-size:0.78em;font-weight:600;text-align:center;min-width:36px;}
+.dn.n1{background:#1b3a5c;border:1.5px solid #42a5f5;color:#90caf9;}
+.dn.n2{background:#2e1540;border:1.5px solid #ab47bc;color:#ce93d8;}
+.dn.n3{background:#0d2627;border:1.5px solid #00acc1;color:#80deea;}
+.dn.n4{background:#2e1a0d;border:1.5px solid #ff9800;color:#ffcc80;}
+.dn.n5{background:#2e0d1a;border:1.5px solid #e91e63;color:#f48fb1;}
+.de{width:16px;height:2px;background:#555;position:relative;flex-shrink:0;}
+.de::after{content:'';position:absolute;right:-1px;top:-3px;border:4px solid transparent;border-left:5px solid #555;}
+.jt{display:inline-block;padding:0 3px;border-radius:2px;font-size:0.75em;}
+.j1{background:#1b5e20;color:#a5d6a7;}.j2{background:#4a148c;color:#ce93d8;}.j3{background:#bf360c;color:#ffab91;}
+
+/* Layers */
+.lys{display:flex;flex-direction:column;gap:10px;}
+.ly{border-radius:8px;padding:10px;transition:box-shadow 0.3s;}
+.ly.ac{box-shadow:0 0 12px rgba(79,195,247,0.3);}
+.lt{font-size:0.72em;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;}
+.lrp{background:#1b2838;border:1px solid #e65100;}.lrp .lt{color:#ffb74d;}
+.ldg{background:#1b2838;border:1px solid #2e7d32;}.ldg .lt{color:#81c784;}
+.ljk{background:#1b2838;border:1px solid #6a1b9a;}.ljk .lt{color:#ce93d8;}
+
+/* Messages */
+.ms{display:flex;gap:5px;flex-wrap:wrap;}
+.m{padding:3px 8px;border-radius:4px;font-size:0.72em;font-weight:600;transition:all 0.3s;}
+.m.pd{background:#333;color:#aaa;}
+.m.c1{background:var(--c1);color:#fff;}.m.c2{background:var(--c2);color:#fff;}
+.m.c3{background:var(--c3);color:#fff;}.m.c4{background:var(--c4);color:#fff;}
+.m.c5{background:var(--c5);color:#fff;}.m.wt{background:#e65100;color:#fff;animation:pulse 1.5s infinite;}
+
+/* Executor slots */
+.ss{display:flex;gap:6px;flex-wrap:wrap;}
+.s{width:78px;height:36px;border-radius:5px;display:flex;align-items:center;justify-content:center;
+  font-size:0.68em;font-weight:600;transition:all 0.4s;border:2px solid transparent;}
+.s.em{background:#2a2a4a;color:#555;border-color:#333;}
+.s.s1{background:var(--c1);color:#fff;border-color:var(--c1l);}
+.s.s2{background:var(--c2);color:#fff;border-color:var(--c2l);}
+.s.s3{background:var(--c3);color:#fff;border-color:var(--c3l);}
+.s.s4{background:var(--c4);color:#fff;border-color:var(--c4l);}
+.s.s5{background:var(--c5);color:#fff;border-color:var(--c5l);}
+.s.bf2{background:var(--c2);color:#fff;border-color:var(--c2l);animation:glow 1s;}
+.s.bf3{background:var(--c3);color:#fff;border-color:var(--c3l);animation:glow 1s;}
+.s.bf4{background:var(--c4);color:#fff;border-color:var(--c4l);animation:glow 1s;}
+.s.bf5{background:var(--c5);color:#fff;border-color:var(--c5l);animation:glow 1s;}
+
+/* DAG rows */
+.pr{display:flex;align-items:center;gap:6px;margin-bottom:4px;}
+.pl{width:30px;font-size:0.72em;font-weight:700;text-align:center;padding:2px;border-radius:3px;color:#fff;}
+.pl1{background:var(--c1);}.pl2{background:var(--c2);}.pl3{background:var(--c3);}
+.pl4{background:var(--c4);}.pl5{background:var(--c5);}
+.jb{width:52px;height:28px;border-radius:3px;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;font-size:0.6em;font-weight:600;transition:all 0.4s;line-height:1.1;}
+.jb.pd{background:#333;color:#777;}
+.jb.r1{background:var(--c1);color:#fff;animation:pulse 1.5s infinite;}
+.jb.r2{background:var(--c2);color:#fff;animation:pulse 1.5s infinite;}
+.jb.r3{background:var(--c3);color:#fff;animation:pulse 1.5s infinite;}
+.jb.r4{background:var(--c4);color:#fff;animation:pulse 1.5s infinite;}
+.jb.r5{background:var(--c5);color:#fff;animation:pulse 1.5s infinite;}
+.jb.ok{background:#2e7d32;color:#fff;}
+.ar{color:#555;font-size:0.75em;}
+
+.jg{display:flex;gap:12px;}.ji{flex:1;}.jl{font-size:0.68em;color:#aaa;margin-bottom:3px;}
+
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.6;}}
+@keyframes glow{0%{box-shadow:0 0 16px rgba(206,147,216,0.8);}100%{box-shadow:none;}}
+</style>
+</head>
+<body>
+<h1>Complex Flow — 5 Pipelines × 3 Jenkins</h1>
+<p class="sub">파이프라인마다 Job이 서로 다른 Jenkins를 바라보는 복잡한 시나리오</p>
+
+<div class="ctn">
+  <div class="pi">
+    <h3>PIPELINE CONFIGURATION & DAG (5 Pipelines, 3 Jenkins, 5 Executors)</h3>
+    <div class="ig">
+      <div class="ic i1">
+        <div class="ct">P1</div><div class="cd">08:00:00 (1st)</div>
+        <div class="dv">
+          <div class="dn n1">Bld<div><span class="jt j1">J1</span></div></div><div class="de"></div>
+          <div class="dn n1">Tst<div><span class="jt j2">J2</span></div></div><div class="de"></div>
+          <div class="dn n1">Dpl<div><span class="jt j3">J3</span></div></div>
+        </div>
+      </div>
+      <div class="ic i2">
+        <div class="ct">P2</div><div class="cd">08:00:05 (2nd)</div>
+        <div class="dv">
+          <div class="dn n2">Bld<div><span class="jt j2">J2</span></div></div><div class="de"></div>
+          <div class="dn n2">Tst<div><span class="jt j2">J2</span></div></div><div class="de"></div>
+          <div class="dn n2">Dpl<div><span class="jt j1">J1</span></div></div>
+        </div>
+      </div>
+      <div class="ic i3">
+        <div class="ct">P3</div><div class="cd">08:00:10 (3rd)</div>
+        <div class="dv">
+          <div class="dn n3">Bld<div><span class="jt j1">J1</span></div></div><div class="de"></div>
+          <div class="dn n3">Dpl<div><span class="jt j1">J1</span></div></div>
+        </div>
+      </div>
+      <div class="ic i4">
+        <div class="ct">P4</div><div class="cd">08:00:15 (4th)</div>
+        <div class="dv">
+          <div class="dn n4">Bld<div><span class="jt j3">J3</span></div></div><div class="de"></div>
+          <div class="dn n4">Tst<div><span class="jt j1">J1</span></div></div><div class="de"></div>
+          <div class="dn n4">Dpl<div><span class="jt j2">J2</span></div></div>
+        </div>
+      </div>
+      <div class="ic i5">
+        <div class="ct">P5</div><div class="cd">08:00:20 (5th)</div>
+        <div class="dv">
+          <div class="dn n5">Bld<div><span class="jt j2">J2</span></div></div><div class="de"></div>
+          <div class="dn n5">Dpl<div><span class="jt j3">J3</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ctrl">
+    <button class="bn" onclick="next()">다음 단계 ▶</button>
+    <button class="ba" onclick="auto()">자동 재생 ▶▶</button>
+    <button class="br" onclick="reset()">처음으로 ↺</button>
+    <div class="si"><span class="sc" id="sd">Step 0 / 16</span></div>
+  </div>
+
+  <div class="nar" id="nr">
+    <strong>▶ 다음 단계</strong>를 눌러 흐름을 따라가세요.<br>
+    <span class="c1">P1</span> <span class="c2">P2</span> <span class="c3">P3</span> <span class="c4">P4</span> <span class="c5">P5</span> — 5개 파이프라인이 Jenkins 3대(<span class="jt j1">J1</span><span class="jt j2">J2</span><span class="jt j3">J3</span>, 총 executor 5개)를 공유한다.
+  </div>
+
+  <div class="lys">
+    <div class="ly lrp" id="lRP">
+      <div class="lt">① Redpanda (commands.execution)</div>
+      <div class="ms">
+        <div class="m pd" id="m1">P1</div><div class="m pd" id="m2">P2</div>
+        <div class="m pd" id="m3">P3</div><div class="m pd" id="m4">P4</div>
+        <div class="m pd" id="m5">P5</div>
+      </div>
+    </div>
+
+    <div class="ly ldg" id="lDag">
+      <div class="lt">② DAG + dispatchByPriority() — Job.purposeId → Jenkins 결정</div>
+      <div id="da">
+        <div class="pr" id="d1" style="display:none"><div class="pl pl1">P1</div>
+          <div class="jb pd" id="a1">Bld<br>J1</div><div class="ar">→</div>
+          <div class="jb pd" id="a2">Tst<br>J2</div><div class="ar">→</div>
+          <div class="jb pd" id="a3">Dpl<br>J3</div></div>
+        <div class="pr" id="d2" style="display:none"><div class="pl pl2">P2</div>
+          <div class="jb pd" id="b1">Bld<br>J2</div><div class="ar">→</div>
+          <div class="jb pd" id="b2">Tst<br>J2</div><div class="ar">→</div>
+          <div class="jb pd" id="b3">Dpl<br>J1</div></div>
+        <div class="pr" id="d3" style="display:none"><div class="pl pl3">P3</div>
+          <div class="jb pd" id="c1">Bld<br>J1</div><div class="ar">→</div>
+          <div class="jb pd" id="c2">Dpl<br>J1</div></div>
+        <div class="pr" id="d4" style="display:none"><div class="pl pl4">P4</div>
+          <div class="jb pd" id="e1">Bld<br>J3</div><div class="ar">→</div>
+          <div class="jb pd" id="e2">Tst<br>J1</div><div class="ar">→</div>
+          <div class="jb pd" id="e3">Dpl<br>J2</div></div>
+        <div class="pr" id="d5" style="display:none"><div class="pl pl5">P5</div>
+          <div class="jb pd" id="f1">Bld<br>J2</div><div class="ar">→</div>
+          <div class="jb pd" id="f2">Dpl<br>J3</div></div>
+      </div>
+    </div>
+
+    <div class="ly ljk" id="lJK">
+      <div class="lt">③ Jenkins Executor 슬롯</div>
+      <div class="jg">
+        <div class="ji"><div class="jl">Jenkins 1 :31080 (2 exec)</div>
+          <div class="ss"><div class="s em" id="x1">빈칸</div><div class="s em" id="x2">빈칸</div></div></div>
+        <div class="ji"><div class="jl">Jenkins 2 :31082 (2 exec)</div>
+          <div class="ss"><div class="s em" id="y1">빈칸</div><div class="s em" id="y2">빈칸</div></div></div>
+        <div class="ji"><div class="jl">Jenkins 3 :31084 (1 exec)</div>
+          <div class="ss"><div class="s em" id="z1">빈칸</div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let step=0;const mx=16;let tm=null;
+function $(x){return document.getElementById(x);}
+function h(id,c,t){$(id).className=c;$(id).innerHTML=t;}
+function show(id){$(id).style.display='flex';}
+function ac(id){$(id).classList.add('ac');}
+function rc(id){$(id).classList.remove('ac');}
+
+const S=[
+// 0
+{n:'<strong>▶ 다음 단계</strong>를 눌러 흐름을 따라가세요.<br>5개 파이프라인 × Jenkins 3대 (executor 총 5개). 각 파이프라인의 Job이 서로 다른 Jenkins를 타겟한다.',f:()=>{}},
+
+// 1: P1 Build(J1)
+{n:'<span class="c1">P1 소비</span> → dispatchByPriority() → P1-Build → <span class="jt j1">J1</span> 가용 2 → <span class="ok">디스패치</span>',
+f:()=>{h('m1','m c1','P1');show('d1');h('a1','jb r1','Bld 🔨');h('x1','s s1','P1-Bld');ac('lRP');ac('lDag');}},
+
+// 2: P2 Build(J2)
+{n:'<span class="c2">P2 소비</span> → P2-Build → <span class="jt j2">J2</span> 가용 2 → <span class="ok">디스패치</span>. P1·P2 동시 빌드 (다른 Jenkins)',
+f:()=>{rc('lRP');rc('lDag');h('m2','m c2','P2');show('d2');h('b1','jb r2','Bld 🔨');h('y1','s s2','P2-Bld');ac('lJK');}},
+
+// 3: P3 Build(J1), P4 Build(J3)
+{n:'<span class="c3">P3</span>, <span class="c4">P4</span> 소비 → P3-Build(<span class="jt j1">J1</span> 가용 1) + P4-Build(<span class="jt j3">J3</span> 가용 1) → <span class="ok">동시 디스패치!</span><br>executor 4/5 사용 중',
+f:()=>{rc('lJK');h('m3','m c3','P3');h('m4','m c4','P4');show('d3');show('d4');
+h('c1','jb r3','Bld 🔨');h('x2','s s3','P3-Bld');
+h('e1','jb r4','Bld 🔨');h('z1','s s4','P4-Bld');ac('lDag');ac('lJK');}},
+
+// 4: P5 소비 → Build(J2) 가용 1 → 디스패치 → executor 5/5 꽉참
+{n:'<span class="c5">P5 소비</span> → P5-Build(<span class="jt j2">J2</span> 가용 1) → <span class="ok">디스패치!</span><br><span class="wn">모든 executor 5/5 꽉 참.</span> 지금부터 백필이 시작된다.',
+f:()=>{rc('lDag');rc('lJK');h('m5','m c5','P5');show('d5');
+h('f1','jb r5','Bld 🔨');h('y2','s s5','P5-Bld');ac('lJK');}},
+
+// 5: P1-Build 완료 → P1-Test(J2) — J2 꽉참 → WAITING → P3-Build 완료 시 J1 반환
+{n:'<span class="ok">P1-Build 완료!</span> <span class="jt j1">J1</span> exec 반환<br>→ <span class="c1">P1</span>(우선) → P1-Test(<span class="jt j2">J2</span>) → <span class="wn">J2 가용 0 (P2·P5 점유)</span> → WAITING<br>→ <span class="c3">P3</span> → P3-Deploy(<span class="jt j1">J1</span>) → J1 가용 1 → <span class="bf">P3-Deploy 백필!</span>',
+f:()=>{rc('lJK');h('a1','jb ok','Bld ✓');h('x1','s em','빈칸');
+h('c2','jb r3','Dpl 🔨');h('x1','s bf3','P3-Dpl');ac('lDag');ac('lJK');}},
+
+// 6: P2-Build 완료 → J2 반환 → P1-Test(J2) 우선
+{n:'<span class="ok">P2-Build 완료!</span> <span class="jt j2">J2</span> exec 반환<br>→ <span class="c1">P1(우선)</span> → P1-Test(<span class="jt j2">J2</span>) → <span class="hl">J2 가용 1 → 디스패치! (우선순위 보장)</span><br>P2-Test는 J2 가용 0 → WAITING',
+f:()=>{rc('lDag');rc('lJK');h('b1','jb ok','Bld ✓');
+h('a2','jb r1','Tst 🔨');h('y1','s s1','P1-Tst');ac('lDag');ac('lJK');}},
+
+// 7: P4-Build 완료 → J3 반환, P3-Build 이미 완료 → P4-Test(J1)
+{n:'<span class="ok">P4-Build 완료!</span> <span class="jt j3">J3</span> exec 반환<br>→ <span class="c1">P1</span> ready 없음 → <span class="c2">P2</span> Test(<span class="jt j2">J2</span>) 가용 0 → <span class="c3">P3</span> ready 없음 (Deploy 실행 중)<br>→ <span class="c4">P4</span> → P4-Test(<span class="jt j1">J1</span>) J1 가용 0 → <span class="c5">P5</span> Deploy(<span class="jt j3">J3</span>) 가용 1 → <span class="bf">P5-Deploy 백필!</span>',
+f:()=>{rc('lDag');rc('lJK');h('e1','jb ok','Bld ✓');h('z1','s em','빈칸');
+h('f2','jb r5','Dpl 🔨');h('z1','s bf5','P5-Dpl');ac('lDag');ac('lJK');}},
+
+// 8: P5-Build 완료 → J2 반환 → P2-Test(J2) 백필
+{n:'<span class="ok">P5-Build 완료!</span> <span class="jt j2">J2</span> exec 반환<br>→ P1 ready 없음 → <span class="c2">P2</span>-Test(<span class="jt j2">J2</span>) 가용 1 → <span class="bf">P2-Test 백필!</span>',
+f:()=>{rc('lDag');rc('lJK');h('f1','jb ok','Bld ✓');
+h('b2','jb r2','Tst 🔨');h('y2','s bf2','P2-Tst');ac('lDag');ac('lJK');}},
+
+// 9: P3-Deploy 완료 → P3 완료 → J1 반환 → P4-Test(J1)
+{n:'<span class="ok">P3-Deploy 완료! P3 전체 완료.</span> <span class="jt j1">J1</span> exec 반환<br>→ P1 ready 없음 → P2 ready 없음 → <span class="c4">P4</span>-Test(<span class="jt j1">J1</span>) 가용 1 → <span class="bf">P4-Test 백필!</span>',
+f:()=>{rc('lDag');rc('lJK');h('c2','jb ok','Dpl ✓');
+h('e2','jb r4','Tst 🔨');h('x1','s bf4','P4-Tst');ac('lDag');ac('lJK');}},
+
+// 10: P1-Test 완료 → P1-Deploy(J3) — J3 꽉참(P5-Deploy) → WAITING
+{n:'<span class="ok">P1-Test 완료!</span> <span class="jt j2">J2</span> exec 반환<br>→ <span class="c1">P1</span>-Deploy(<span class="jt j3">J3</span>) → <span class="wn">J3 가용 0 (P5-Deploy 점유)</span> → WAITING<br>→ P2 ready 없음 → P4 ready 없음 → 디스패치할 Job 없음',
+f:()=>{rc('lDag');rc('lJK');h('a2','jb ok','Tst ✓');h('y1','s em','빈칸');ac('lDag');}},
+
+// 11: P5-Deploy 완료 → P5 완료 → J3 반환 → P1-Deploy(J3) 드디어!
+{n:'<span class="ok">P5-Deploy 완료! P5 전체 완료.</span> <span class="jt j3">J3</span> exec 반환<br>→ <span class="c1">P1(우선)</span> → P1-Deploy(<span class="jt j3">J3</span>) → <span class="ok">드디어 디스패치!</span><br><span class="hl">P1: Build(J1)→Test(J2)→Deploy(J3) — 3개 Jenkins를 모두 거친다</span>',
+f:()=>{rc('lDag');h('f2','jb ok','Dpl ✓');h('z1','s em','빈칸');
+h('a3','jb r1','Dpl 🔨');h('z1','s s1','P1-Dpl');ac('lDag');ac('lJK');}},
+
+// 12: P2-Test 완료 → P2-Deploy(J1), P4-Test 완료 → P4-Deploy(J2)
+{n:'<span class="ok">P2-Test, P4-Test 완료!</span><br>→ <span class="c2">P2</span>-Deploy(<span class="jt j1">J1</span>) + <span class="c4">P4</span>-Deploy(<span class="jt j2">J2</span>) → 동시 디스패치',
+f:()=>{rc('lDag');rc('lJK');
+h('b2','jb ok','Tst ✓');h('e2','jb ok','Tst ✓');
+h('b3','jb r2','Dpl 🔨');h('x1','s s2','P2-Dpl');
+h('e3','jb r4','Dpl 🔨');h('y1','s s4','P4-Dpl');
+h('y2','s em','빈칸');h('x2','s em','빈칸');
+ac('lJK');}},
+
+// 13: P1-Deploy 완료 → P1 완료
+{n:'<span class="ok">P1-Deploy 완료! P1 전체 완료.</span> <span class="jt j3">J3</span> exec 반환',
+f:()=>{rc('lJK');h('a3','jb ok','Dpl ✓');h('z1','s em','빈칸');}},
+
+// 14: P2-Deploy, P4-Deploy 완료 → 전체 완료
+{n:'<span class="ok">P2-Deploy, P4-Deploy 완료!</span> P2, P4 전체 완료.<br>모든 파이프라인 종료. executor 전부 반환.',
+f:()=>{h('b3','jb ok','Dpl ✓');h('e3','jb ok','Dpl ✓');
+h('x1','s em','빈칸');h('y1','s em','빈칸');}},
+
+// 15: 통계
+{n:'<strong>실행 통계:</strong><br>'+
+'총 Job 13개, executor 5개로 처리. 백필 5회 발생 (P3-Dpl, P5-Dpl, P2-Tst, P4-Tst, P5-Dpl)<br>'+
+'WAITING_EXECUTOR 2회 (P1-Test J2 대기, P1-Deploy J3 대기) — 폴링 없이 webhook으로 해제<br>'+
+'<span class="hl">executor idle 시간 최소화 — 빈 슬롯이 즉시 백필로 채워짐</span>',
+f:()=>{document.querySelectorAll('.ly').forEach(l=>l.classList.add('ac'));}},
+
+// 16: 핵심
+{n:'<strong>핵심:</strong><br>'+
+'① Purpose는 <span class="hl">Job 단위</span> → P1 혼자 J1→J2→J3 모두 사용<br>'+
+'② dispatchByPriority(): createdAt ASC 순회 → <span class="hl">선순위 우선</span>, ready 없으면 <span class="bf">백필</span><br>'+
+'③ Jenkins 3대 × executor 5개를 5개 파이프라인이 <span class="hl">글로벌 경쟁</span> — 빈자리 즉시 재할당',
+f:()=>{}}
+];
+
+function next(){if(step>=mx)return;step++;S[step].f();$('nr').innerHTML=S[step].n;$('sd').textContent=`Step ${step} / ${mx}`;}
+
+function reset(){
+  if(tm){clearInterval(tm);tm=null;}step=0;
+  for(let i=1;i<=5;i++){$('m'+i).className='m pd';$('m'+i).textContent='P'+i;$('d'+i).style.display='none';}
+  const jobs={a1:'Bld<br>J1',a2:'Tst<br>J2',a3:'Dpl<br>J3',
+    b1:'Bld<br>J2',b2:'Tst<br>J2',b3:'Dpl<br>J1',
+    c1:'Bld<br>J1',c2:'Dpl<br>J1',
+    e1:'Bld<br>J3',e2:'Tst<br>J1',e3:'Dpl<br>J2',
+    f1:'Bld<br>J2',f2:'Dpl<br>J3'};
+  Object.entries(jobs).forEach(([k,v])=>{$(k).className='jb pd';$(k).innerHTML=v;});
+  ['x1','x2','y1','y2','z1'].forEach(s=>{$(s).className='s em';$(s).textContent='빈칸';});
+  document.querySelectorAll('.ly').forEach(l=>l.classList.remove('ac'));
+  $('nr').innerHTML=S[0].n;$('sd').textContent='Step 0 / '+mx;
+}
+
+function auto(){
+  if(tm){clearInterval(tm);tm=null;return;}
+  tm=setInterval(()=>{if(step>=mx){clearInterval(tm);tm=null;return;}next();},3000);
+}
+</script>
+</body>
+</html>
