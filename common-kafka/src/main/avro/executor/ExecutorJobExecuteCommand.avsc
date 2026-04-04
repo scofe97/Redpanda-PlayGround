@@ -1,0 +1,12 @@
+{
+  "type": "record",
+  "name": "ExecutorJobExecuteCommand",
+  "namespace": "com.study.playground.avro.executor",
+  "doc": "Executor 내부: 디스패치 확정된 Job의 Jenkins 트리거 명령.",
+  "fields": [
+    {"name": "jobExcnId", "type": "string", "doc": "Job 실행 건 식별자"},
+    {"name": "jobId", "type": "string", "doc": "Job 정의 식별자"},
+    {"name": "idempotencyKey", "type": "string", "doc": "멱등성 키"},
+    {"name": "timestamp", "type": "string", "doc": "발행 시각 (ISO 8601)"}
+  ]
+}

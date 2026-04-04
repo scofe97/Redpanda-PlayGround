@@ -1,0 +1,17 @@
+{
+  "type": "record",
+  "name": "ExecutorJobCompletedEvent",
+  "namespace": "com.study.playground.avro.executor",
+  "doc": "Executor → Op: Job 완료 통지. executor의 모든 처리(상태 전이, 로그 적재) 완료 후 발행.",
+  "fields": [
+    {"name": "jobExcnId", "type": "string", "doc": "Job 실행 건 식별자"},
+    {"name": "pipelineExcnId", "type": ["null", "string"], "default": null, "doc": "파이프라인 실행 건"},
+    {"name": "success", "type": "boolean", "doc": "빌드 성공 여부"},
+    {"name": "result", "type": "string", "doc": "Jenkins 결과값 (SUCCESS, FAILURE, ABORTED 등)"},
+    {"name": "logFilePath", "type": ["null", "string"], "default": null, "doc": "로그 파일 경로 (적재 실패 시 null)"},
+    {"name": "logFileYn", "type": "string", "doc": "로그 파일 적재 성공 여부 (Y/N)"},
+    {"name": "errorMessage", "type": ["null", "string"], "default": null, "doc": "실패 시 예외 메시지"},
+    {"name": "idempotencyKey", "type": "string", "doc": "멱등성 키"},
+    {"name": "timestamp", "type": "string", "doc": "발행 시각 (ISO 8601)"}
+  ]
+}

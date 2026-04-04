@@ -1,0 +1,14 @@
+{
+  "type": "record",
+  "name": "ExecutorJobStartedEvent",
+  "namespace": "com.study.playground.avro.executor",
+  "doc": "Jenkins → Executor: 빌드 시작 알림. Jenkins JobListener(rpk)가 JSON으로 발행하므로 Avro는 op 통지용.",
+  "fields": [
+    {"name": "jobExcnId", "type": "string", "doc": "Job 실행 건 식별자"},
+    {"name": "pipelineExcnId", "type": ["null", "string"], "default": null, "doc": "파이프라인 실행 건"},
+    {"name": "jobId", "type": "string", "doc": "Job 정의 식별자"},
+    {"name": "buildNo", "type": "int", "doc": "Jenkins 빌드 번호"},
+    {"name": "idempotencyKey", "type": "string", "doc": "멱등성 키"},
+    {"name": "timestamp", "type": "string", "doc": "발행 시각 (ISO 8601)"}
+  ]
+}
