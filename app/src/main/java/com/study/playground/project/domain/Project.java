@@ -1,4 +1,4 @@
-package com.study.playground.supporttool.domain;
+package com.study.playground.project.domain;
 
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -7,34 +7,18 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "support_tool")
+@Table(name = "project")
 @Getter
 @Setter
-public class SupportTool {
+public class Project {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Enumerated(EnumType.STRING)
-    private ToolCategory category;
-
-    @Enumerated(EnumType.STRING)
-    private ToolImplementation implementation;
-
     private String name;
 
-    private String url;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "auth_type")
-    private AuthType authType;
-
-    private String username;
-
-    private String credential;
-
-    private boolean active;
+    private String description;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;

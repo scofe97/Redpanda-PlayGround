@@ -4,6 +4,10 @@ server:
 spring:
   config:
     import: classpath:kafka-defaults.yml
+  servlet:
+    multipart:
+      max-file-size: 200MB
+      max-request-size: 200MB
   application:
     name: redpanda-playground
   datasource:
@@ -11,17 +15,25 @@ spring:
     username: ${DB_USERNAME:playground}
     password: ${DB_PASSWORD:playground}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      data-source-properties:
+        reWriteBatchedInserts: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        default_batch_fetch_size: 20
+        jdbc:
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
+        format_sql: true
   flyway:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: true
-
-mybatis:
-  mapper-locations: classpath*:mapper/**/*.xml
-  configuration:
-    map-underscore-to-camel-case: true
-  type-aliases-package: com.study.playground.ticket.domain,com.study.playground.pipeline.domain,com.study.playground.pipeline.dag.domain,com.study.playground.kafka.outbox,com.study.playground.supporttool.domain,com.study.playground.connector.domain,com.study.playground.preset.domain
-  type-handlers-package: com.study.playground.common.mybatis
 
 app:
   connect:
@@ -74,19 +86,17 @@ otel:
 
 logging:
   level:
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
     com.study.playground: DEBUG
-    com.study.playground.kafka.outbox.OutboxMapper: INFO
-    com.study.playground.pipeline.mapper.PipelineStepMapper.findWaitingWebhookStepsOlderThan: INFO
     org.apache.kafka: WARN
-    org.mybatis: DEBUG
-    org.mybatis.spring.SqlSessionUtils: INFO
-    org.mybatis.spring.transaction.SpringManagedTransaction: INFO
 
 pipeline:
   max-concurrent-jobs: 3
   webhook-timeout-minutes: 5
   job-max-retries: 2
   stale-execution-timeout-minutes: 30
+  executor-wait-timeout-minutes: 5
 
 outbox:
   batch-size: 50

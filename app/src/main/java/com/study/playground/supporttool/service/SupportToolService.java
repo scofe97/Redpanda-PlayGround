@@ -7,7 +7,7 @@ import com.study.playground.supporttool.domain.*;
 import com.study.playground.supporttool.event.SupportToolEvent;
 import com.study.playground.supporttool.dto.SupportToolRequest;
 import com.study.playground.supporttool.dto.SupportToolResponse;
-import com.study.playground.supporttool.mapper.SupportToolMapper;
+import com.study.playground.supporttool.repository.SupportToolRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpEntity;
@@ -28,7 +28,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class SupportToolService {
 
-    private final SupportToolMapper supportToolMapper;
+    private final SupportToolRepository supportToolRepository;
     private final AuditEventPublisher auditEventPublisher;
     private final RestTemplate restTemplate;
     private final ApplicationEventPublisher eventPublisher;
@@ -47,7 +47,7 @@ public class SupportToolService {
 
     @Transactional(readOnly = true)
     public List<SupportToolResponse> findAll() {
-        return supportToolMapper.findAll().stream()
+        return supportToolRepository.findAllByOrderByCategoryAscNameAsc().stream()
                 .map(SupportToolResponse::from)
                 .toList();
     }
@@ -61,7 +61,7 @@ public class SupportToolService {
     public SupportToolResponse create(SupportToolRequest request) {
         var tool = toEntity(request);
         encodeCredential(tool, request.getCredential());
-        supportToolMapper.insert(tool);
+        supportToolRepository.save(tool);
 
         auditEventPublisher.publish("system", "CREATE", "SUPPORT_TOOL",
                 String.valueOf(tool.getId()), tool.getName());
@@ -82,7 +82,7 @@ public class SupportToolService {
         tool.setUsername(request.getUsername());
         tool.setActive(request.isActive());
         encodeCredential(tool, request.getCredential());
-        supportToolMapper.update(tool);
+        supportToolRepository.save(tool);
 
         auditEventPublisher.publish("system", "UPDATE", "SUPPORT_TOOL",
                 String.valueOf(id), tool.getName());
@@ -96,7 +96,7 @@ public class SupportToolService {
 
         eventPublisher.publishEvent(new SupportToolEvent.Deleted(id));
 
-        supportToolMapper.deleteById(id);
+        supportToolRepository.deleteById(id);
 
         auditEventPublisher.publish("system", "DELETE", "SUPPORT_TOOL",
                 String.valueOf(id), null);
@@ -130,12 +130,9 @@ public class SupportToolService {
     // ── private helpers ──────────────────────────────────────────────
 
     private SupportTool getToolOrThrow(Long id) {
-        var tool = supportToolMapper.findById(id);
-        if (tool == null) {
-            throw new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND,
-                    "도구를 찾을 수 없습니다: " + id);
-        }
-        return tool;
+        return supportToolRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND,
+                        "도구를 찾을 수 없습니다: " + id));
     }
 
     private SupportTool toEntity(SupportToolRequest request) {

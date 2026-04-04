@@ -1,0 +1,43 @@
+server:
+  port: 8072
+
+spring:
+  application:
+    name: operator-stub
+  autoconfigure:
+    exclude:
+      - io.github.springwolf.core.configuration.SpringwolfAutoConfiguration
+      - io.github.springwolf.plugins.kafka.configuration.SpringwolfKafkaAutoConfiguration
+      - io.github.springwolf.bindings.kafka.configuration.SpringwolfKafkaBindingAutoConfiguration
+  datasource:
+    url: jdbc:postgresql://localhost:5432/playground?currentSchema=operator_stub
+    username: ${DB_USERNAME:playground}
+    password: ${DB_PASSWORD:playground}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: operator_stub
+  flyway:
+    enabled: true
+    schemas: operator_stub
+    locations: classpath:db/migration
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:19092}
+    properties:
+      schema.registry.url: ${SCHEMA_REGISTRY_URL:http://localhost:18081}
+    consumer:
+      group-id: operator-stub-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+
+logging:
+  level:
+    com.study.playground.operatorstub: DEBUG

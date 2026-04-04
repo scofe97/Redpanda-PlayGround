@@ -1,0 +1,7 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:34.47.83.38}:30275/playground?currentSchema=operator_stub
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:34.47.83.38:31092}
+    properties:
+      schema.registry.url: http://${SCHEMA_REGISTRY_HOST:34.47.83.38}:31081

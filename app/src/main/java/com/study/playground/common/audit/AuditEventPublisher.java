@@ -2,7 +2,7 @@ package com.study.playground.common.audit;
 
 import com.study.playground.avro.audit.AuditEvent;
 import com.study.playground.kafka.outbox.EventPublisher;
-import com.study.playground.kafka.serialization.AvroSerializer;
+
 import com.study.playground.kafka.topic.Topics;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -14,7 +14,6 @@ import java.util.UUID;
 public class AuditEventPublisher {
 
     private final EventPublisher eventPublisher;
-    private final AvroSerializer avroSerializer;
 
     public void publish(String actor, String action, String resourceType, String resourceId, String details) {
         publish(actor, action, resourceType, resourceId, details, UUID.randomUUID().toString());
@@ -29,8 +28,12 @@ public class AuditEventPublisher {
                 .setDetails(details)
                 .build();
 
-        eventPublisher.publish("AUDIT", resourceId,
-                "AUDIT_" + action.toUpperCase(), avroSerializer.serialize(event),
-                Topics.AUDIT_EVENTS, correlationId);
+        eventPublisher.publish(
+                "AUDIT"
+                , resourceId,
+                "AUDIT_" + action.toUpperCase()
+                , event,
+                Topics.AUDIT_EVENTS
+                , correlationId);
     }
 }
