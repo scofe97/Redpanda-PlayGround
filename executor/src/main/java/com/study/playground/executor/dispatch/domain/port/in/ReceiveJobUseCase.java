@@ -18,14 +18,18 @@ public interface ReceiveJobUseCase {
      *
      * @param jobExcnId      Job 실행 건 식별자 (EX_002와 1:1)
      * @param pipelineExcnId 파이프라인 실행 건 식별자. 단건 실행 시 null
-     * @param jobId          실행 대상 Job 정의 식별자 (통합작업관리)
-     * @param priorityDt     우선순위 기준 시각 (파이프라인 실행 시간, op가 전달)
-     * @param rgtrId         등록자 ID
+     * @param jobId              실행 대상 Job 정의 식별자 (통합작업관리)
+     * @param jenkinsInstanceId  Jenkins 인스턴스 ID (support_tool.id)
+     * @param jobName            Jenkins Job 이름
+     * @param priorityDt         우선순위 기준 시각 (파이프라인 실행 시간, op가 전달)
+     * @param rgtrId             등록자 ID
      */
     void receive(
             String jobExcnId
             , String pipelineExcnId
             , String jobId
+            , long jenkinsInstanceId
+            , String jobName
             , LocalDateTime priorityDt
             , String rgtrId
     );

@@ -28,6 +28,12 @@ public class ExecutionJobEntity {
     @Column(name = "job_id", nullable = false, length = 20)
     private String jobId;
 
+    @Column(name = "jenkins_instance_id")
+    private Long jenkinsInstanceId;
+
+    @Column(name = "job_name", length = 200)
+    private String jobName;
+
     @Column(name = "build_no")
     private Integer buildNo;
 
@@ -49,7 +55,7 @@ public class ExecutionJobEntity {
     @Column(name = "end_dt")
     private LocalDateTime endDt;
 
-    @Column(name = "log_file_yn", nullable = false, length = 1)
+    @Column(name = "log_file_yn", nullable = false, columnDefinition = "bpchar")
     private String logFileYn;
 
     @Column(name = "reg_dt", nullable = false, updatable = false)

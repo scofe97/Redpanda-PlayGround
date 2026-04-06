@@ -37,6 +37,18 @@ public class DispatchService {
     /**
      * 재시도 가능하면 PENDING으로 리셋, 불가하면 FAILURE로 전환한다.
      */
+    /**
+     * 로그 적재 성공/실패를 기록한다.
+     */
+    public void recordLogResult(ExecutionJob job, boolean success) {
+        if (success) {
+            job.markLogFileUploaded();
+        }
+    }
+
+    /**
+     * 재시도 가능하면 PENDING으로 리셋, 불가하면 FAILURE로 전환한다.
+     */
     public boolean retryOrFail(ExecutionJob job, int maxRetries) {
         if (job.canRetry(maxRetries)) {
             job.incrementRetry();

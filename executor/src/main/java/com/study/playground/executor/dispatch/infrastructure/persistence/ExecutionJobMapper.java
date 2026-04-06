@@ -15,6 +15,8 @@ public class ExecutionJobMapper {
                 entity.getJobExcnId()
                 , entity.getPipelineExcnId()
                 , entity.getJobId()
+                , entity.getJenkinsInstanceId()
+                , entity.getJobName()
                 , entity.getBuildNo()
                 , ExecutionJobStatus.valueOf(entity.getStatus())
                 , entity.getPriority()
@@ -36,6 +38,8 @@ public class ExecutionJobMapper {
         entity.setJobExcnId(domain.getJobExcnId());
         entity.setPipelineExcnId(domain.getPipelineExcnId());
         entity.setJobId(domain.getJobId());
+        entity.setJenkinsInstanceId(domain.getJenkinsInstanceId());
+        entity.setJobName(domain.getJobName());
         entity.setBuildNo(domain.getBuildNo());
         entity.setStatus(domain.getStatus().name());
         entity.setPriority(domain.getPriority());

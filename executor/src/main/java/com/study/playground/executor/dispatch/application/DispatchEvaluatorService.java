@@ -34,9 +34,9 @@ public class DispatchEvaluatorService implements EvaluateDispatchUseCase {
     private static final List<ExecutionJobStatus> ACTIVE_STATUSES =
             List.of(ExecutionJobStatus.QUEUED, ExecutionJobStatus.RUNNING);
 
+    private final PublishExecuteCommandPort publishPort;
     private final ExecutionJobPort jobPort;
     private final JenkinsQueryPort jenkinsQueryPort;
-    private final PublishExecuteCommandPort publishPort;
     private final DispatchService dispatchService;
     private final ExecutorProperties properties;
 
@@ -68,8 +68,8 @@ public class DispatchEvaluatorService implements EvaluateDispatchUseCase {
             return;
         }
 
-        // 2. job → Jenkins 인스턴스 매핑
-        long jenkinsInstanceId = jenkinsQueryPort.resolveJenkinsInstance(job.getJobId());
+        // 2. job에서 Jenkins 인스턴스 ID 직접 사용
+        long jenkinsInstanceId = job.getJenkinsInstanceId();
 
         // 3. 해당 Jenkins에 슬롯이 있는지 확인
         if (!jenkinsQueryPort.isImmediatelyExecutable(jenkinsInstanceId)) {
@@ -78,10 +78,10 @@ public class DispatchEvaluatorService implements EvaluateDispatchUseCase {
             return;
         }
 
-        // 4. nextBuildNumber 조회 → DB에 매핑
-        // TODO: 실제 Jenkins 폴더 경로 조합 (project/preset/jobId)
+        // 4. Jenkins 폴더 경로 조합 + nextBuildNumber 조회
+        var jenkinsJobPath = job.getJobName();
         int nextBuildNo = jenkinsQueryPort.queryNextBuildNumber(
-                jenkinsInstanceId, job.getJobId());
+                jenkinsInstanceId, jenkinsJobPath);
 
         // 5. buildNo 기록 + QUEUED 전환
         dispatchService.prepareForDispatch(job, nextBuildNo);

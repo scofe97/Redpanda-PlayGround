@@ -19,17 +19,16 @@ public class JobDispatchPublisher {
     private final EventPublisher eventPublisher;
 
     public void publishJobDispatch(OperatorJob operatorJob) {
-        String idempotencyKey = UUID.randomUUID().toString();
+        var idempotencyKey = UUID.randomUUID().toString();
 
-        ExecutorJobDispatchCommand cmd = ExecutorJobDispatchCommand.newBuilder()
-                .setExecutionJobId(operatorJob.getId())
-                .setExecutionPipelineId(operatorJob.getExecutionPipelineId())
-                .setJobId(operatorJob.getJobId())
-                .setPipelineId(operatorJob.getPipelineId())
-                .setJobName(operatorJob.getJobName())
-                .setJobOrder(operatorJob.getJobOrder())
+        var cmd = ExecutorJobDispatchCommand.newBuilder()
+                .setJobExcnId(String.valueOf(operatorJob.getId()))
+                .setPipelineExcnId(operatorJob.getExecutionPipelineId())
+                .setJobId(String.valueOf(operatorJob.getJobId()))
                 .setJenkinsInstanceId(operatorJob.getJenkinsInstanceId())
-                .setConfigJson(operatorJob.getConfigJson())
+                .setJobName(operatorJob.getJobName())
+                .setPriorityDt(Instant.now().toString())
+                .setRgtrId(null)
                 .setIdempotencyKey(idempotencyKey)
                 .setTimestamp(Instant.now().toString())
                 .build();

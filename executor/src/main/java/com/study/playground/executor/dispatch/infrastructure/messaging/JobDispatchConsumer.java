@@ -13,8 +13,9 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import java.time.ZoneId;
 
 @Component
 @RequiredArgsConstructor
@@ -41,7 +42,9 @@ public class JobDispatchConsumer {
                     cmd.getJobExcnId()
                     , cmd.getPipelineExcnId()
                     , cmd.getJobId()
-                    , LocalDateTime.parse(cmd.getPriorityDt(), DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                    , cmd.getJenkinsInstanceId()
+                    , cmd.getJobName()
+                    , LocalDateTime.ofInstant(Instant.parse(cmd.getPriorityDt()), ZoneId.systemDefault())
                     , cmd.getRgtrId()
             );
         } catch (Exception e) {

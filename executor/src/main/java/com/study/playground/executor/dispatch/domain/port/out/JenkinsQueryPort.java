@@ -1,7 +1,7 @@
 package com.study.playground.executor.dispatch.domain.port.out;
 
 /**
- * Jenkins 조회 out-port (슬롯 확인 + 빌드번호 + 인스턴스 매핑 통합).
+ * Jenkins 조회 out-port (슬롯 확인 + 빌드번호).
  * runner.infrastructure의 JenkinsClient가 구현한다.
  */
 public interface JenkinsQueryPort {
@@ -17,10 +17,4 @@ public interface JenkinsQueryPort {
      * Jenkins API: GET /{jobPath}/api/json?tree=nextBuildNumber
      */
     int queryNextBuildNumber(long jenkinsInstanceId, String jenkinsJobPath);
-
-    /**
-     * jobId로부터 실행할 Jenkins 인스턴스 ID를 조회한다.
-     * Job → Preset → PurposeEntry(CI_CD_TOOL) → SupportTool.id
-     */
-    long resolveJenkinsInstance(String jobId);
 }

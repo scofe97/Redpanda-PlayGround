@@ -41,16 +41,15 @@ public class JobExecuteService {
         }
 
         try {
-            // TODO: job → Jenkins 인스턴스 매핑 (Purpose → PurposeEntry → SupportTool)
-            long jenkinsInstanceId = 1L;
-            String jobName = job.getJobId();
+            long jenkinsInstanceId = job.getJenkinsInstanceId();
+            var jenkinsJobPath = job.getJobName();
 
-            int buildNo = jenkinsClient.triggerBuild(jenkinsInstanceId, jobName, job.getJobExcnId());
+            int buildNo = jenkinsClient.triggerBuild(jenkinsInstanceId, jenkinsJobPath, job.getJobExcnId());
             job.recordBuildNo(buildNo);
             jobPort.save(job);
 
-            log.info("[JobExecute] Build triggered: jobExcnId={}, jobName={}, buildNo={}"
-                    , jobExcnId, jobName, buildNo);
+            log.info("[JobExecute] Build triggered: jobExcnId={}, path={}, buildNo={}"
+                    , jobExcnId, jenkinsJobPath, buildNo);
         } catch (Exception e) {
             log.error("[JobExecute] Failed: jobExcnId={}, error={}"
                     , jobExcnId, e.getMessage());

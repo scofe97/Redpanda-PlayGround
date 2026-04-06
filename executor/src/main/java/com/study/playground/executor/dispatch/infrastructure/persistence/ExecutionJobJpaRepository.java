@@ -30,11 +30,6 @@ public interface ExecutionJobJpaRepository extends JpaRepository<ExecutionJobEnt
     List<ExecutionJobEntity> findByPipelineExcnId(String pipelineExcnId);
 
     /**
-     * Jenkins 콜백 매칭: jobId + buildNo로 ExecutionJob을 찾는다.
-     */
-    Optional<ExecutionJobEntity> findByJobIdAndBuildNo(String jobId, int buildNo);
-
-    /**
      * 동일 jobId(정의)가 특정 상태에 있는지 확인한다. 중복 실행 방지용.
      */
     boolean existsByJobIdAndStatusIn(String jobId, List<String> statuses);

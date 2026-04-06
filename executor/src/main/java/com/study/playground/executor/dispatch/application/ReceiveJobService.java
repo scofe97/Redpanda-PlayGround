@@ -31,6 +31,8 @@ public class ReceiveJobService implements ReceiveJobUseCase {
             String jobExcnId
             , String pipelineExcnId
             , String jobId
+            , long jenkinsInstanceId
+            , String jobName
             , LocalDateTime priorityDt
             , String rgtrId
     ) {
@@ -41,6 +43,7 @@ public class ReceiveJobService implements ReceiveJobUseCase {
 
         ExecutionJob job = ExecutionJob.create(
                 jobExcnId, pipelineExcnId, jobId
+                , jenkinsInstanceId, jobName
                 , DEFAULT_PRIORITY, priorityDt, rgtrId
         );
 
