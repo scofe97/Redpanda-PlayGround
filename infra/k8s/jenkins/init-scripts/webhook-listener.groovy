@@ -6,8 +6,8 @@ import hudson.model.listeners.RunListener
 /**
  * 전역 빌드 리스너 -- 빌드 시작/완료 시 rpk로 Kafka 토픽에 JSON 직접 발행.
  *
- * EXECUTION_JOB_ID 파라미터가 있는 빌드만 이벤트를 발송한다.
- * Operator가 JSON/Avro 듀얼 파싱으로 수신한다.
+ * JOB_ID 파라미터가 있는 빌드만 이벤트를 발송한다.
+ * Executor가 jobId + buildNumber로 ExecutionJob을 매칭한다.
  *
  * 토픽:
  *   시작: playground.executor.events.job-started
@@ -50,28 +50,27 @@ RunListener.all().add(new RunListener<Run>() {
     @Override
     void onStarted(Run run, TaskListener listener) {
         def paramsAction = run.getAction(ParametersAction)
-        def executionJobId = paramsAction?.getParameter('EXECUTION_JOB_ID')?.value
-        if (!executionJobId) return
+        def jobId = paramsAction?.getParameter('JOB_ID')?.value
+        if (!jobId) return
 
-        def jobId   = paramsAction?.getParameter('JOB_ID')?.value ?: '0'
-        def jobName = run.parent.fullName
+        def jobName     = run.parent.fullName
+        def buildNumber = run.number
 
-        def payload = """{"executionJobId":${executionJobId},"jobId":${jobId},"result":"STARTED","buildNumber":${run.number},"jobName":"${jobName}","duration":0,"url":""}"""
+        def payload = """{"jobId":"${jobId}","buildNumber":${buildNumber},"result":"STARTED","jobName":"${jobName}","duration":0,"url":""}"""
 
-        def sent = rpkProduce(RPK_PATH, BROKERS, STARTED_TOPIC, executionJobId.toString(), payload, listener, MAX_RETRIES)
+        def sent = rpkProduce(RPK_PATH, BROKERS, STARTED_TOPIC, "${jobId}-${buildNumber}", payload, listener, MAX_RETRIES)
         if (!sent) {
-            listener?.logger?.println("[WEBHOOK-RPK] Failed to send started event after ${MAX_RETRIES} retries: executionJobId=${executionJobId}")
+            listener?.logger?.println("[WEBHOOK-RPK] Failed to send started event after ${MAX_RETRIES} retries: jobId=${jobId}, buildNumber=${buildNumber}")
         }
     }
 
     @Override
     void onFinalized(Run run) {
         def paramsAction = run.getAction(ParametersAction)
-        def executionJobId = paramsAction?.getParameter('EXECUTION_JOB_ID')?.value
-        if (!executionJobId) return
+        def jobId = paramsAction?.getParameter('JOB_ID')?.value
+        if (!jobId) return
 
-        def listener = run.getListener()
-        def jobId       = paramsAction?.getParameter('JOB_ID')?.value ?: '0'
+        def listener    = run.getListener()
         def result      = run.result?.toString() ?: 'UNKNOWN'
         def buildNumber = run.number
         def jobName     = run.parent.fullName
@@ -85,11 +84,11 @@ RunListener.all().add(new RunListener<Run>() {
             listener?.logger?.println("[WEBHOOK-RPK] Failed to get log: ${e.message}")
         }
 
-        def payload = """{"executionJobId":${executionJobId},"jobId":${jobId},"result":"${result}","buildNumber":${buildNumber},"jobName":"${jobName}","duration":${duration},"url":"${url}","logContent":"${logContent}"}"""
+        def payload = """{"jobId":"${jobId}","buildNumber":${buildNumber},"result":"${result}","jobName":"${jobName}","duration":${duration},"url":"${url}","logContent":"${logContent}"}"""
 
-        def sent = rpkProduce(RPK_PATH, BROKERS, COMPLETED_TOPIC, executionJobId.toString(), payload, listener, MAX_RETRIES)
+        def sent = rpkProduce(RPK_PATH, BROKERS, COMPLETED_TOPIC, "${jobId}-${buildNumber}", payload, listener, MAX_RETRIES)
         if (!sent) {
-            listener?.logger?.println("[WEBHOOK-RPK] Failed to send completed event after ${MAX_RETRIES} retries: executionJobId=${executionJobId}")
+            listener?.logger?.println("[WEBHOOK-RPK] Failed to send completed event after ${MAX_RETRIES} retries: jobId=${jobId}, buildNumber=${buildNumber}")
         }
     }
 })

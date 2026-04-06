@@ -33,4 +33,6 @@ public interface ExecutionJobJpaRepository extends JpaRepository<ExecutionJobEnt
      * 동일 jobId(정의)가 특정 상태에 있는지 확인한다. 중복 실행 방지용.
      */
     boolean existsByJobIdAndStatusIn(String jobId, List<String> statuses);
+
+    Optional<ExecutionJobEntity> findByJobIdAndBuildNo(String jobId, Integer buildNo);
 }

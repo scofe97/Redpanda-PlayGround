@@ -16,7 +16,7 @@ class BuildCallbackTest {
         BuildCallback callback = BuildCallback.started("job-excn-001", 5);
 
         // then
-        assertThat(callback.jobExcnId()).isEqualTo("job-excn-001");
+        assertThat(callback.jobId()).isEqualTo("job-excn-001");
         assertThat(callback.buildNumber()).isEqualTo(5);
         assertThat(callback.result()).isEqualTo("STARTED");
         assertThat(callback.logContent()).isNull();
@@ -37,7 +37,7 @@ class BuildCallbackTest {
         );
 
         // then
-        assertThat(callback.jobExcnId()).isEqualTo("job-excn-002");
+        assertThat(callback.jobId()).isEqualTo("job-excn-002");
         assertThat(callback.buildNumber()).isEqualTo(10);
         assertThat(callback.result()).isEqualTo("SUCCESS");
         assertThat(callback.logContent()).isEqualTo(logContent);

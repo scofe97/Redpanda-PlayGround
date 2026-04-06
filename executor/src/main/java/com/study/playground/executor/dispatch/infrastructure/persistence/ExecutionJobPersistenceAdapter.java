@@ -74,6 +74,12 @@ public class ExecutionJobPersistenceAdapter implements ExecutionJobPort {
     }
 
     @Override
+    public Optional<ExecutionJob> findByJobIdAndBuildNo(String jobId, int buildNo) {
+        return jpaRepository.findByJobIdAndBuildNo(jobId, buildNo)
+                .map(mapper::toDomain);
+    }
+
+    @Override
     public ExecutionJob save(ExecutionJob job) {
         ExecutionJobEntity entity = mapper.toEntity(job);
         ExecutionJobEntity saved = jpaRepository.save(entity);

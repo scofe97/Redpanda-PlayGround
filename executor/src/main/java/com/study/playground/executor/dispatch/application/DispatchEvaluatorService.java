@@ -24,7 +24,7 @@ import java.util.List;
  *      a. 동일 jobId가 이미 QUEUED/RUNNING → skip (중복 실행 방지)
  *      b. job → Jenkins 인스턴스 매핑
  *      c. 해당 Jenkins에 슬롯 있는가? → 없으면 skip, 다음 job 검사
- *      d. 슬롯 있으면 → nextBuildNumber 조회 → buildNo 기록 → QUEUED → 실행 토픽 발행
+ *      d. 슬롯 있으면 → QUEUED → 실행 토픽 발행
  */
 @Service
 @RequiredArgsConstructor
@@ -78,19 +78,14 @@ public class DispatchEvaluatorService implements EvaluateDispatchUseCase {
             return;
         }
 
-        // 4. Jenkins 폴더 경로 조합 + nextBuildNumber 조회
-        var jenkinsJobPath = job.getJobName();
-        int nextBuildNo = jenkinsQueryPort.queryNextBuildNumber(
-                jenkinsInstanceId, jenkinsJobPath);
-
-        // 5. buildNo 기록 + QUEUED 전환
-        dispatchService.prepareForDispatch(job, nextBuildNo);
+        // 4. QUEUED 전환
+        dispatchService.prepareForDispatch(job);
         jobPort.save(job);
 
-        // 6. 실행 토픽 발행
+        // 5. 실행 토픽 발행
         publishPort.publishExecuteCommand(job);
 
-        log.info("[Dispatch] Job queued: jobExcnId={}, jobId={}, buildNo={}, priority={}"
-                , job.getJobExcnId(), job.getJobId(), nextBuildNo, job.getPriority());
+        log.info("[Dispatch] Job queued: jobExcnId={}, jobId={}, priority={}"
+                , job.getJobExcnId(), job.getJobId(), job.getPriority());
     }
 }

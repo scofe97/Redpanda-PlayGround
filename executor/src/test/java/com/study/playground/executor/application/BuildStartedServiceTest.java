@@ -70,8 +70,8 @@ class BuildStartedServiceTest {
     void handle_validCallback_shouldTransitionToRunningAndNotify() {
         // given
         ExecutionJob job = queuedJob("excn-001");
-        given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
-        BuildCallback callback = BuildCallback.started("excn-001", BUILD_NO);
+        given(jobPort.findByJobIdAndBuildNo("job-001", BUILD_NO)).willReturn(Optional.of(job));
+        BuildCallback callback = BuildCallback.started("job-001", BUILD_NO);
 
         // when
         service.handle(callback);
@@ -88,24 +88,8 @@ class BuildStartedServiceTest {
     @DisplayName("Job을 찾지 못하면 notify를 호출하지 않아야 한다")
     void handle_jobNotFound_shouldWarn() {
         // given
-        given(jobPort.findById("excn-999")).willReturn(Optional.empty());
-        BuildCallback callback = BuildCallback.started("excn-999", 1);
-
-        // when
-        service.handle(callback);
-
-        // then
-        verify(notifyStartedPort, never()).notify(any(), any(), any(), any(Integer.class));
-        verify(dispatchUseCase, never()).tryDispatch();
-    }
-
-    @Test
-    @DisplayName("buildNo가 일치하지 않으면 처리를 건너뛰어야 한다")
-    void handle_buildNoMismatch_shouldIgnore() {
-        // given — Job의 buildNo=7이지만 콜백은 buildNumber=999
-        ExecutionJob job = queuedJob("excn-001");
-        given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
-        BuildCallback callback = BuildCallback.started("excn-001", 999);
+        given(jobPort.findByJobIdAndBuildNo("unknown-job", 1)).willReturn(Optional.empty());
+        BuildCallback callback = BuildCallback.started("unknown-job", 1);
 
         // when
         service.handle(callback);
@@ -122,8 +106,8 @@ class BuildStartedServiceTest {
         ExecutionJob job = queuedJob("excn-001");
         job.transitionTo(ExecutionJobStatus.RUNNING); // QUEUED → RUNNING
         job.transitionTo(ExecutionJobStatus.SUCCESS); // RUNNING → SUCCESS
-        given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
-        BuildCallback callback = BuildCallback.started("excn-001", BUILD_NO);
+        given(jobPort.findByJobIdAndBuildNo("job-001", BUILD_NO)).willReturn(Optional.of(job));
+        BuildCallback callback = BuildCallback.started("job-001", BUILD_NO);
 
         // when
         service.handle(callback);

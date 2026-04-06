@@ -70,7 +70,7 @@ class JobExecuteServiceTest {
         // given
         ExecutionJob job = queuedJob("excn-001");
         given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
-        given(jenkinsClient.triggerBuild(1L, "test-job", "excn-001")).willReturn(42);
+        given(jenkinsClient.triggerBuild(1L, "test-job", "job-001")).willReturn(42);
 
         // when
         service.execute("excn-001");
@@ -117,7 +117,7 @@ class JobExecuteServiceTest {
         // given
         ExecutionJob job = queuedJob("excn-001");
         given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
-        given(jenkinsClient.triggerBuild(eq(1L), eq("test-job"), eq("excn-001")))
+        given(jenkinsClient.triggerBuild(eq(1L), eq("test-job"), eq("job-001")))
                 .willThrow(new RuntimeException("Jenkins 연결 실패"));
 
         // when
@@ -138,7 +138,7 @@ class JobExecuteServiceTest {
         job.incrementRetry(); // retryCnt=1
         job.incrementRetry(); // retryCnt=2
         given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
-        given(jenkinsClient.triggerBuild(eq(1L), eq("test-job"), eq("excn-001")))
+        given(jenkinsClient.triggerBuild(eq(1L), eq("test-job"), eq("job-001")))
                 .willThrow(new RuntimeException("Jenkins 연결 실패"));
 
         // when

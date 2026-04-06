@@ -80,7 +80,6 @@ class DispatchEvaluatorServiceTest {
         given(jobPort.findDispatchableJobs(5)).willReturn(List.of(job));
         given(jobPort.existsByJobIdAndStatusIn(eq("job-001"), any())).willReturn(false);
         given(jenkinsQueryPort.isImmediatelyExecutable(1L)).willReturn(true);
-        given(jenkinsQueryPort.queryNextBuildNumber(1L, "test-job")).willReturn(42);
 
         // when
         service.tryDispatch();
@@ -147,14 +146,11 @@ class DispatchEvaluatorServiceTest {
         given(jobPort.existsByJobIdAndStatusIn(eq("job-001"), any())).willReturn(false);
         given(jobPort.existsByJobIdAndStatusIn(eq("job-002"), any())).willReturn(false);
         given(jenkinsQueryPort.isImmediatelyExecutable(1L)).willReturn(true);
-        given(jenkinsQueryPort.queryNextBuildNumber(eq(1L), eq("test-job")))
-                .willThrow(new RuntimeException("Jenkins 연결 실패"))
-                .willReturn(99);
 
         // when
         service.tryDispatch();
 
-        // then — job1은 실패, job2는 publish 성공
-        verify(publishPort, times(1)).publishExecuteCommand(any());
+        // then — both jobs should be published (no more queryNextBuildNumber to fail)
+        verify(publishPort, times(2)).publishExecuteCommand(any());
     }
 }

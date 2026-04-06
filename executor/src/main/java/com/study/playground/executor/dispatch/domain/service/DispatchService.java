@@ -10,11 +10,10 @@ import com.study.playground.executor.dispatch.domain.model.ExecutionJobStatus;
 public class DispatchService {
 
     /**
-     * 디스패치 준비: 빌드번호 기록 + QUEUED 전환.
-     * 슬롯 확인 + nextBuildNumber 조회가 완료된 후 호출한다.
+     * 디스패치 준비: QUEUED 전환.
+     * 슬롯 확인이 완료된 후 호출한다.
      */
-    public void prepareForDispatch(ExecutionJob job, int buildNo) {
-        job.recordBuildNo(buildNo);
+    public void prepareForDispatch(ExecutionJob job) {
         job.transitionTo(ExecutionJobStatus.QUEUED);
     }
 

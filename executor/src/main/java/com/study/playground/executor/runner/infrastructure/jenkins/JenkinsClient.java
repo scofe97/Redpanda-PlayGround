@@ -54,16 +54,9 @@ public class JenkinsClient implements JenkinsQueryPort {
         }
     }
 
-    @Override
-    public int queryNextBuildNumber(long jenkinsInstanceId, String jenkinsJobPath) {
-        var baseUri = resolveJenkinsUri(jenkinsInstanceId);
-        var auth = buildAuthHeader(jenkinsInstanceId);
-        return getNextBuildNumber(baseUri, jenkinsJobPath, auth);
-    }
-
     // === 빌드 트리거 ===
 
-    public int triggerBuild(long jenkinsInstanceId, String jenkinsJobPath, String jobExcnId) {
+    public int triggerBuild(long jenkinsInstanceId, String jenkinsJobPath, String jobId) {
         var baseUri = resolveJenkinsUri(jenkinsInstanceId);
         var auth = buildAuthHeader(jenkinsInstanceId);
         int nextBuildNo = getNextBuildNumber(baseUri, jenkinsJobPath, auth);
@@ -83,7 +76,7 @@ public class JenkinsClient implements JenkinsQueryPort {
             }
         }
 
-        var request = new HttpEntity<>("EXECUTION_JOB_ID=" + jobExcnId, headers);
+        var request = new HttpEntity<>("JOB_ID=" + jobId, headers);
         restTemplate.exchange(triggerUrl, HttpMethod.POST, request, String.class);
 
         log.info("[JenkinsClient] Build triggered: path={}, buildNo={}", jenkinsJobPath, nextBuildNo);

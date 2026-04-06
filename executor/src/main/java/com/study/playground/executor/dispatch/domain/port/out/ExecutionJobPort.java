@@ -39,6 +39,9 @@ public interface ExecutionJobPort {
     /** 동일 jobId(정의)가 특정 상태에 있는지 확인한다. 중복 실행 방지용. */
     boolean existsByJobIdAndStatusIn(String jobId, List<ExecutionJobStatus> statuses);
 
+    /** jobId + buildNo로 ExecutionJob을 조회한다. 콜백 매칭용. */
+    Optional<ExecutionJob> findByJobIdAndBuildNo(String jobId, int buildNo);
+
     // === 저장 ===
 
     /** Job을 저장(신규 또는 갱신)하고 저장된 결과를 반환한다. */

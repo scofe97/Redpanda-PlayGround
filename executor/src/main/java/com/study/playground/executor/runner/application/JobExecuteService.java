@@ -44,7 +44,7 @@ public class JobExecuteService {
             long jenkinsInstanceId = job.getJenkinsInstanceId();
             var jenkinsJobPath = job.getJobName();
 
-            int buildNo = jenkinsClient.triggerBuild(jenkinsInstanceId, jenkinsJobPath, job.getJobExcnId());
+            int buildNo = jenkinsClient.triggerBuild(jenkinsInstanceId, jenkinsJobPath, job.getJobId());
             job.recordBuildNo(buildNo);
             jobPort.save(job);
 

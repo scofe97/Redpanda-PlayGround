@@ -25,23 +25,18 @@ public class BuildStartedService implements HandleBuildStartedUseCase {
     @Override
     @Transactional
     public void handle(BuildCallback callback) {
-        ExecutionJob job = jobPort.findById(callback.jobExcnId())
+        ExecutionJob job = jobPort.findByJobIdAndBuildNo(
+                callback.jobId(), callback.buildNumber())
                 .orElse(null);
 
         if (job == null) {
-            log.warn("[BuildStarted] No matching job: jobExcnId={}, buildNumber={}"
-                    , callback.jobExcnId(), callback.buildNumber());
+            log.warn("[BuildStarted] No matching job: jobId={}, buildNumber={}"
+                    , callback.jobId(), callback.buildNumber());
             return;
         }
 
         if (job.getStatus().isTerminal()) {
             log.debug("[BuildStarted] Already terminal: jobExcnId={}", job.getJobExcnId());
-            return;
-        }
-
-        if (job.getBuildNo() != null && job.getBuildNo() != callback.buildNumber()) {
-            log.warn("[BuildStarted] BuildNo mismatch: jobExcnId={}, expected={}, actual={}"
-                    , job.getJobExcnId(), job.getBuildNo(), callback.buildNumber());
             return;
         }
 

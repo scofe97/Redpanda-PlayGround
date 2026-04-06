@@ -27,7 +27,7 @@ public class JobStartedConsumer {
         try {
             JsonNode json = objectMapper.readTree(record.value());
             var callback = BuildCallback.started(
-                    json.get("executionJobId").asText()
+                    json.get("jobId").asText()
                     , json.get("buildNumber").asInt()
             );
             handleStartedUseCase.handle(callback);

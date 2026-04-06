@@ -4,69 +4,91 @@ import hudson.model.ParametersAction
 import hudson.model.listeners.RunListener
 
 /**
- * 전역 웹훅 리스너 — 모든 파이프라인 완료 시 Redpanda Connect로 결과 전송.
+ * 전역 빌드 리스너 -- 빌드 시작/완료 시 rpk로 Kafka 토픽에 JSON 직접 발행.
  *
- * EXECUTION_ID 파라미터가 있는 빌드만 웹훅을 발송한다.
- * 사용자 Jenkinsfile에 웹훅 코드를 넣을 필요 없음.
+ * JOB_ID 파라미터가 있는 빌드만 이벤트를 발송한다.
+ * Executor가 jobId + buildNumber로 ExecutionJob을 매칭한다.
+ *
+ * 토픽:
+ *   시작: playground.executor.events.job-started
+ *   완료: playground.executor.events.job-completed
  */
 
-// 환경변수 CONNECT_WEBHOOK_URL이 설정되어 있으면 사용, 없으면 로컬 Docker 네트워크 기본값
-def WEBHOOK_URL = System.getenv('CONNECT_WEBHOOK_URL') ?: 'http://connect:4195/jenkins-webhook/webhook/jenkins'
+def RPK_PATH = '/var/jenkins_home/rpk'
+def BROKERS = System.getenv('RPK_BROKERS') ?: 'redpanda-0.redpanda.rp-oss.svc.cluster.local:9092'
+def STARTED_TOPIC = System.getenv('STARTED_TOPIC') ?: 'playground.executor.events.job-started'
+def COMPLETED_TOPIC = System.getenv('COMPLETED_TOPIC') ?: 'playground.executor.events.job-completed'
+def MAX_RETRIES = 3
+
+def rpkProduce(String rpkPath, String brokers, String topic, String key, String payload, listener, int maxRetries) {
+    int attempt = 0
+    boolean sent = false
+    while (attempt < maxRetries && !sent) {
+        attempt++
+        try {
+            def cmd = ['bash', '-c', "echo '${payload}' | ${rpkPath} topic produce ${topic} --brokers ${brokers} -k ${key}"]
+            def proc = cmd.execute()
+            proc.waitFor()
+            if (proc.exitValue() == 0) {
+                sent = true
+                listener?.logger?.println("[WEBHOOK-RPK] Sent to ${topic} (attempt ${attempt}): ${payload.take(100)}...")
+            } else {
+                def stderr = proc.errorStream.text
+                listener?.logger?.println("[WEBHOOK-RPK] Retry ${attempt}/${maxRetries} on ${topic}: ${stderr}")
+                if (attempt < maxRetries) Thread.sleep(1000 * attempt)
+            }
+        } catch (Exception e) {
+            listener?.logger?.println("[WEBHOOK-RPK] Retry ${attempt}/${maxRetries} on ${topic}: ${e.message}")
+            if (attempt < maxRetries) Thread.sleep(1000 * attempt)
+        }
+    }
+    return sent
+}
 
 RunListener.all().add(new RunListener<Run>() {
 
     @Override
-    void onCompleted(Run run, TaskListener listener) {
-
-        // --- 1. 파라미터 추출 (EXECUTION_ID 없으면 skip) ---
-
+    void onStarted(Run run, TaskListener listener) {
         def paramsAction = run.getAction(ParametersAction)
-        def executionId  = paramsAction?.getParameter('EXECUTION_ID')?.value
-        if (!executionId) return
+        def jobId = paramsAction?.getParameter('JOB_ID')?.value
+        if (!jobId) return
 
-        def jobId = paramsAction?.getParameter('JOB_ID')?.value ?: '0'
+        def jobName     = run.parent.fullName
+        def buildNumber = run.number
 
-        // --- 2. 빌드 메타데이터 수집 ---
+        def payload = """{"jobId":"${jobId}","buildNumber":${buildNumber},"result":"STARTED","jobName":"${jobName}","duration":0,"url":""}"""
 
+        def sent = rpkProduce(RPK_PATH, BROKERS, STARTED_TOPIC, "${jobId}-${buildNumber}", payload, listener, MAX_RETRIES)
+        if (!sent) {
+            listener?.logger?.println("[WEBHOOK-RPK] Failed to send started event after ${MAX_RETRIES} retries: jobId=${jobId}, buildNumber=${buildNumber}")
+        }
+    }
+
+    @Override
+    void onFinalized(Run run) {
+        def paramsAction = run.getAction(ParametersAction)
+        def jobId = paramsAction?.getParameter('JOB_ID')?.value
+        if (!jobId) return
+
+        def listener    = run.getListener()
         def result      = run.result?.toString() ?: 'UNKNOWN'
         def buildNumber = run.number
         def jobName     = run.parent.fullName
         def duration    = run.duration
         def url         = run.absoluteUrl ?: ''
 
-        // --- 3. JSON 페이로드 구성 ---
-
-        def payload = """\
-            {
-              "executionId": "${executionId}",
-              "jobId":       ${jobId},
-              "result":      "${result}",
-              "buildNumber": ${buildNumber},
-              "jobName":     "${jobName}",
-              "duration":    ${duration},
-              "url":         "${url}"
-            }""".stripIndent()
-
-        // --- 4. 웹훅 전송 ---
-
+        def logContent = ''
         try {
-            def conn = new URL(WEBHOOK_URL).openConnection() as HttpURLConnection
-            conn.requestMethod  = 'POST'
-            conn.connectTimeout = 5000
-            conn.readTimeout    = 5000
-            conn.doOutput       = true
-            conn.setRequestProperty('Content-Type', 'application/json')
-
-            conn.outputStream.withWriter('UTF-8') { it.write(payload) }
-
-            def responseCode = conn.responseCode
-            listener.logger.println(
-                "[WEBHOOK] Sent to Connect (HTTP ${responseCode}): ${result}"
-            )
+            logContent = run.getLog(500).join('\n').replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
         } catch (Exception e) {
-            listener.logger.println(
-                "[WEBHOOK] delivery failed (Connect may be down): ${e.message}"
-            )
+            listener?.logger?.println("[WEBHOOK-RPK] Failed to get log: ${e.message}")
+        }
+
+        def payload = """{"jobId":"${jobId}","buildNumber":${buildNumber},"result":"${result}","jobName":"${jobName}","duration":${duration},"url":"${url}","logContent":"${logContent}"}"""
+
+        def sent = rpkProduce(RPK_PATH, BROKERS, COMPLETED_TOPIC, "${jobId}-${buildNumber}", payload, listener, MAX_RETRIES)
+        if (!sent) {
+            listener?.logger?.println("[WEBHOOK-RPK] Failed to send completed event after ${MAX_RETRIES} retries: jobId=${jobId}, buildNumber=${buildNumber}")
         }
     }
 })
