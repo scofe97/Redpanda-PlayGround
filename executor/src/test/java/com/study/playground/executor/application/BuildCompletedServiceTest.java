@@ -53,6 +53,8 @@ class BuildCompletedServiceTest {
         service = new BuildCompletedService(jobPort, logPort, notifyPort, dispatchService, dispatchUseCase);
     }
 
+    private static final int BUILD_NO = 7;
+
     private ExecutionJob runningJob(String jobExcnId) {
         ExecutionJob job = ExecutionJob.create(
                 jobExcnId
@@ -64,6 +66,7 @@ class BuildCompletedServiceTest {
                 , LocalDateTime.now()
                 , "user-01"
         );
+        job.recordBuildNo(BUILD_NO);
         job.transitionTo(ExecutionJobStatus.QUEUED);  // PENDING → QUEUED
         job.transitionTo(ExecutionJobStatus.RUNNING); // QUEUED → RUNNING
         return job;
@@ -76,7 +79,7 @@ class BuildCompletedServiceTest {
         ExecutionJob job = runningJob("excn-001");
         given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
         given(logPort.save(eq("test-job"), eq("excn-001"), eq("log content"))).willReturn(true);
-        BuildCallback callback = BuildCallback.completed("excn-001", 7, "SUCCESS", "log content");
+        BuildCallback callback = BuildCallback.completed("excn-001", BUILD_NO, "SUCCESS", "log content");
 
         // when
         service.handle(callback);
@@ -103,7 +106,7 @@ class BuildCompletedServiceTest {
         ExecutionJob job = runningJob("excn-001");
         given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
         given(logPort.save(eq("test-job"), eq("excn-001"), eq("error log"))).willReturn(true);
-        BuildCallback callback = BuildCallback.completed("excn-001", 7, "FAILURE", "error log");
+        BuildCallback callback = BuildCallback.completed("excn-001", BUILD_NO, "FAILURE", "error log");
 
         // when
         service.handle(callback);
@@ -128,7 +131,7 @@ class BuildCompletedServiceTest {
         // given
         ExecutionJob job = runningJob("excn-001");
         given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
-        BuildCallback callback = BuildCallback.completed("excn-001", 7, "SUCCESS", null);
+        BuildCallback callback = BuildCallback.completed("excn-001", BUILD_NO, "SUCCESS", null);
 
         // when
         service.handle(callback);
@@ -152,7 +155,7 @@ class BuildCompletedServiceTest {
         ExecutionJob job = runningJob("excn-001");
         given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
         given(logPort.save(eq("test-job"), eq("excn-001"), eq("log content"))).willReturn(false);
-        BuildCallback callback = BuildCallback.completed("excn-001", 7, "SUCCESS", "log content");
+        BuildCallback callback = BuildCallback.completed("excn-001", BUILD_NO, "SUCCESS", "log content");
 
         // when
         service.handle(callback);
@@ -195,7 +198,7 @@ class BuildCompletedServiceTest {
         ExecutionJob job = runningJob("excn-001");
         job.transitionTo(ExecutionJobStatus.SUCCESS); // RUNNING → SUCCESS
         given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
-        BuildCallback callback = BuildCallback.completed("excn-001", 7, "SUCCESS", "log");
+        BuildCallback callback = BuildCallback.completed("excn-001", BUILD_NO, "SUCCESS", "log");
 
         // when
         service.handle(callback);

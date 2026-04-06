@@ -47,6 +47,8 @@ class BuildStartedServiceTest {
         service = new BuildStartedService(jobPort, notifyStartedPort, dispatchService, dispatchUseCase);
     }
 
+    private static final int BUILD_NO = 7;
+
     private ExecutionJob queuedJob(String jobExcnId) {
         ExecutionJob job = ExecutionJob.create(
                 jobExcnId
@@ -58,6 +60,7 @@ class BuildStartedServiceTest {
                 , LocalDateTime.now()
                 , "user-01"
         );
+        job.recordBuildNo(BUILD_NO);
         job.transitionTo(ExecutionJobStatus.QUEUED); // PENDING → QUEUED
         return job;
     }
@@ -68,7 +71,7 @@ class BuildStartedServiceTest {
         // given
         ExecutionJob job = queuedJob("excn-001");
         given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
-        BuildCallback callback = BuildCallback.started("excn-001", 7);
+        BuildCallback callback = BuildCallback.started("excn-001", BUILD_NO);
 
         // when
         service.handle(callback);
@@ -104,7 +107,7 @@ class BuildStartedServiceTest {
         job.transitionTo(ExecutionJobStatus.RUNNING); // QUEUED → RUNNING
         job.transitionTo(ExecutionJobStatus.SUCCESS); // RUNNING → SUCCESS
         given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
-        BuildCallback callback = BuildCallback.started("excn-001", 7);
+        BuildCallback callback = BuildCallback.started("excn-001", BUILD_NO);
 
         // when
         service.handle(callback);
