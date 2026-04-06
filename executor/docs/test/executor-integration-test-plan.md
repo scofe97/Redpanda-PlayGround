@@ -69,12 +69,12 @@ executor/src/test/resources/
 | 메서드 | 역할 |
 |--------|------|
 | `cleanDb()` | execution_job + outbox_event 테이블 truncate |
-| `publishDispatchCommand(jobExcnId, jobName, jenkinsInstanceId)` | Avro 메시지를 dispatch 토픽에 직접 발행 |
+| `publishDispatchCommand(jobExcnId, jobId)` | Avro 메시지를 dispatch 토픽에 발행 (jobId만 전달, Jenkins 정보는 Executor가 DB 조회) |
 | `waitForStatus(jobExcnId, expectedStatus, timeoutSec)` | Executor API 폴링으로 상태 대기 |
 | `getExecutorJob(jobExcnId)` | Executor REST API 호출 |
-| `publishStartedCallback(jobExcnId, buildNumber)` | started 토픽에 JSON 발행 (Jenkins 콜백 시뮬레이션) |
-| `publishCompletedCallback(jobExcnId, buildNumber, result, logContent)` | completed 토픽에 JSON 발행 |
-| `assertLogFileExists(jobName, jobExcnId)` | 로그 파일 존재 확인 |
+| `publishStartedCallback(jobId, buildNumber)` | started 토픽에 JSON 발행 (Jenkins 콜백 시뮬레이션) |
+| `publishCompletedCallback(jobId, buildNumber, result, logContent)` | completed 토픽에 JSON 발행 |
+| `logFileExists(jobName, jobExcnId)` | 로그 파일 존재 확인 |
 
 ### Kafka 메시지 발행 방식
 
