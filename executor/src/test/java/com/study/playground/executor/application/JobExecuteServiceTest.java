@@ -23,6 +23,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willDoNothing;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -65,20 +66,19 @@ class JobExecuteServiceTest {
     }
 
     @Test
-    @DisplayName("QUEUED 상태 Job은 빌드를 트리거하고 buildNo를 저장해야 한다")
-    void execute_queuedJob_shouldTriggerBuildAndRecordBuildNo() {
+    @DisplayName("QUEUED 상태 Job은 빌드를 트리거해야 한다 (buildNo 기록은 STARTED 콜백에서)")
+    void execute_queuedJob_shouldTriggerBuild() {
         // given
         ExecutionJob job = queuedJob("excn-001");
         given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
-        given(jenkinsClient.triggerBuild(1L, "test-job", "job-001")).willReturn(42);
+        willDoNothing().given(jenkinsClient).triggerBuild(1L, "test-job", "job-001");
 
         // when
         service.execute("excn-001");
 
         // then
-        ArgumentCaptor<ExecutionJob> captor = ArgumentCaptor.forClass(ExecutionJob.class);
-        verify(jobPort).save(captor.capture());
-        assertThat(captor.getValue().getBuildNo()).isEqualTo(42);
+        verify(jenkinsClient).triggerBuild(1L, "test-job", "job-001");
+        verify(jobPort, never()).save(any());
     }
 
     @Test
@@ -117,8 +117,8 @@ class JobExecuteServiceTest {
         // given
         ExecutionJob job = queuedJob("excn-001");
         given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
-        given(jenkinsClient.triggerBuild(eq(1L), eq("test-job"), eq("job-001")))
-                .willThrow(new RuntimeException("Jenkins 연결 실패"));
+        willThrow(new RuntimeException("Jenkins 연결 실패"))
+                .given(jenkinsClient).triggerBuild(eq(1L), eq("test-job"), eq("job-001"));
 
         // when
         service.execute("excn-001");
@@ -138,8 +138,8 @@ class JobExecuteServiceTest {
         job.incrementRetry(); // retryCnt=1
         job.incrementRetry(); // retryCnt=2
         given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
-        given(jenkinsClient.triggerBuild(eq(1L), eq("test-job"), eq("job-001")))
-                .willThrow(new RuntimeException("Jenkins 연결 실패"));
+        willThrow(new RuntimeException("Jenkins 연결 실패"))
+                .given(jenkinsClient).triggerBuild(eq(1L), eq("test-job"), eq("job-001"));
 
         // when
         service.execute("excn-001");

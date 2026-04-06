@@ -42,6 +42,9 @@ public interface ExecutionJobPort {
     /** jobId + buildNo로 ExecutionJob을 조회한다. 콜백 매칭용. */
     Optional<ExecutionJob> findByJobIdAndBuildNo(String jobId, int buildNo);
 
+    /** jobId로 QUEUED 또는 RUNNING 상태의 활성 Job을 조회한다. STARTED 콜백 매칭용. */
+    Optional<ExecutionJob> findActiveByJobId(String jobId);
+
     // === 저장 ===
 
     /** Job을 저장(신규 또는 갱신)하고 저장된 결과를 반환한다. */

@@ -38,15 +38,6 @@ public interface JenkinsFeignClient {
     String getComputerClasses(URI baseUri, @RequestHeader("Authorization") String auth);
 
     /**
-     * Job의 다음 빌드 번호 조회.
-     * 빌드 트리거 전 nextBuildNumber를 확보하여 트리거 후 빌드 추적에 사용한다.
-     * jobPath는 "project/preset/job" 형태를 "project/job/preset/job/job" 형태로 인코딩하여 전달.
-     */
-    @GetMapping("/job/{jobPath}/api/json?tree=nextBuildNumber")
-    String getJobInfo(URI baseUri, @PathVariable("jobPath") String jobPath
-            , @RequestHeader("Authorization") String auth);
-
-    /**
      * CSRF crumb 발급.
      * Password 인증 시 POST 요청에 crumb 헤더가 필요하다.
      */

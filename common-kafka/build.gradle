@@ -22,6 +22,14 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok:1.18.42'
 }
 
+sourceSets {
+    main {
+        java {
+            srcDir layout.buildDirectory.dir("generated-main-avro-java")
+        }
+    }
+}
+
 avro {
     stringType = 'String'
     fieldVisibility = 'PRIVATE'

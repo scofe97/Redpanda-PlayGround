@@ -21,7 +21,7 @@ class TC01_HappyPathTest extends ExecutorIntegrationTestBase {
         String jobExcnId = uniqueId("tc01-");
 
         // when — Operator 역할로 dispatch command 발행
-        publishDispatchCommand(jobExcnId, "executor-test", 1);
+        publishDispatchCommand(jobExcnId, "1");
 
         // then — SUCCESS까지 대기 (Jenkins K8s pod 생성 포함, 최대 120초)
         var result = waitForStatus(jobExcnId, "SUCCESS", 120);

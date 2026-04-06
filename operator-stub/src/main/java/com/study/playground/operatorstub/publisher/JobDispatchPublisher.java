@@ -9,7 +9,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
-import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -19,17 +18,12 @@ public class JobDispatchPublisher {
     private final EventPublisher eventPublisher;
 
     public void publishJobDispatch(OperatorJob operatorJob) {
-        var idempotencyKey = UUID.randomUUID().toString();
-
         var cmd = ExecutorJobDispatchCommand.newBuilder()
                 .setJobExcnId(String.valueOf(operatorJob.getId()))
                 .setPipelineExcnId(operatorJob.getExecutionPipelineId())
                 .setJobId(String.valueOf(operatorJob.getJobId()))
-                .setJenkinsInstanceId(operatorJob.getJenkinsInstanceId())
-                .setJobName(operatorJob.getJobName())
                 .setPriorityDt(Instant.now().toString())
                 .setRgtrId(null)
-                .setIdempotencyKey(idempotencyKey)
                 .setTimestamp(Instant.now().toString())
                 .build();
 

@@ -67,18 +67,14 @@ public abstract class ExecutorIntegrationTestBase {
      */
     protected void publishDispatchCommand(
             String jobExcnId
-            , String jobName
-            , long jenkinsInstanceId
+            , String jobId
     ) {
         var cmd = ExecutorJobDispatchCommand.newBuilder()
                 .setJobExcnId(jobExcnId)
                 .setPipelineExcnId(null)
-                .setJobId("0")
-                .setJenkinsInstanceId(jenkinsInstanceId)
-                .setJobName(jobName)
+                .setJobId(jobId)
                 .setPriorityDt(Instant.now().toString())
                 .setRgtrId(null)
-                .setIdempotencyKey(UUID.randomUUID().toString())
                 .setTimestamp(Instant.now().toString())
                 .build();
 

@@ -25,9 +25,7 @@ public class BuildStartedService implements HandleBuildStartedUseCase {
     @Override
     @Transactional
     public void handle(BuildCallback callback) {
-        ExecutionJob job = jobPort.findByJobIdAndBuildNo(
-                callback.jobId(), callback.buildNumber())
-                .orElse(null);
+        ExecutionJob job = jobPort.findActiveByJobId(callback.jobId()).orElse(null);
 
         if (job == null) {
             log.warn("[BuildStarted] No matching job: jobId={}, buildNumber={}"

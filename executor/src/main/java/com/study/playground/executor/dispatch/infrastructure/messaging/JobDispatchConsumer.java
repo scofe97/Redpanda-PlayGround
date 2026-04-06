@@ -42,8 +42,6 @@ public class JobDispatchConsumer {
                     cmd.getJobExcnId()
                     , cmd.getPipelineExcnId()
                     , cmd.getJobId()
-                    , cmd.getJenkinsInstanceId()
-                    , cmd.getJobName()
                     , LocalDateTime.ofInstant(Instant.parse(cmd.getPriorityDt()), ZoneId.systemDefault())
                     , cmd.getRgtrId()
             );

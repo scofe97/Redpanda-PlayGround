@@ -1,9 +1,11 @@
 package com.study.playground.executor.dispatch.application;
 
 import com.study.playground.executor.dispatch.domain.model.ExecutionJob;
+import com.study.playground.executor.dispatch.domain.model.JobDefinitionInfo;
 import com.study.playground.executor.dispatch.domain.port.in.EvaluateDispatchUseCase;
 import com.study.playground.executor.dispatch.domain.port.in.ReceiveJobUseCase;
 import com.study.playground.executor.dispatch.domain.port.out.ExecutionJobPort;
+import com.study.playground.executor.dispatch.domain.port.out.JobDefinitionQueryPort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,6 +25,7 @@ public class ReceiveJobService implements ReceiveJobUseCase {
     private static final int DEFAULT_PRIORITY = 1;
 
     private final ExecutionJobPort jobPort;
+    private final JobDefinitionQueryPort jobDefinitionQueryPort;
     private final EvaluateDispatchUseCase evaluateDispatchUseCase;
 
     @Override
@@ -31,8 +34,6 @@ public class ReceiveJobService implements ReceiveJobUseCase {
             String jobExcnId
             , String pipelineExcnId
             , String jobId
-            , long jenkinsInstanceId
-            , String jobName
             , LocalDateTime priorityDt
             , String rgtrId
     ) {
@@ -41,9 +42,11 @@ public class ReceiveJobService implements ReceiveJobUseCase {
             return;
         }
 
+        JobDefinitionInfo defInfo = jobDefinitionQueryPort.load(jobId);
+
         ExecutionJob job = ExecutionJob.create(
                 jobExcnId, pipelineExcnId, jobId
-                , jenkinsInstanceId, jobName
+                , defInfo.jenkinsInstanceId(), defInfo.jenkinsJobPath()
                 , DEFAULT_PRIORITY, priorityDt, rgtrId
         );
 

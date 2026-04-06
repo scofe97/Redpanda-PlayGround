@@ -56,10 +56,9 @@ public class JenkinsClient implements JenkinsQueryPort {
 
     // === 빌드 트리거 ===
 
-    public int triggerBuild(long jenkinsInstanceId, String jenkinsJobPath, String jobId) {
+    public void triggerBuild(long jenkinsInstanceId, String jenkinsJobPath, String jobId) {
         var baseUri = resolveJenkinsUri(jenkinsInstanceId);
         var auth = buildAuthHeader(jenkinsInstanceId);
-        int nextBuildNo = getNextBuildNumber(baseUri, jenkinsJobPath, auth);
 
         // crumb + 세션 쿠키를 함께 전송해야 하므로 RestTemplate 사용
         var crumbSession = fetchCrumbWithCookie(baseUri, auth);
@@ -79,8 +78,7 @@ public class JenkinsClient implements JenkinsQueryPort {
         var request = new HttpEntity<>("JOB_ID=" + jobId, headers);
         restTemplate.exchange(triggerUrl, HttpMethod.POST, request, String.class);
 
-        log.info("[JenkinsClient] Build triggered: path={}, buildNo={}", jenkinsJobPath, nextBuildNo);
-        return nextBuildNo;
+        log.info("[JenkinsClient] Build triggered: path={}", jenkinsJobPath);
     }
 
     private CrumbSession fetchCrumbWithCookie(URI baseUri, String auth) {
@@ -148,17 +146,6 @@ public class JenkinsClient implements JenkinsQueryPort {
             throw new RuntimeException("Failed to parse computer response", e);
         }
     }
-
-    private int getNextBuildNumber(URI baseUri, String jobPath, String auth) {
-        try {
-            var encodedPath = jobPath.replace("/", "/job/");
-            var response = feignClient.getJobInfo(baseUri, encodedPath, auth);
-            return objectMapper.readTree(response).path("nextBuildNumber").asInt();
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to get nextBuildNumber", e);
-        }
-    }
-
 
     // === 인증 ===
     private JenkinsToolInfo getToolInfo(long jenkinsInstanceId) {

@@ -37,7 +37,7 @@ class TC07_MultiTriggerTest extends ExecutorIntegrationTestBase {
         // when — 3개 동시 발행
         var futures = ids.stream()
                 .map(id -> CompletableFuture.runAsync(
-                        () -> publishDispatchCommand(id, "executor-test", 1)))
+                        () -> publishDispatchCommand(id, "1")))
                 .toList();
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 

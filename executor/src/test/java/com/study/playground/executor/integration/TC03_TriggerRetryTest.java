@@ -22,7 +22,7 @@ class TC03_TriggerRetryTest extends ExecutorIntegrationTestBase {
         String jobExcnId = uniqueId("tc03-");
 
         // when — 실제 Jenkins(id=1)이지만 없는 Job 이름
-        publishDispatchCommand(jobExcnId, "non-existent-job-tc03", 1);
+        publishDispatchCommand(jobExcnId, "999");
 
         // 트리거 실패 + 재시도까지 대기
         Thread.sleep(20_000);

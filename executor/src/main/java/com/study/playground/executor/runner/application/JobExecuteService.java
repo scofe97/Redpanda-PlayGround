@@ -13,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * CMD_JOB_EXECUTE 수신 처리.
- * Jenkins API로 빌드를 트리거하고 BUILD_NO를 채번한다.
+ * Jenkins API로 빌드를 트리거한다. BUILD_NO 채번은 STARTED 콜백에서 수행한다.
  */
 @Service
 @RequiredArgsConstructor
@@ -44,12 +44,10 @@ public class JobExecuteService {
             long jenkinsInstanceId = job.getJenkinsInstanceId();
             var jenkinsJobPath = job.getJobName();
 
-            int buildNo = jenkinsClient.triggerBuild(jenkinsInstanceId, jenkinsJobPath, job.getJobId());
-            job.recordBuildNo(buildNo);
-            jobPort.save(job);
+            jenkinsClient.triggerBuild(jenkinsInstanceId, jenkinsJobPath, job.getJobId());
 
-            log.info("[JobExecute] Build triggered: jobExcnId={}, path={}, buildNo={}"
-                    , jobExcnId, jenkinsJobPath, buildNo);
+            log.info("[JobExecute] Build triggered: jobExcnId={}, path={}"
+                    , jobExcnId, jenkinsJobPath);
         } catch (Exception e) {
             log.error("[JobExecute] Failed: jobExcnId={}, error={}"
                     , jobExcnId, e.getMessage());

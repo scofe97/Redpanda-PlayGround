@@ -1,8 +1,10 @@
 package com.study.playground.executor.application;
 
 import com.study.playground.executor.dispatch.application.ReceiveJobService;
+import com.study.playground.executor.dispatch.domain.model.JobDefinitionInfo;
 import com.study.playground.executor.dispatch.domain.port.in.EvaluateDispatchUseCase;
 import com.study.playground.executor.dispatch.domain.port.out.ExecutionJobPort;
+import com.study.playground.executor.dispatch.domain.port.out.JobDefinitionQueryPort;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,6 +27,9 @@ class ReceiveJobServiceTest {
     ExecutionJobPort jobPort;
 
     @Mock
+    JobDefinitionQueryPort jobDefinitionQueryPort;
+
+    @Mock
     EvaluateDispatchUseCase evaluateDispatchUseCase;
 
     @InjectMocks
@@ -35,14 +40,14 @@ class ReceiveJobServiceTest {
     void receive_newJob_shouldSaveAndTryDispatch() {
         // given
         given(jobPort.existsById("excn-001")).willReturn(false);
+        given(jobDefinitionQueryPort.load("job-001")).willReturn(
+                new JobDefinitionInfo("job-001", 10L, 20L, 1L, "test-job"));
 
         // when
         service.receive(
                 "excn-001"
                 , "pipe-001"
                 , "job-001"
-                , 1L
-                , "test-job"
                 , LocalDateTime.now()
                 , "user-01"
         );
@@ -63,8 +68,6 @@ class ReceiveJobServiceTest {
                 "excn-001"
                 , "pipe-001"
                 , "job-001"
-                , 1L
-                , "test-job"
                 , LocalDateTime.now()
                 , "user-01"
         );

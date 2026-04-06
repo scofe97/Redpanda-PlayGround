@@ -22,10 +22,10 @@ class TC06_IdempotencyTest extends ExecutorIntegrationTestBase {
         String jobExcnId = uniqueId("tc06-");
 
         // when — 동일 jobExcnId로 2회 발행
-        publishDispatchCommand(jobExcnId, "executor-test", 1);
+        publishDispatchCommand(jobExcnId, "1");
         Thread.sleep(5_000); // 첫 번째 처리 완료 대기
 
-        publishDispatchCommand(jobExcnId, "executor-test", 1);
+        publishDispatchCommand(jobExcnId, "1");
         Thread.sleep(3_000); // 두 번째 처리 시도 대기
 
         // then — DB에 정확히 1건만 존재해야 한다

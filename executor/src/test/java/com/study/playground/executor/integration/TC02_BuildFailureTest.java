@@ -27,7 +27,7 @@ class TC02_BuildFailureTest extends ExecutorIntegrationTestBase {
         String jobExcnId = uniqueId("tc02-");
 
         // when — dispatch command 발행
-        publishDispatchCommand(jobExcnId, "executor-test", 1);
+        publishDispatchCommand(jobExcnId, "1");
 
         // RUNNING 상태까지 대기 (Jenkins가 실제로 빌드를 시작해야 buildNo가 채번됨)
         var runningJob = waitForAnyStatus(

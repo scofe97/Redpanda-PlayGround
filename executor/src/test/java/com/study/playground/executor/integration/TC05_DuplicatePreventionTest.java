@@ -25,10 +25,10 @@ class TC05_DuplicatePreventionTest extends ExecutorIntegrationTestBase {
         String jobB = uniqueId("tc05b-");
 
         // when — 같은 jobName으로 두 개 연속 발행
-        publishDispatchCommand(jobA, "executor-test", 1);
+        publishDispatchCommand(jobA, "1");
         Thread.sleep(5_000); // jobA가 QUEUED/RUNNING에 도달할 시간
 
-        publishDispatchCommand(jobB, "executor-test", 1);
+        publishDispatchCommand(jobB, "1");
         Thread.sleep(5_000); // jobB의 dispatch 평가가 완료될 시간
 
         // then

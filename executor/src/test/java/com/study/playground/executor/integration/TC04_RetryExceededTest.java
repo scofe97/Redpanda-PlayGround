@@ -22,17 +22,17 @@ class TC04_RetryExceededTest extends ExecutorIntegrationTestBase {
     void retryExceeded_shouldTransitionToFailure() throws InterruptedException {
         // given — 메인 Job (1차 시도 → 실패 → retryCnt=1, PENDING)
         String mainJob = uniqueId("tc04-");
-        publishDispatchCommand(mainJob, "non-existent-job-tc04", 1);
+        publishDispatchCommand(mainJob, "999");
         Thread.sleep(15_000);
 
         // 2차 시도 유도: 더미 Job 발행 → tryDispatch() → mainJob 재시도 → 실패 → retryCnt=2
         String dummy1 = uniqueId("tc04d1-");
-        publishDispatchCommand(dummy1, "non-existent-job-tc04-d1", 1);
+        publishDispatchCommand(dummy1, "998");
         Thread.sleep(15_000);
 
         // 3차 시도 유도: 더미 Job 발행 → tryDispatch() → mainJob 재시도 → canRetry=false → FAILURE
         String dummy2 = uniqueId("tc04d2-");
-        publishDispatchCommand(dummy2, "non-existent-job-tc04-d2", 1);
+        publishDispatchCommand(dummy2, "997");
         Thread.sleep(15_000);
 
         // then — 메인 Job이 FAILURE로 전이

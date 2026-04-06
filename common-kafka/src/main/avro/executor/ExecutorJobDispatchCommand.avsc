@@ -7,11 +7,8 @@
     {"name": "jobExcnId", "type": "string", "doc": "Job 실행 건 식별자 (EX_002와 1:1)"},
     {"name": "pipelineExcnId", "type": ["null", "string"], "default": null, "doc": "파이프라인 실행 건. 단건 실행 시 null"},
     {"name": "jobId", "type": "string", "doc": "실행 대상 Job 정의 식별자"},
-    {"name": "jenkinsInstanceId", "type": "long", "doc": "Jenkins 인스턴스 ID (support_tool.id)"},
-    {"name": "jobName", "type": "string", "doc": "Jenkins Job 이름"},
     {"name": "priorityDt", "type": "string", "doc": "우선순위 기준 시각 (ISO 8601)"},
     {"name": "rgtrId", "type": ["null", "string"], "default": null, "doc": "등록자 ID"},
-    {"name": "idempotencyKey", "type": "string", "doc": "멱등성 키"},
     {"name": "timestamp", "type": "string", "doc": "발행 시각 (ISO 8601)"}
   ]
 }
