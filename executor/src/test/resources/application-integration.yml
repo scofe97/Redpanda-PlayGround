@@ -1,0 +1,44 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://34.47.83.38:30275/playground?currentSchema=executor
+    username: playground
+    password: playground
+  kafka:
+    bootstrap-servers: 34.47.83.38:31092
+    properties:
+      schema.registry.url: http://34.47.83.38:31081
+    consumer:
+      group-id: executor-group
+      auto-offset-reset: latest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: executor
+  flyway:
+    enabled: true
+    clean-on-validation-error: true
+    schemas: executor
+    locations: classpath:db/migration
+  autoconfigure:
+    exclude:
+      - io.github.springwolf.core.configuration.SpringwolfAutoConfiguration
+      - io.github.springwolf.plugins.kafka.configuration.SpringwolfKafkaAutoConfiguration
+      - io.github.springwolf.bindings.kafka.configuration.SpringwolfKafkaBindingAutoConfiguration
+
+executor:
+  job-max-retries: 2
+  max-batch-size: 5
+  job-timeout-minutes: 1
+  log-path: /tmp/executor-test-logs
+
+logging:
+  level:
+    com.study.playground.executor: DEBUG
