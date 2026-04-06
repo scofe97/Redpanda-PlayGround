@@ -16,7 +16,7 @@ spring:
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: none
     open-in-view: false
     properties:
       hibernate:
@@ -25,6 +25,8 @@ spring:
     enabled: true
     schemas: executor
     locations: classpath:db/migration
+    clean-disabled: false
+    clean-on-validation-error: true
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:19092}
     consumer:

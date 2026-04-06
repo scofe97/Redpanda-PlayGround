@@ -1,7 +1,6 @@
 package com.study.playground.executor.config;
 
 import com.study.playground.executor.dispatch.domain.service.DispatchService;
-import com.study.playground.executor.runner.domain.service.BuildLifecycleService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -15,10 +14,5 @@ public class DomainServiceConfig {
     @Bean
     public DispatchService dispatchService() {
         return new DispatchService();
-    }
-
-    @Bean
-    public BuildLifecycleService buildLifecycleService() {
-        return new BuildLifecycleService();
     }
 }

@@ -33,8 +33,10 @@ public class AvroKafkaConfig {
 
         var consumerFactory = new DefaultKafkaConsumerFactory<>(
                 Map.of(
-                        ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers
-                        , ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class
+                        ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG
+                        , bootstrapServers
+                        , ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG
+                        , StringDeserializer.class
                 )
                 , new StringDeserializer()
                 , avroDeserializer
