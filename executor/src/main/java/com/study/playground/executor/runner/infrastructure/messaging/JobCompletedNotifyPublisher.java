@@ -45,7 +45,7 @@ public class JobCompletedNotifyPublisher implements NotifyJobCompletedPort {
                 , jobExcnId
                 , "JOB_COMPLETED_NOTIFY"
                 , event
-                , Topics.EXECUTOR_EVT_JOB_COMPLETED
+                , Topics.EXECUTOR_NOTIFY_JOB_COMPLETED
                 , jobExcnId
         );
 

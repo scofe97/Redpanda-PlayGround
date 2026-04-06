@@ -27,8 +27,8 @@ public class JobStartedConsumer {
         try {
             JsonNode json = objectMapper.readTree(record.value());
             var callback = BuildCallback.started(
-                    json.get("jenkinsPath").asText()
-                    , json.get("buildNo").asInt()
+                    json.get("executionJobId").asText()
+                    , json.get("buildNumber").asInt()
             );
             handleStartedUseCase.handle(callback);
         } catch (Exception e) {

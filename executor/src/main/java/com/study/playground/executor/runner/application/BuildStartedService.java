@@ -3,47 +3,34 @@ package com.study.playground.executor.runner.application;
 import com.study.playground.executor.dispatch.domain.model.ExecutionJob;
 import com.study.playground.executor.dispatch.domain.port.in.EvaluateDispatchUseCase;
 import com.study.playground.executor.dispatch.domain.port.out.ExecutionJobPort;
+import com.study.playground.executor.dispatch.domain.service.DispatchService;
 import com.study.playground.executor.runner.domain.model.BuildCallback;
 import com.study.playground.executor.runner.domain.port.in.HandleBuildStartedUseCase;
-import com.study.playground.executor.runner.domain.port.out.ResolveJobByBuildPort;
-import com.study.playground.executor.runner.domain.port.out.UpdateOperatorStatusPort;
-import com.study.playground.executor.runner.domain.service.BuildLifecycleService;
+import com.study.playground.executor.runner.domain.port.out.NotifyJobStartedPort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * HandleBuildStartedUseCase 구현.
- *
- * 흐름:
- *   1. Jenkins 경로에서 jobId 추출 → executor DB 매칭
- *   2. executor DB: QUEUED → RUNNING + BGNG_DT
- *   3. op DB: PENDING → RUNNING (cross-schema UPDATE)
- *   4. tryDispatch() (슬롯 변동 반영)
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class BuildStartedService implements HandleBuildStartedUseCase {
 
-    private final ResolveJobByBuildPort resolvePort;
     private final ExecutionJobPort jobPort;
-    private final UpdateOperatorStatusPort operatorStatusPort;
-    private final BuildLifecycleService lifecycleService;
+    private final NotifyJobStartedPort notifyStartedPort;
+    private final DispatchService dispatchService;
     private final EvaluateDispatchUseCase dispatchUseCase;
 
     @Override
     @Transactional
     public void handle(BuildCallback callback) {
-        var jobId = callback.extractJobId();
-
-        ExecutionJob job = resolvePort.findByJobIdAndBuildNo(jobId, callback.buildNo())
+        ExecutionJob job = jobPort.findById(callback.jobExcnId())
                 .orElse(null);
 
         if (job == null) {
-            log.warn("[BuildStarted] No matching job: jobId={}, buildNo={}"
-                    , jobId, callback.buildNo());
+            log.warn("[BuildStarted] No matching job: jobExcnId={}, buildNumber={}"
+                    , callback.jobExcnId(), callback.buildNumber());
             return;
         }
 
@@ -52,17 +39,22 @@ public class BuildStartedService implements HandleBuildStartedUseCase {
             return;
         }
 
-        // executor DB 상태 전이
-        lifecycleService.applyStarted(job, callback);
+        // 1. executor DB 상태 전이
+        dispatchService.markAsRunning(job, callback.buildNumber());
         jobPort.save(job);
 
-        // op DB cross-schema UPDATE
-        operatorStatusPort.updateJobExecutionStatus(job.getJobExcnId(), "RUNNING");
+        // 2. op에 시작 토픽 발행 (op가 자체 DB 갱신)
+        notifyStartedPort.notify(
+                job.getJobExcnId()
+                , job.getPipelineExcnId()
+                , job.getJobId()
+                , callback.buildNumber()
+        );
 
-        log.info("[BuildStarted] Job RUNNING: jobExcnId={}, buildNo={}, jenkinsPath={}"
-                , job.getJobExcnId(), callback.buildNo(), callback.jenkinsPath());
+        log.info("[BuildStarted] Job RUNNING: jobExcnId={}, buildNumber={}"
+                , job.getJobExcnId(), callback.buildNumber());
 
-        // 트리거 ②: 슬롯 변동 반영
+        // 3. 트리거 ②: 슬롯 변동 반영
         dispatchUseCase.tryDispatch();
     }
 }

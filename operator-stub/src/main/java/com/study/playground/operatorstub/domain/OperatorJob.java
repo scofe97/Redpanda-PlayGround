@@ -42,7 +42,7 @@ public class OperatorJob {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Setter
-    private OperatorJobStatus status = OperatorJobStatus.WAIT;
+    private OperatorJobStatus status = OperatorJobStatus.PENDING;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -67,7 +67,7 @@ public class OperatorJob {
         job.jobOrder = jobOrder;
         job.jenkinsInstanceId = jenkinsInstanceId;
         job.configJson = configJson;
-        job.status = OperatorJobStatus.WAIT;
+        job.status = OperatorJobStatus.PENDING;
         job.createdAt = LocalDateTime.now();
         job.updatedAt = LocalDateTime.now();
         return job;

@@ -47,6 +47,24 @@ public class TopicConfig {
     }
 
     @Bean
+    public NewTopic executorNotifyJobStartedTopic() {
+        return TopicBuilder.name(Topics.EXECUTOR_NOTIFY_JOB_STARTED)
+                .partitions(1)
+                .replicas(1)
+                .config("retention.ms", String.valueOf(7L * 24 * 60 * 60 * 1000))
+                .build();
+    }
+
+    @Bean
+    public NewTopic executorNotifyJobCompletedTopic() {
+        return TopicBuilder.name(Topics.EXECUTOR_NOTIFY_JOB_COMPLETED)
+                .partitions(1)
+                .replicas(1)
+                .config("retention.ms", String.valueOf(7L * 24 * 60 * 60 * 1000))
+                .build();
+    }
+
+    @Bean
     public NewTopic executorDlqJobTopic() {
         return TopicBuilder.name(Topics.EXECUTOR_DLQ_JOB)
                 .partitions(1)

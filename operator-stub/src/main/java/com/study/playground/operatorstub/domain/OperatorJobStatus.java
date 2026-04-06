@@ -2,12 +2,13 @@ package com.study.playground.operatorstub.domain;
 
 /**
  * Operator 측 Job 상태.
- * WAIT → QUEUING → RUNNING → SUCCESS/FAILED
+ * PENDING → QUEUING → RUNNING → SUCCESS/FAILURE/ABORTED
  */
 public enum OperatorJobStatus {
-    WAIT,
+    PENDING,
     QUEUING,
     RUNNING,
     SUCCESS,
-    FAILED
+    FAILURE,
+    ABORTED
 }

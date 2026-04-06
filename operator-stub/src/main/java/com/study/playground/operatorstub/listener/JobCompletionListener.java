@@ -3,7 +3,6 @@ package com.study.playground.operatorstub.listener;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.study.playground.avro.executor.ExecutorJobCompletedEvent;
-import com.study.playground.avro.executor.ExecutorJobStartedEvent;
 import com.study.playground.kafka.serialization.AvroSerializer;
 import com.study.playground.kafka.topic.Topics;
 import com.study.playground.operatorstub.domain.OperatorJobRepository;
@@ -27,67 +26,43 @@ public class JobCompletionListener {
     private final ObjectMapper objectMapper;
 
     @KafkaListener(
-            topics = Topics.EXECUTOR_EVT_JOB_STARTED
-            , groupId = "operator-stub-group"
-    )
-    @Transactional
-    public void onJobStarted(ConsumerRecord<String, byte[]> record) {
-        byte[] value = record.value();
-        long executionJobId;
-
-        if (isAvroFormat(value)) {
-            ExecutorJobStartedEvent event = avroSerializer.deserialize(
-                    value, ExecutorJobStartedEvent.getClassSchema());
-            executionJobId = event.getExecutionJobId();
-        } else {
-            JsonNode json = parseJson(value);
-            if (json == null) return;
-            executionJobId = json.get("executionJobId").asLong();
-        }
-
-        operatorJobRepository.findById(executionJobId)
-                .ifPresent(job -> {
-                    job.updateStatus(OperatorJobStatus.RUNNING);
-                    operatorJobRepository.save(job);
-                    log.info("[OpListener] Job RUNNING: id={}, jobName={}"
-                            , job.getId(), job.getJobName());
-                });
-    }
-
-    @KafkaListener(
-            topics = Topics.EXECUTOR_EVT_JOB_COMPLETED
+            topics = Topics.EXECUTOR_NOTIFY_JOB_COMPLETED
             , groupId = "operator-stub-group"
     )
     @Transactional
     public void onJobCompleted(ConsumerRecord<String, byte[]> record) {
         byte[] value = record.value();
-        long executionJobId;
+        String jobExcnId;
         boolean success;
-        long durationMs;
+        String result;
+        String logFilePath;
+        String logFileYn;
 
         if (isAvroFormat(value)) {
             ExecutorJobCompletedEvent event = avroSerializer.deserialize(
                     value, ExecutorJobCompletedEvent.getClassSchema());
-            executionJobId = event.getExecutionJobId();
+            jobExcnId = event.getJobExcnId();
             success = event.getSuccess();
-            durationMs = event.getDurationMs();
+            result = event.getResult();
+            logFilePath = event.getLogFilePath();
+            logFileYn = event.getLogFileYn();
         } else {
             JsonNode json = parseJson(value);
             if (json == null) return;
-            executionJobId = json.get("executionJobId").asLong();
-            success = "SUCCESS".equalsIgnoreCase(json.get("result").asText());
-            durationMs = json.has("duration") ? json.get("duration").asLong() : 0;
+            jobExcnId = json.get("jobExcnId").asText();
+            success = json.has("success") && json.get("success").asBoolean();
+            result = json.has("result") ? json.get("result").asText() : null;
+            logFilePath = json.has("logFilePath") ? json.get("logFilePath").asText() : null;
+            logFileYn = json.has("logFileYn") ? json.get("logFileYn").asText() : "N";
         }
 
-        operatorJobRepository.findById(executionJobId)
+        operatorJobRepository.findById(Long.parseLong(jobExcnId))
                 .ifPresent(job -> {
-                    OperatorJobStatus newStatus = success
-                            ? OperatorJobStatus.SUCCESS
-                            : OperatorJobStatus.FAILED;
+                    var newStatus = success ? OperatorJobStatus.SUCCESS : OperatorJobStatus.FAILURE;
                     job.updateStatus(newStatus);
                     operatorJobRepository.save(job);
-                    log.info("[OpListener] Job {}: id={}, jobName={}, duration={}ms"
-                            , newStatus, job.getId(), job.getJobName(), durationMs);
+                    log.info("[OpListener] Job {}: id={}, jobName={}, logFile={}, logFileYn={}"
+                            , newStatus, job.getId(), job.getJobName(), logFilePath, logFileYn);
                 });
     }
 

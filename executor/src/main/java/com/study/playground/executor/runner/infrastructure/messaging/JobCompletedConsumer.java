@@ -27,10 +27,9 @@ public class JobCompletedConsumer {
         try {
             JsonNode json = objectMapper.readTree(record.value());
             var callback = BuildCallback.completed(
-                    json.get("jenkinsPath").asText()
-                    , json.get("buildNo").asInt()
+                    json.get("executionJobId").asText()
+                    , json.get("buildNumber").asInt()
                     , json.has("result") ? json.get("result").asText() : null
-                    , json.has("logContent") ? json.get("logContent").asText() : null
             );
             handleCompletedUseCase.handle(callback);
         } catch (Exception e) {

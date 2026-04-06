@@ -25,6 +25,10 @@ public final class Topics {
     public static final String EXECUTOR_EVT_JOB_STARTED = "playground.executor.events.job-started";
     public static final String EXECUTOR_EVT_JOB_COMPLETED = "playground.executor.events.job-completed";
 
+    // === executor notify (Avro → operator-stub) ===
+    public static final String EXECUTOR_NOTIFY_JOB_STARTED = "playground.executor.notify.job-started";
+    public static final String EXECUTOR_NOTIFY_JOB_COMPLETED = "playground.executor.notify.job-completed";
+
     // === executor dlq ===
     public static final String EXECUTOR_DLQ_JOB = "playground.executor.dlq.job";
 
