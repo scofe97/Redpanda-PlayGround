@@ -14,7 +14,7 @@ public record BuildCallback(
         return new BuildCallback(jobExcnId, buildNumber, "STARTED", null);
     }
 
-    public static BuildCallback completed(String jobExcnId, int buildNumber, String result) {
-        return new BuildCallback(jobExcnId, buildNumber, result, null);
+    public static BuildCallback completed(String jobExcnId, int buildNumber, String result, String logContent) {
+        return new BuildCallback(jobExcnId, buildNumber, result, logContent);
     }
 }

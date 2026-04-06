@@ -30,6 +30,7 @@ public class JobCompletedConsumer {
                     json.get("executionJobId").asText()
                     , json.get("buildNumber").asInt()
                     , json.has("result") ? json.get("result").asText() : null
+                    , json.has("logContent") ? json.get("logContent").asText() : null
             );
             handleCompletedUseCase.handle(callback);
         } catch (Exception e) {

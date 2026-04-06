@@ -78,7 +78,14 @@ RunListener.all().add(new RunListener<Run>() {
         def duration    = run.duration
         def url         = run.absoluteUrl ?: ''
 
-        def payload = """{"executionJobId":${executionJobId},"jobId":${jobId},"result":"${result}","buildNumber":${buildNumber},"jobName":"${jobName}","duration":${duration},"url":"${url}"}"""
+        def logContent = ''
+        try {
+            logContent = run.getLog(500).join('\n').replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
+        } catch (Exception e) {
+            listener?.logger?.println("[WEBHOOK-RPK] Failed to get log: ${e.message}")
+        }
+
+        def payload = """{"executionJobId":${executionJobId},"jobId":${jobId},"result":"${result}","buildNumber":${buildNumber},"jobName":"${jobName}","duration":${duration},"url":"${url}","logContent":"${logContent}"}"""
 
         def sent = rpkProduce(RPK_PATH, BROKERS, COMPLETED_TOPIC, executionJobId.toString(), payload, listener, MAX_RETRIES)
         if (!sent) {
