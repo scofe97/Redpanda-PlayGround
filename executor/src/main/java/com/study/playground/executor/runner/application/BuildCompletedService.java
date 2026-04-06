@@ -42,6 +42,12 @@ public class BuildCompletedService implements HandleBuildCompletedUseCase {
             return;
         }
 
+        if (job.getBuildNo() != null && job.getBuildNo() != callback.buildNumber()) {
+            log.warn("[BuildCompleted] BuildNo mismatch: jobExcnId={}, expected={}, actual={}"
+                    , job.getJobExcnId(), job.getBuildNo(), callback.buildNumber());
+            return;
+        }
+
         // 1. 로그 파일 적재 (실패 허용)
         String logFilePath = null;
         boolean logSaved = false;

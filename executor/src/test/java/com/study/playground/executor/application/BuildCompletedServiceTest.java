@@ -192,6 +192,22 @@ class BuildCompletedServiceTest {
     }
 
     @Test
+    @DisplayName("buildNo가 일치하지 않으면 처리를 건너뛰어야 한다")
+    void handle_buildNoMismatch_shouldIgnore() {
+        // given — Job의 buildNo=7이지만 콜백은 buildNumber=999
+        ExecutionJob job = runningJob("excn-001");
+        given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
+        BuildCallback callback = BuildCallback.completed("excn-001", 999, "SUCCESS", "log");
+
+        // when
+        service.handle(callback);
+
+        // then
+        verify(logPort, never()).save(anyString(), anyString(), anyString());
+        verify(notifyPort, never()).notify(any(), any(), any(Boolean.class), any(), any(), any(), any());
+    }
+
+    @Test
     @DisplayName("터미널 상태 Job은 처리를 건너뛰어야 한다")
     void handle_terminalJob_shouldIgnore() {
         // given — 이미 SUCCESS 상태

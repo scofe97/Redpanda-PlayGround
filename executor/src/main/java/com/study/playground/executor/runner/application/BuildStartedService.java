@@ -39,6 +39,12 @@ public class BuildStartedService implements HandleBuildStartedUseCase {
             return;
         }
 
+        if (job.getBuildNo() != null && job.getBuildNo() != callback.buildNumber()) {
+            log.warn("[BuildStarted] BuildNo mismatch: jobExcnId={}, expected={}, actual={}"
+                    , job.getJobExcnId(), job.getBuildNo(), callback.buildNumber());
+            return;
+        }
+
         // 1. executor DB 상태 전이
         dispatchService.markAsRunning(job, callback.buildNumber());
         jobPort.save(job);
