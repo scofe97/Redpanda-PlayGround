@@ -1,7 +1,6 @@
 package com.study.playground.executor.runner.application;
 
 import com.study.playground.executor.dispatch.domain.model.ExecutionJob;
-import com.study.playground.executor.dispatch.domain.port.in.EvaluateDispatchUseCase;
 import com.study.playground.executor.dispatch.domain.port.out.ExecutionJobPort;
 import com.study.playground.executor.dispatch.domain.service.DispatchService;
 import com.study.playground.executor.runner.domain.model.BuildCallback;
@@ -20,7 +19,6 @@ public class BuildStartedService implements HandleBuildStartedUseCase {
     private final ExecutionJobPort jobPort;
     private final NotifyJobStartedPort notifyStartedPort;
     private final DispatchService dispatchService;
-    private final EvaluateDispatchUseCase dispatchUseCase;
 
     @Override
     @Transactional
@@ -52,8 +50,5 @@ public class BuildStartedService implements HandleBuildStartedUseCase {
 
         log.info("[BuildStarted] Job RUNNING: jobExcnId={}, buildNumber={}"
                 , job.getJobExcnId(), callback.buildNumber());
-
-        // 3. 트리거 ②: 슬롯 변동 반영
-        dispatchUseCase.tryDispatch();
     }
 }

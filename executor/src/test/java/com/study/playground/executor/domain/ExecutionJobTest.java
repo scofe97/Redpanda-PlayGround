@@ -18,8 +18,6 @@ class ExecutionJobTest {
                 "job-excn-001"
                 , "pipeline-excn-001"
                 , "job-001"
-                , 1L
-                , "build-job"
                 , 10
                 , LocalDateTime.now()
                 , "user-01"
@@ -49,8 +47,6 @@ class ExecutionJobTest {
                 "job-excn-002"
                 , "pipeline-excn-002"
                 , "job-002"
-                , 42L
-                , "deploy-job"
                 , 5
                 , priorityDt
                 , "user-02"
@@ -60,8 +56,6 @@ class ExecutionJobTest {
         assertThat(job.getJobExcnId()).isEqualTo("job-excn-002");
         assertThat(job.getPipelineExcnId()).isEqualTo("pipeline-excn-002");
         assertThat(job.getJobId()).isEqualTo("job-002");
-        assertThat(job.getJenkinsInstanceId()).isEqualTo(42L);
-        assertThat(job.getJobName()).isEqualTo("deploy-job");
         assertThat(job.getPriority()).isEqualTo(5);
         assertThat(job.getPriorityDt()).isEqualTo(priorityDt);
         assertThat(job.getRgtrId()).isEqualTo("user-02");

@@ -19,20 +19,14 @@ import java.time.LocalDateTime;
 public class ExecutionJobEntity {
 
     @Id
-    @Column(name = "job_excn_id", length = 20)
+    @Column(name = "job_excn_id", length = 50)
     private String jobExcnId;
 
-    @Column(name = "pipeline_excn_id", length = 20)
+    @Column(name = "pipeline_excn_id", length = 50)
     private String pipelineExcnId;
 
-    @Column(name = "job_id", nullable = false, length = 20)
+    @Column(name = "job_id", nullable = false, length = 50)
     private String jobId;
-
-    @Column(name = "jenkins_instance_id")
-    private Long jenkinsInstanceId;
-
-    @Column(name = "job_name", length = 200)
-    private String jobName;
 
     @Column(name = "build_no")
     private Integer buildNo;

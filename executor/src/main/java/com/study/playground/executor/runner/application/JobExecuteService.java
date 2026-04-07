@@ -4,6 +4,7 @@ import com.study.playground.executor.config.ExecutorProperties;
 import com.study.playground.executor.dispatch.domain.model.ExecutionJob;
 import com.study.playground.executor.dispatch.domain.model.ExecutionJobStatus;
 import com.study.playground.executor.dispatch.domain.port.out.ExecutionJobPort;
+import com.study.playground.executor.dispatch.domain.port.out.JobDefinitionQueryPort;
 import com.study.playground.executor.dispatch.domain.service.DispatchService;
 import com.study.playground.executor.runner.infrastructure.jenkins.JenkinsClient;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ public class JobExecuteService {
 
     private final ExecutionJobPort jobPort;
     private final JenkinsClient jenkinsClient;
+    private final JobDefinitionQueryPort jobDefinitionQueryPort;
     private final DispatchService dispatchService;
     private final ExecutorProperties properties;
 
@@ -41,8 +43,9 @@ public class JobExecuteService {
         }
 
         try {
-            long jenkinsInstanceId = job.getJenkinsInstanceId();
-            var jenkinsJobPath = job.getJobName();
+            var defInfo = jobDefinitionQueryPort.load(job.getJobId());
+            long jenkinsInstanceId = defInfo.jenkinsInstanceId();
+            var jenkinsJobPath = defInfo.jobName();
 
             jenkinsClient.triggerBuild(jenkinsInstanceId, jenkinsJobPath, job.getJobId());
 

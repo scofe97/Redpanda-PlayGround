@@ -2,8 +2,9 @@ package com.study.playground.executor.application;
 
 import com.study.playground.executor.dispatch.domain.model.ExecutionJob;
 import com.study.playground.executor.dispatch.domain.model.ExecutionJobStatus;
-import com.study.playground.executor.dispatch.domain.port.in.EvaluateDispatchUseCase;
+import com.study.playground.executor.dispatch.domain.model.JobDefinitionInfo;
 import com.study.playground.executor.dispatch.domain.port.out.ExecutionJobPort;
+import com.study.playground.executor.dispatch.domain.port.out.JobDefinitionQueryPort;
 import com.study.playground.executor.dispatch.domain.service.DispatchService;
 import com.study.playground.executor.runner.application.BuildCompletedService;
 import com.study.playground.executor.runner.domain.model.BuildCallback;
@@ -42,7 +43,7 @@ class BuildCompletedServiceTest {
     NotifyJobCompletedPort notifyPort;
 
     @Mock
-    EvaluateDispatchUseCase dispatchUseCase;
+    JobDefinitionQueryPort jobDefinitionQueryPort;
 
     DispatchService dispatchService = new DispatchService();
 
@@ -50,18 +51,22 @@ class BuildCompletedServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new BuildCompletedService(jobPort, logPort, notifyPort, dispatchService, dispatchUseCase);
+        service = new BuildCompletedService(
+                jobPort, logPort, notifyPort
+                , jobDefinitionQueryPort, dispatchService
+        );
     }
 
     private static final int BUILD_NO = 7;
+
+    private static final JobDefinitionInfo DEF_INFO =
+            new JobDefinitionInfo("job-001", 10L, 20L, 1L, "test-job");
 
     private ExecutionJob runningJob(String jobExcnId) {
         ExecutionJob job = ExecutionJob.create(
                 jobExcnId
                 , "pipe-001"
                 , "job-001"
-                , 1L
-                , "test-job"
                 , 1
                 , LocalDateTime.now()
                 , "user-01"
@@ -78,6 +83,7 @@ class BuildCompletedServiceTest {
         // given
         ExecutionJob job = runningJob("excn-001");
         given(jobPort.findByJobIdAndBuildNo("job-001", BUILD_NO)).willReturn(Optional.of(job));
+        given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
         given(logPort.save(eq("test-job"), eq("excn-001"), eq("log content"))).willReturn(true);
         BuildCallback callback = BuildCallback.completed("job-001", BUILD_NO, "SUCCESS", "log content");
 
@@ -105,6 +111,7 @@ class BuildCompletedServiceTest {
         // given
         ExecutionJob job = runningJob("excn-001");
         given(jobPort.findByJobIdAndBuildNo("job-001", BUILD_NO)).willReturn(Optional.of(job));
+        given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
         given(logPort.save(eq("test-job"), eq("excn-001"), eq("error log"))).willReturn(true);
         BuildCallback callback = BuildCallback.completed("job-001", BUILD_NO, "FAILURE", "error log");
 
@@ -154,6 +161,7 @@ class BuildCompletedServiceTest {
         // given
         ExecutionJob job = runningJob("excn-001");
         given(jobPort.findByJobIdAndBuildNo("job-001", BUILD_NO)).willReturn(Optional.of(job));
+        given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
         given(logPort.save(eq("test-job"), eq("excn-001"), eq("log content"))).willReturn(false);
         BuildCallback callback = BuildCallback.completed("job-001", BUILD_NO, "SUCCESS", "log content");
 

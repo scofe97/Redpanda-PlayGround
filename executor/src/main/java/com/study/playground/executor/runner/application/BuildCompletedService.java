@@ -2,8 +2,8 @@ package com.study.playground.executor.runner.application;
 
 import com.study.playground.executor.dispatch.domain.model.ExecutionJob;
 import com.study.playground.executor.dispatch.domain.model.ExecutionJobStatus;
-import com.study.playground.executor.dispatch.domain.port.in.EvaluateDispatchUseCase;
 import com.study.playground.executor.dispatch.domain.port.out.ExecutionJobPort;
+import com.study.playground.executor.dispatch.domain.port.out.JobDefinitionQueryPort;
 import com.study.playground.executor.dispatch.domain.service.DispatchService;
 import com.study.playground.executor.runner.domain.model.BuildCallback;
 import com.study.playground.executor.runner.domain.port.in.HandleBuildCompletedUseCase;
@@ -22,8 +22,8 @@ public class BuildCompletedService implements HandleBuildCompletedUseCase {
     private final ExecutionJobPort jobPort;
     private final SaveBuildLogPort logPort;
     private final NotifyJobCompletedPort notifyPort;
+    private final JobDefinitionQueryPort jobDefinitionQueryPort;
     private final DispatchService dispatchService;
-    private final EvaluateDispatchUseCase dispatchUseCase;
 
     @Override
     @Transactional
@@ -47,7 +47,8 @@ public class BuildCompletedService implements HandleBuildCompletedUseCase {
         String logFilePath = null;
         boolean logSaved = false;
         if (callback.logContent() != null && !callback.logContent().isBlank()) {
-            var dirPath = job.getJobName() != null ? job.getJobName() : job.getJobExcnId();
+            var defInfo = jobDefinitionQueryPort.load(job.getJobId());
+            var dirPath = defInfo.jobName();
             logSaved = logPort.save(dirPath, job.getJobExcnId(), callback.logContent());
             if (logSaved) {
                 logFilePath = dirPath + "/" + job.getJobExcnId() + "_0";
@@ -74,8 +75,5 @@ public class BuildCompletedService implements HandleBuildCompletedUseCase {
 
         log.info("[BuildCompleted] Job {}: jobExcnId={}, buildNumber={}, logSaved={}"
                 , newStatus, job.getJobExcnId(), callback.buildNumber(), logSaved);
-
-        // 3. 트리거 ③: 슬롯 반납 → 대기 Job 실행
-        dispatchUseCase.tryDispatch();
     }
 }

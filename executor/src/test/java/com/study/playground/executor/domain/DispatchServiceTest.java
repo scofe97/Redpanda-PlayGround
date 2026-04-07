@@ -26,8 +26,6 @@ class DispatchServiceTest {
                 "job-excn-001"
                 , "pipeline-excn-001"
                 , "job-001"
-                , 1L
-                , "build-job"
                 , 10
                 , LocalDateTime.now()
                 , "user-01"

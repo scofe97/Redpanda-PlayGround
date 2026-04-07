@@ -47,8 +47,12 @@ public enum ExecutionJobStatus {
     }
 
     public boolean isTerminal() {
-        return this == SUCCESS || this == FAILURE || this == UNSTABLE
-                || this == ABORTED || this == NOT_BUILT || this == NOT_EXECUTED;
+        return this == SUCCESS
+                || this == FAILURE
+                || this == UNSTABLE
+                || this == ABORTED
+                || this == NOT_BUILT
+                || this == NOT_EXECUTED;
     }
 
     /**

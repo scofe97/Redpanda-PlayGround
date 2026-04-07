@@ -2,7 +2,6 @@ package com.study.playground.executor.application;
 
 import com.study.playground.executor.dispatch.domain.model.ExecutionJob;
 import com.study.playground.executor.dispatch.domain.model.ExecutionJobStatus;
-import com.study.playground.executor.dispatch.domain.port.in.EvaluateDispatchUseCase;
 import com.study.playground.executor.dispatch.domain.port.out.ExecutionJobPort;
 import com.study.playground.executor.dispatch.domain.service.DispatchService;
 import com.study.playground.executor.runner.application.BuildStartedService;
@@ -35,16 +34,13 @@ class BuildStartedServiceTest {
     @Mock
     NotifyJobStartedPort notifyStartedPort;
 
-    @Mock
-    EvaluateDispatchUseCase dispatchUseCase;
-
     DispatchService dispatchService = new DispatchService();
 
     BuildStartedService service;
 
     @BeforeEach
     void setUp() {
-        service = new BuildStartedService(jobPort, notifyStartedPort, dispatchService, dispatchUseCase);
+        service = new BuildStartedService(jobPort, notifyStartedPort, dispatchService);
     }
 
     private static final int BUILD_NO = 7;
@@ -54,8 +50,6 @@ class BuildStartedServiceTest {
                 jobExcnId
                 , "pipe-001"
                 , "job-001"
-                , 1L
-                , "test-job"
                 , 1
                 , LocalDateTime.now()
                 , "user-01"
@@ -65,7 +59,7 @@ class BuildStartedServiceTest {
     }
 
     @Test
-    @DisplayName("유효한 콜백 수신 시 RUNNING으로 전환하고 알림 및 tryDispatch를 호출해야 한다")
+    @DisplayName("유효한 콜백 수신 시 RUNNING으로 전환하고 알림을 호출해야 한다")
     void handle_validCallback_shouldTransitionToRunningAndNotify() {
         // given
         ExecutionJob job = queuedJob("excn-001");
@@ -80,7 +74,6 @@ class BuildStartedServiceTest {
         verify(jobPort).save(captor.capture());
         assertThat(captor.getValue().getStatus()).isEqualTo(ExecutionJobStatus.RUNNING);
         verify(notifyStartedPort).notify("excn-001", "pipe-001", "job-001", 7);
-        verify(dispatchUseCase).tryDispatch();
     }
 
     @Test
@@ -95,7 +88,6 @@ class BuildStartedServiceTest {
 
         // then
         verify(notifyStartedPort, never()).notify(any(), any(), any(), any(Integer.class));
-        verify(dispatchUseCase, never()).tryDispatch();
     }
 
     @Test
@@ -113,6 +105,5 @@ class BuildStartedServiceTest {
 
         // then
         verify(notifyStartedPort, never()).notify(any(), any(), any(), any(Integer.class));
-        verify(dispatchUseCase, never()).tryDispatch();
     }
 }

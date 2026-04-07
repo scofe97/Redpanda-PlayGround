@@ -6,6 +6,7 @@ import com.study.playground.executor.dispatch.domain.model.ExecutionJobStatus;
 import com.study.playground.executor.dispatch.domain.port.in.EvaluateDispatchUseCase;
 import com.study.playground.executor.dispatch.domain.port.out.ExecutionJobPort;
 import com.study.playground.executor.dispatch.domain.port.out.JenkinsQueryPort;
+import com.study.playground.executor.dispatch.domain.port.out.JobDefinitionQueryPort;
 import com.study.playground.executor.dispatch.domain.port.out.PublishExecuteCommandPort;
 import com.study.playground.executor.dispatch.domain.service.DispatchService;
 import lombok.RequiredArgsConstructor;
@@ -32,11 +33,15 @@ import java.util.List;
 public class DispatchEvaluatorService implements EvaluateDispatchUseCase {
 
     private static final List<ExecutionJobStatus> ACTIVE_STATUSES =
-            List.of(ExecutionJobStatus.QUEUED, ExecutionJobStatus.RUNNING);
+            List.of(
+                    ExecutionJobStatus.QUEUED
+                    , ExecutionJobStatus.RUNNING
+            );
 
     private final PublishExecuteCommandPort publishPort;
     private final ExecutionJobPort jobPort;
     private final JenkinsQueryPort jenkinsQueryPort;
+    private final JobDefinitionQueryPort jobDefinitionQueryPort;
     private final DispatchService dispatchService;
     private final ExecutorProperties properties;
 
@@ -68,8 +73,9 @@ public class DispatchEvaluatorService implements EvaluateDispatchUseCase {
             return;
         }
 
-        // 2. job에서 Jenkins 인스턴스 ID 직접 사용
-        long jenkinsInstanceId = job.getJenkinsInstanceId();
+        // 2. JobDefinition에서 Jenkins 인스턴스 ID 조회
+        var defInfo = jobDefinitionQueryPort.load(job.getJobId());
+        long jenkinsInstanceId = defInfo.jenkinsInstanceId();
 
         // 3. 해당 Jenkins에 슬롯이 있는지 확인
         if (!jenkinsQueryPort.isImmediatelyExecutable(jenkinsInstanceId)) {

@@ -14,8 +14,6 @@ public class ExecutionJob {
     private String jobExcnId;
     private String pipelineExcnId;
     private String jobId;
-    private Long jenkinsInstanceId;
-    private String jobName;
     private Integer buildNo;
     private ExecutionJobStatus status;
     private int priority;
@@ -36,8 +34,6 @@ public class ExecutionJob {
             String jobExcnId
             , String pipelineExcnId
             , String jobId
-            , long jenkinsInstanceId
-            , String jobName
             , int priority
             , LocalDateTime priorityDt
             , String rgtrId
@@ -46,8 +42,6 @@ public class ExecutionJob {
         job.jobExcnId = jobExcnId;
         job.pipelineExcnId = pipelineExcnId;
         job.jobId = jobId;
-        job.jenkinsInstanceId = jenkinsInstanceId;
-        job.jobName = jobName;
         job.priority = priority;
         job.priorityDt = priorityDt;
         job.status = ExecutionJobStatus.PENDING;
@@ -68,8 +62,6 @@ public class ExecutionJob {
             String jobExcnId
             , String pipelineExcnId
             , String jobId
-            , Long jenkinsInstanceId
-            , String jobName
             , Integer buildNo
             , ExecutionJobStatus status
             , int priority
@@ -88,8 +80,6 @@ public class ExecutionJob {
         job.jobExcnId = jobExcnId;
         job.pipelineExcnId = pipelineExcnId;
         job.jobId = jobId;
-        job.jenkinsInstanceId = jenkinsInstanceId;
-        job.jobName = jobName;
         job.buildNo = buildNo;
         job.status = status;
         job.priority = priority;

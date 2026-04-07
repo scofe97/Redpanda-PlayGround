@@ -22,4 +22,7 @@ public class ExecutorProperties {
 
     /** 타임아웃 체크 주기 (ms) */
     private long timeoutCheckIntervalMs = 60000;
+
+    /** 디스패치 스케줄러 주기 (ms) */
+    private long dispatchIntervalMs = 3000;
 }

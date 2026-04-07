@@ -1,10 +1,7 @@
 package com.study.playground.executor.application;
 
 import com.study.playground.executor.dispatch.application.ReceiveJobService;
-import com.study.playground.executor.dispatch.domain.model.JobDefinitionInfo;
-import com.study.playground.executor.dispatch.domain.port.in.EvaluateDispatchUseCase;
 import com.study.playground.executor.dispatch.domain.port.out.ExecutionJobPort;
-import com.study.playground.executor.dispatch.domain.port.out.JobDefinitionQueryPort;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,22 +23,14 @@ class ReceiveJobServiceTest {
     @Mock
     ExecutionJobPort jobPort;
 
-    @Mock
-    JobDefinitionQueryPort jobDefinitionQueryPort;
-
-    @Mock
-    EvaluateDispatchUseCase evaluateDispatchUseCase;
-
     @InjectMocks
     ReceiveJobService service;
 
     @Test
-    @DisplayName("신규 Job 수신 시 저장하고 tryDispatch를 호출해야 한다")
-    void receive_newJob_shouldSaveAndTryDispatch() {
+    @DisplayName("신규 Job 수신 시 저장해야 한다")
+    void receive_newJob_shouldSave() {
         // given
         given(jobPort.existsById("excn-001")).willReturn(false);
-        given(jobDefinitionQueryPort.load("job-001")).willReturn(
-                new JobDefinitionInfo("job-001", 10L, 20L, 1L, "test-job"));
 
         // when
         service.receive(
@@ -54,11 +43,10 @@ class ReceiveJobServiceTest {
 
         // then
         verify(jobPort).save(any());
-        verify(evaluateDispatchUseCase).tryDispatch();
     }
 
     @Test
-    @DisplayName("중복 Job 수신 시 저장과 tryDispatch를 호출하지 않아야 한다")
+    @DisplayName("중복 Job 수신 시 저장하지 않아야 한다")
     void receive_duplicateJob_shouldIgnore() {
         // given
         given(jobPort.existsById("excn-001")).willReturn(true);
@@ -74,6 +62,5 @@ class ReceiveJobServiceTest {
 
         // then
         verify(jobPort, never()).save(any());
-        verify(evaluateDispatchUseCase, never()).tryDispatch();
     }
 }

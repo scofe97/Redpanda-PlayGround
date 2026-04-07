@@ -3,7 +3,9 @@ package com.study.playground.executor.application;
 import com.study.playground.executor.config.ExecutorProperties;
 import com.study.playground.executor.dispatch.domain.model.ExecutionJob;
 import com.study.playground.executor.dispatch.domain.model.ExecutionJobStatus;
+import com.study.playground.executor.dispatch.domain.model.JobDefinitionInfo;
 import com.study.playground.executor.dispatch.domain.port.out.ExecutionJobPort;
+import com.study.playground.executor.dispatch.domain.port.out.JobDefinitionQueryPort;
 import com.study.playground.executor.dispatch.domain.service.DispatchService;
 import com.study.playground.executor.runner.application.JobExecuteService;
 import com.study.playground.executor.runner.infrastructure.jenkins.JenkinsClient;
@@ -38,6 +40,9 @@ class JobExecuteServiceTest {
     @Mock
     JenkinsClient jenkinsClient;
 
+    @Mock
+    JobDefinitionQueryPort jobDefinitionQueryPort;
+
     DispatchService dispatchService = new DispatchService();
 
     ExecutorProperties properties = new ExecutorProperties();
@@ -47,16 +52,20 @@ class JobExecuteServiceTest {
     @BeforeEach
     void setUp() {
         properties.setJobMaxRetries(2);
-        service = new JobExecuteService(jobPort, jenkinsClient, dispatchService, properties);
+        service = new JobExecuteService(
+                jobPort, jenkinsClient, jobDefinitionQueryPort
+                , dispatchService, properties
+        );
     }
+
+    private static final JobDefinitionInfo DEF_INFO =
+            new JobDefinitionInfo("job-001", 10L, 20L, 1L, "test-job");
 
     private ExecutionJob queuedJob(String jobExcnId) {
         ExecutionJob job = ExecutionJob.create(
                 jobExcnId
                 , "pipe-001"
                 , "job-001"
-                , 1L
-                , "test-job"
                 , 1
                 , LocalDateTime.now()
                 , "user-01"
@@ -71,6 +80,7 @@ class JobExecuteServiceTest {
         // given
         ExecutionJob job = queuedJob("excn-001");
         given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
+        given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
         willDoNothing().given(jenkinsClient).triggerBuild(1L, "test-job", "job-001");
 
         // when
@@ -87,7 +97,7 @@ class JobExecuteServiceTest {
         // given — PENDING 상태 Job
         ExecutionJob job = ExecutionJob.create(
                 "excn-001", "pipe-001", "job-001"
-                , 1L, "test-job", 1, LocalDateTime.now(), "user-01"
+                , 1, LocalDateTime.now(), "user-01"
         );
         given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
 
@@ -117,6 +127,7 @@ class JobExecuteServiceTest {
         // given
         ExecutionJob job = queuedJob("excn-001");
         given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
+        given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
         willThrow(new RuntimeException("Jenkins 연결 실패"))
                 .given(jenkinsClient).triggerBuild(eq(1L), eq("test-job"), eq("job-001"));
 
@@ -138,6 +149,7 @@ class JobExecuteServiceTest {
         job.incrementRetry(); // retryCnt=1
         job.incrementRetry(); // retryCnt=2
         given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
+        given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
         willThrow(new RuntimeException("Jenkins 연결 실패"))
                 .given(jenkinsClient).triggerBuild(eq(1L), eq("test-job"), eq("job-001"));
 

@@ -4,8 +4,10 @@ import com.study.playground.executor.config.ExecutorProperties;
 import com.study.playground.executor.dispatch.application.DispatchEvaluatorService;
 import com.study.playground.executor.dispatch.domain.model.ExecutionJob;
 import com.study.playground.executor.dispatch.domain.model.ExecutionJobStatus;
+import com.study.playground.executor.dispatch.domain.model.JobDefinitionInfo;
 import com.study.playground.executor.dispatch.domain.port.out.ExecutionJobPort;
 import com.study.playground.executor.dispatch.domain.port.out.JenkinsQueryPort;
+import com.study.playground.executor.dispatch.domain.port.out.JobDefinitionQueryPort;
 import com.study.playground.executor.dispatch.domain.port.out.PublishExecuteCommandPort;
 import com.study.playground.executor.dispatch.domain.service.DispatchService;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,7 +25,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -41,6 +42,9 @@ class DispatchEvaluatorServiceTest {
     @Mock
     JenkinsQueryPort jenkinsQueryPort;
 
+    @Mock
+    JobDefinitionQueryPort jobDefinitionQueryPort;
+
     DispatchService dispatchService = new DispatchService();
 
     ExecutorProperties properties = new ExecutorProperties();
@@ -54,6 +58,7 @@ class DispatchEvaluatorServiceTest {
                 publishPort
                 , jobPort
                 , jenkinsQueryPort
+                , jobDefinitionQueryPort
                 , dispatchService
                 , properties
         );
@@ -64,12 +69,14 @@ class DispatchEvaluatorServiceTest {
                 jobExcnId
                 , "pipe-001"
                 , jobId
-                , 1L
-                , "10/20/" + jobId
                 , 1
                 , LocalDateTime.now()
                 , "user-01"
         );
+    }
+
+    private JobDefinitionInfo defInfo(String jobId) {
+        return new JobDefinitionInfo(jobId, 10L, 20L, 1L, "10/20/" + jobId);
     }
 
     @Test
@@ -79,6 +86,7 @@ class DispatchEvaluatorServiceTest {
         ExecutionJob job = pendingJob("excn-001", "job-001");
         given(jobPort.findDispatchableJobs(5)).willReturn(List.of(job));
         given(jobPort.existsByJobIdAndStatusIn(eq("job-001"), any())).willReturn(false);
+        given(jobDefinitionQueryPort.load("job-001")).willReturn(defInfo("job-001"));
         given(jenkinsQueryPort.isImmediatelyExecutable(1L)).willReturn(true);
 
         // when
@@ -127,6 +135,7 @@ class DispatchEvaluatorServiceTest {
         ExecutionJob job = pendingJob("excn-001", "job-001");
         given(jobPort.findDispatchableJobs(5)).willReturn(List.of(job));
         given(jobPort.existsByJobIdAndStatusIn(eq("job-001"), any())).willReturn(false);
+        given(jobDefinitionQueryPort.load("job-001")).willReturn(defInfo("job-001"));
         given(jenkinsQueryPort.isImmediatelyExecutable(1L)).willReturn(false);
 
         // when
@@ -145,12 +154,14 @@ class DispatchEvaluatorServiceTest {
         given(jobPort.findDispatchableJobs(5)).willReturn(List.of(job1, job2));
         given(jobPort.existsByJobIdAndStatusIn(eq("job-001"), any())).willReturn(false);
         given(jobPort.existsByJobIdAndStatusIn(eq("job-002"), any())).willReturn(false);
+        given(jobDefinitionQueryPort.load("job-001")).willReturn(defInfo("job-001"));
+        given(jobDefinitionQueryPort.load("job-002")).willReturn(defInfo("job-002"));
         given(jenkinsQueryPort.isImmediatelyExecutable(1L)).willReturn(true);
 
         // when
         service.tryDispatch();
 
-        // then — both jobs should be published (no more queryNextBuildNumber to fail)
+        // then — both jobs should be published
         verify(publishPort, times(2)).publishExecuteCommand(any());
     }
 }
