@@ -38,6 +38,13 @@ public interface JenkinsFeignClient {
     String getComputerClasses(URI baseUri, @RequestHeader("Authorization") String auth);
 
     /**
+     * Job의 다음 빌드 번호 조회.
+     */
+    @GetMapping("/job/{jobPath}/api/json?tree=nextBuildNumber")
+    String getJobInfo(URI baseUri, @PathVariable("jobPath") String jobPath
+            , @RequestHeader("Authorization") String auth);
+
+    /**
      * CSRF crumb 발급.
      * Password 인증 시 POST 요청에 crumb 헤더가 필요하다.
      */

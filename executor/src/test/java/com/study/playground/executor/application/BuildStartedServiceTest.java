@@ -54,6 +54,7 @@ class BuildStartedServiceTest {
                 , LocalDateTime.now()
                 , "user-01"
         );
+        job.recordBuildNo(BUILD_NO);
         job.transitionTo(ExecutionJobStatus.QUEUED); // PENDING → QUEUED
         return job;
     }
@@ -63,7 +64,7 @@ class BuildStartedServiceTest {
     void handle_validCallback_shouldTransitionToRunningAndNotify() {
         // given
         ExecutionJob job = queuedJob("excn-001");
-        given(jobPort.findActiveByJobId("job-001")).willReturn(Optional.of(job));
+        given(jobPort.findByJobIdAndBuildNo("job-001", BUILD_NO)).willReturn(Optional.of(job));
         BuildCallback callback = BuildCallback.started("job-001", BUILD_NO);
 
         // when
@@ -80,7 +81,7 @@ class BuildStartedServiceTest {
     @DisplayName("Job을 찾지 못하면 notify를 호출하지 않아야 한다")
     void handle_jobNotFound_shouldWarn() {
         // given
-        given(jobPort.findActiveByJobId("unknown-job")).willReturn(Optional.empty());
+        given(jobPort.findByJobIdAndBuildNo("unknown-job", 1)).willReturn(Optional.empty());
         BuildCallback callback = BuildCallback.started("unknown-job", 1);
 
         // when
@@ -97,7 +98,7 @@ class BuildStartedServiceTest {
         ExecutionJob job = queuedJob("excn-001");
         job.transitionTo(ExecutionJobStatus.RUNNING); // QUEUED → RUNNING
         job.transitionTo(ExecutionJobStatus.SUCCESS); // RUNNING → SUCCESS
-        given(jobPort.findActiveByJobId("job-001")).willReturn(Optional.of(job));
+        given(jobPort.findByJobIdAndBuildNo("job-001", BUILD_NO)).willReturn(Optional.of(job));
         BuildCallback callback = BuildCallback.started("job-001", BUILD_NO);
 
         // when

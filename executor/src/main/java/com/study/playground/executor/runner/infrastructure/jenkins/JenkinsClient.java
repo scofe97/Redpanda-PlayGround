@@ -54,6 +54,23 @@ public class JenkinsClient implements JenkinsQueryPort {
         }
     }
 
+    @Override
+    public int queryNextBuildNumber(long jenkinsInstanceId, String jenkinsJobPath) {
+        var baseUri = resolveJenkinsUri(jenkinsInstanceId);
+        var auth = buildAuthHeader(jenkinsInstanceId);
+        return getNextBuildNumber(baseUri, jenkinsJobPath, auth);
+    }
+
+    private int getNextBuildNumber(URI baseUri, String jobPath, String auth) {
+        try {
+            var encodedPath = jobPath.replace("/", "/job/");
+            var response = feignClient.getJobInfo(baseUri, encodedPath, auth);
+            return objectMapper.readTree(response).path("nextBuildNumber").asInt();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to get nextBuildNumber", e);
+        }
+    }
+
     // === 빌드 트리거 ===
 
     public void triggerBuild(long jenkinsInstanceId, String jenkinsJobPath, String jobId) {

@@ -84,8 +84,10 @@ public class DispatchEvaluatorService implements EvaluateDispatchUseCase {
             return;
         }
 
-        // 4. QUEUED 전환
-        dispatchService.prepareForDispatch(job);
+        // 4. nextBuildNumber 조회 + buildNo 기록 + QUEUED 전환
+        var jenkinsJobPath = defInfo.jobName();
+        int nextBuildNo = jenkinsQueryPort.queryNextBuildNumber(jenkinsInstanceId, jenkinsJobPath);
+        dispatchService.prepareForDispatch(job, nextBuildNo);
         jobPort.save(job);
 
         // 5. 실행 토픽 발행

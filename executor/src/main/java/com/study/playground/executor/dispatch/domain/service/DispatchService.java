@@ -13,7 +13,8 @@ public class DispatchService {
      * 디스패치 준비: QUEUED 전환.
      * 슬롯 확인이 완료된 후 호출한다.
      */
-    public void prepareForDispatch(ExecutionJob job) {
+    public void prepareForDispatch(ExecutionJob job, int buildNo) {
+        job.recordBuildNo(buildNo);
         job.transitionTo(ExecutionJobStatus.QUEUED);
     }
 

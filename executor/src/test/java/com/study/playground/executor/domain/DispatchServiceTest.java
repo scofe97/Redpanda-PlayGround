@@ -39,10 +39,11 @@ class DispatchServiceTest {
         ExecutionJob job = createPendingJob();
 
         // when
-        dispatchService.prepareForDispatch(job);
+        dispatchService.prepareForDispatch(job, 42);
 
         // then
         assertThat(job.getStatus()).isEqualTo(ExecutionJobStatus.QUEUED);
+        assertThat(job.getBuildNo()).isEqualTo(42);
     }
 
     @Test
@@ -50,7 +51,7 @@ class DispatchServiceTest {
     void markAsRunning_shouldTransitionToRunning() {
         // given
         ExecutionJob job = createPendingJob();
-        dispatchService.prepareForDispatch(job); // PENDING → QUEUED
+        dispatchService.prepareForDispatch(job, 42); // PENDING → QUEUED
 
         // when
         dispatchService.markAsRunning(job, 1);
@@ -65,7 +66,7 @@ class DispatchServiceTest {
     void markAsCompleted_successResult_shouldTransitionToSuccess() {
         // given
         ExecutionJob job = createPendingJob();
-        dispatchService.prepareForDispatch(job); // QUEUED
+        dispatchService.prepareForDispatch(job, 42); // QUEUED
         dispatchService.markAsRunning(job, 1);      // RUNNING
 
         // when
@@ -81,7 +82,7 @@ class DispatchServiceTest {
     void markAsCompleted_failureResult_shouldTransitionToFailure() {
         // given
         ExecutionJob job = createPendingJob();
-        dispatchService.prepareForDispatch(job); // QUEUED
+        dispatchService.prepareForDispatch(job, 42); // QUEUED
         dispatchService.markAsRunning(job, 1);      // RUNNING
 
         // when
@@ -97,7 +98,7 @@ class DispatchServiceTest {
     void retryOrFail_canRetry_shouldResetToPendingAndReturnTrue() {
         // given — QUEUED 상태에서 재시도 (retryCnt=0, maxRetries=2)
         ExecutionJob job = createPendingJob();
-        dispatchService.prepareForDispatch(job); // QUEUED
+        dispatchService.prepareForDispatch(job, 42); // QUEUED
 
         // when
         boolean result = dispatchService.retryOrFail(job, 2);
@@ -115,7 +116,7 @@ class DispatchServiceTest {
         ExecutionJob job = createPendingJob();
         job.incrementRetry(); // retryCnt=1
         job.incrementRetry(); // retryCnt=2
-        dispatchService.prepareForDispatch(job); // QUEUED
+        dispatchService.prepareForDispatch(job, 42); // QUEUED
 
         // when
         boolean result = dispatchService.retryOrFail(job, 2);

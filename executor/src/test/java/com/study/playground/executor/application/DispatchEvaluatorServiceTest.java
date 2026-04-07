@@ -88,6 +88,7 @@ class DispatchEvaluatorServiceTest {
         given(jobPort.existsByJobIdAndStatusIn(eq("job-001"), any())).willReturn(false);
         given(jobDefinitionQueryPort.load("job-001")).willReturn(defInfo("job-001"));
         given(jenkinsQueryPort.isImmediatelyExecutable(1L)).willReturn(true);
+        given(jenkinsQueryPort.queryNextBuildNumber(1L, "10/20/job-001")).willReturn(42);
 
         // when
         service.tryDispatch();
@@ -96,6 +97,7 @@ class DispatchEvaluatorServiceTest {
         ArgumentCaptor<ExecutionJob> captor = ArgumentCaptor.forClass(ExecutionJob.class);
         verify(jobPort).save(captor.capture());
         assertThat(captor.getValue().getStatus()).isEqualTo(ExecutionJobStatus.QUEUED);
+        assertThat(captor.getValue().getBuildNo()).isEqualTo(42);
         verify(publishPort).publishExecuteCommand(any());
     }
 
@@ -157,6 +159,7 @@ class DispatchEvaluatorServiceTest {
         given(jobDefinitionQueryPort.load("job-001")).willReturn(defInfo("job-001"));
         given(jobDefinitionQueryPort.load("job-002")).willReturn(defInfo("job-002"));
         given(jenkinsQueryPort.isImmediatelyExecutable(1L)).willReturn(true);
+        given(jenkinsQueryPort.queryNextBuildNumber(eq(1L), any())).willReturn(42);
 
         // when
         service.tryDispatch();

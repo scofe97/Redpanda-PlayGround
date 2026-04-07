@@ -11,4 +11,9 @@ public interface JenkinsQueryPort {
      * Jenkins 모드 자동 감지 (K8S Dynamic vs VM/정적).
      */
     boolean isImmediatelyExecutable(long jenkinsInstanceId);
+
+    /**
+     * 해당 Jenkins Job의 다음 빌드번호를 조회한다.
+     */
+    int queryNextBuildNumber(long jenkinsInstanceId, String jenkinsJobPath);
 }

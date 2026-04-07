@@ -35,7 +35,4 @@ public interface ExecutionJobJpaRepository extends JpaRepository<ExecutionJobEnt
     boolean existsByJobIdAndStatusIn(String jobId, List<String> statuses);
 
     Optional<ExecutionJobEntity> findByJobIdAndBuildNo(String jobId, Integer buildNo);
-
-    @Query("SELECT e FROM ExecutionJobEntity e WHERE e.jobId = :jobId AND e.status IN ('QUEUED', 'RUNNING')")
-    Optional<ExecutionJobEntity> findActiveByJobId(@Param("jobId") String jobId);
 }
