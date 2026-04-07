@@ -76,7 +76,7 @@ class DispatchEvaluatorServiceTest {
     }
 
     private JobDefinitionInfo defInfo(String jobId) {
-        return new JobDefinitionInfo(jobId, 10L, 20L, 1L, "10/20/" + jobId);
+        return new JobDefinitionInfo(jobId, "10", "20", 1L);
     }
 
     @Test

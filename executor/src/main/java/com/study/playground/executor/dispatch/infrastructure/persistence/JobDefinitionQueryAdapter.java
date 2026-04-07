@@ -15,21 +15,19 @@ public class JobDefinitionQueryAdapter implements JobDefinitionQueryPort {
     @Override
     public JobDefinitionInfo load(String jobId) {
         var sql = """
-                SELECT pj.id as job_id, p.project_id, pj.purpose_id
+                SELECT j.job_id, j.project_id, j.preset_id
                      , st.id as jenkins_instance_id
-                     , pj.job_name
-                FROM public.pipeline_job pj
-                JOIN public.purpose p ON p.id = pj.purpose_id
+                FROM public.job j
+                JOIN public.purpose p ON p.id = CAST(j.preset_id AS BIGINT)
                 JOIN public.purpose_entry pe ON pe.purpose_id = p.id AND pe.category = 'CI_CD_TOOL'
                 JOIN public.support_tool st ON st.id = pe.tool_id
-                WHERE pj.id = CAST(? AS BIGINT)
+                WHERE j.job_id = ?
                 """;
         return jdbcTemplate.queryForObject(sql, (rs, rowNum) -> new JobDefinitionInfo(
                 rs.getString("job_id")
-                , rs.getLong("project_id")
-                , rs.getLong("purpose_id")
+                , rs.getString("project_id")
+                , rs.getString("preset_id")
                 , rs.getLong("jenkins_instance_id")
-                , rs.getString("job_name")
         ), jobId);
     }
 }

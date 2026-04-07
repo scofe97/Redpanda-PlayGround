@@ -60,7 +60,7 @@ class BuildCompletedServiceTest {
     private static final int BUILD_NO = 7;
 
     private static final JobDefinitionInfo DEF_INFO =
-            new JobDefinitionInfo("job-001", 10L, 20L, 1L, "10/20/job-001");
+            new JobDefinitionInfo("job-001", "10", "20", 1L);
 
     private ExecutionJob runningJob(String jobExcnId) {
         ExecutionJob job = ExecutionJob.create(
