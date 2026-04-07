@@ -23,9 +23,10 @@ RUN jenkins-plugin-cli --plugins \
 USER root
 RUN curl -sL https://github.com/redpanda-data/redpanda/releases/latest/download/rpk-linux-amd64.zip \
     -o /tmp/rpk.zip \
-    && unzip /tmp/rpk.zip -d /usr/local/bin/ \
-    && rm /tmp/rpk.zip \
-    && chmod +x /usr/local/bin/rpk
+    && unzip /tmp/rpk.zip -d /tmp/rpk-extract/ \
+    && mv /tmp/rpk-extract/rpk /var/jenkins_home/rpk \
+    && rm -rf /tmp/rpk.zip /tmp/rpk-extract/ \
+    && chmod +x /var/jenkins_home/rpk
 USER jenkins
 
 # CSRF 비활성화 (PoC - API 호출 시 crumb 불필요)

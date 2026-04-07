@@ -3,6 +3,7 @@ package com.study.playground.pipeline.job.application;
 import com.study.playground.pipeline.job.domain.model.Job;
 import com.study.playground.pipeline.job.domain.model.JobCategory;
 import com.study.playground.pipeline.job.domain.model.JobType;
+import com.study.playground.pipeline.job.domain.port.in.CreateJenkinsJobUseCase;
 import com.study.playground.pipeline.job.domain.port.in.CreateJobUseCase;
 import com.study.playground.pipeline.job.domain.port.in.DeleteJobUseCase;
 import com.study.playground.pipeline.job.domain.port.out.LoadJobPort;
@@ -23,6 +24,7 @@ public class JobCrudService implements CreateJobUseCase, DeleteJobUseCase {
     private final LoadJobPort loadPort;
     private final SaveJobPort savePort;
     private final JobService jobService;
+    private final CreateJenkinsJobUseCase createJenkinsJobUseCase;
 
     @Override
     @Transactional
@@ -31,6 +33,14 @@ public class JobCrudService implements CreateJobUseCase, DeleteJobUseCase {
         var job = Job.create(jobId, projectId, presetId, category, type, rgtrId);
         var saved = savePort.save(job);
         log.info("[Job] Created: jobId={}, category={}, type={}", saved.getJobId(), category, type);
+
+        try {
+            createJenkinsJobUseCase.create(saved.getJobId(), presetId);
+        } catch (Exception e) {
+            log.warn("[Job] Jenkins job creation failed (retryable): jobId={}, error={}"
+                    , saved.getJobId(), e.getMessage());
+        }
+
         return saved;
     }
 
