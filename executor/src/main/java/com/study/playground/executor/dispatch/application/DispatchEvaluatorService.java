@@ -85,7 +85,7 @@ public class DispatchEvaluatorService implements EvaluateDispatchUseCase {
         }
 
         // 4. nextBuildNumber 조회 + buildNo 기록 + QUEUED 전환
-        var jenkinsJobPath = defInfo.jobName();
+        var jenkinsJobPath = defInfo.jenkinsJobPath();
         int nextBuildNo = jenkinsQueryPort.queryNextBuildNumber(jenkinsInstanceId, jenkinsJobPath);
         dispatchService.prepareForDispatch(job, nextBuildNo);
         jobPort.save(job);

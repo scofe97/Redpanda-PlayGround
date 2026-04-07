@@ -60,7 +60,7 @@ class BuildCompletedServiceTest {
     private static final int BUILD_NO = 7;
 
     private static final JobDefinitionInfo DEF_INFO =
-            new JobDefinitionInfo("job-001", 10L, 20L, 1L, "test-job");
+            new JobDefinitionInfo("job-001", 10L, 20L, 1L, "10/20/job-001");
 
     private ExecutionJob runningJob(String jobExcnId) {
         ExecutionJob job = ExecutionJob.create(
@@ -84,14 +84,14 @@ class BuildCompletedServiceTest {
         ExecutionJob job = runningJob("excn-001");
         given(jobPort.findByJobIdAndBuildNo("job-001", BUILD_NO)).willReturn(Optional.of(job));
         given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
-        given(logPort.save(eq("test-job"), eq("excn-001"), eq("log content"))).willReturn(true);
+        given(logPort.save(eq("10/20/job-001"), eq("excn-001"), eq("log content"))).willReturn(true);
         BuildCallback callback = BuildCallback.completed("job-001", BUILD_NO, "SUCCESS", "log content");
 
         // when
         service.handle(callback);
 
         // then
-        verify(logPort).save("test-job", "excn-001", "log content");
+        verify(logPort).save("10/20/job-001", "excn-001", "log content");
         ArgumentCaptor<String> logFileYnCaptor = ArgumentCaptor.forClass(String.class);
         verify(notifyPort).notify(
                 eq("excn-001")
@@ -112,7 +112,7 @@ class BuildCompletedServiceTest {
         ExecutionJob job = runningJob("excn-001");
         given(jobPort.findByJobIdAndBuildNo("job-001", BUILD_NO)).willReturn(Optional.of(job));
         given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
-        given(logPort.save(eq("test-job"), eq("excn-001"), eq("error log"))).willReturn(true);
+        given(logPort.save(eq("10/20/job-001"), eq("excn-001"), eq("error log"))).willReturn(true);
         BuildCallback callback = BuildCallback.completed("job-001", BUILD_NO, "FAILURE", "error log");
 
         // when
@@ -162,7 +162,7 @@ class BuildCompletedServiceTest {
         ExecutionJob job = runningJob("excn-001");
         given(jobPort.findByJobIdAndBuildNo("job-001", BUILD_NO)).willReturn(Optional.of(job));
         given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
-        given(logPort.save(eq("test-job"), eq("excn-001"), eq("log content"))).willReturn(false);
+        given(logPort.save(eq("10/20/job-001"), eq("excn-001"), eq("log content"))).willReturn(false);
         BuildCallback callback = BuildCallback.completed("job-001", BUILD_NO, "SUCCESS", "log content");
 
         // when

@@ -48,7 +48,7 @@ public class BuildCompletedService implements HandleBuildCompletedUseCase {
         boolean logSaved = false;
         if (callback.logContent() != null && !callback.logContent().isBlank()) {
             var defInfo = jobDefinitionQueryPort.load(job.getJobId());
-            var dirPath = defInfo.jobName();
+            var dirPath = defInfo.jenkinsJobPath();
             logSaved = logPort.save(dirPath, job.getJobExcnId(), callback.logContent());
             if (logSaved) {
                 logFilePath = dirPath + "/" + job.getJobExcnId() + "_0";

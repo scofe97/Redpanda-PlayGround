@@ -45,7 +45,7 @@ public class JobExecuteService {
         try {
             var defInfo = jobDefinitionQueryPort.load(job.getJobId());
             long jenkinsInstanceId = defInfo.jenkinsInstanceId();
-            var jenkinsJobPath = defInfo.jobName();
+            var jenkinsJobPath = defInfo.jenkinsJobPath();
 
             jenkinsClient.triggerBuild(jenkinsInstanceId, jenkinsJobPath, job.getJobId());
 

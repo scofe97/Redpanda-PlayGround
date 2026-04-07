@@ -59,7 +59,7 @@ class JobExecuteServiceTest {
     }
 
     private static final JobDefinitionInfo DEF_INFO =
-            new JobDefinitionInfo("job-001", 10L, 20L, 1L, "test-job");
+            new JobDefinitionInfo("job-001", 10L, 20L, 1L, "10/20/job-001");
 
     private ExecutionJob queuedJob(String jobExcnId) {
         ExecutionJob job = ExecutionJob.create(
@@ -81,13 +81,13 @@ class JobExecuteServiceTest {
         ExecutionJob job = queuedJob("excn-001");
         given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
         given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
-        willDoNothing().given(jenkinsClient).triggerBuild(1L, "test-job", "job-001");
+        willDoNothing().given(jenkinsClient).triggerBuild(1L, "10/20/job-001", "job-001");
 
         // when
         service.execute("excn-001");
 
         // then
-        verify(jenkinsClient).triggerBuild(1L, "test-job", "job-001");
+        verify(jenkinsClient).triggerBuild(1L, "10/20/job-001", "job-001");
         verify(jobPort, never()).save(any());
     }
 
@@ -129,7 +129,7 @@ class JobExecuteServiceTest {
         given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
         given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
         willThrow(new RuntimeException("Jenkins 연결 실패"))
-                .given(jenkinsClient).triggerBuild(eq(1L), eq("test-job"), eq("job-001"));
+                .given(jenkinsClient).triggerBuild(eq(1L), eq("10/20/job-001"), eq("job-001"));
 
         // when
         service.execute("excn-001");
@@ -151,7 +151,7 @@ class JobExecuteServiceTest {
         given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
         given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
         willThrow(new RuntimeException("Jenkins 연결 실패"))
-                .given(jenkinsClient).triggerBuild(eq(1L), eq("test-job"), eq("job-001"));
+                .given(jenkinsClient).triggerBuild(eq(1L), eq("10/20/job-001"), eq("job-001"));
 
         // when
         service.execute("excn-001");
