@@ -27,13 +27,13 @@ public class PipelinePersistenceAdapter implements LoadPipelinePort, SavePipelin
 
     @Override
     public List<Pipeline> findByProjectId(String projectId) {
-        return pipelineRepo.findByProjectIdAndDelYn(projectId, "N").stream()
+        return pipelineRepo.findByProjectIdAndDeletedFalse(projectId).stream()
                 .map(mapper::toDomain).toList();
     }
 
     @Override
     public List<Pipeline> findAll() {
-        return pipelineRepo.findByDelYn("N").stream()
+        return pipelineRepo.findByDeletedFalse().stream()
                 .map(mapper::toDomain).toList();
     }
 
@@ -41,7 +41,7 @@ public class PipelinePersistenceAdapter implements LoadPipelinePort, SavePipelin
     public Optional<PipelineVersion> findLatestVersion(String pipelineId) {
         return versionRepo.findTopByPipelineIdOrderByVersionDesc(pipelineId)
                 .map(verEntity -> {
-                    var steps = stepRepo.findByVersionIdOrderBySeqAsc(verEntity.getVersionId());
+                    var steps = stepRepo.findByVersionIdOrderByStepOrderAsc(verEntity.getVersionId());
                     return mapper.toVersionDomain(verEntity, steps);
                 });
     }

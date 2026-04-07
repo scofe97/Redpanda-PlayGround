@@ -16,11 +16,11 @@ public class PipelineService {
     public PipelineVersion createInitialVersion(
             String pipelineId
             , List<String> jobIds
-            , String rgtrId
+            , String createdBy
     ) {
-        var version = PipelineVersion.create(pipelineId, 1, "Initial version", rgtrId);
+        var version = PipelineVersion.create(pipelineId, 1, "Initial version", createdBy);
         for (int i = 0; i < jobIds.size(); i++) {
-            version.addStep(jobIds.get(i), i + 1, rgtrId);
+            version.addStep(jobIds.get(i), i + 1, createdBy);
         }
         return version;
     }
@@ -33,11 +33,11 @@ public class PipelineService {
             , int nextVersion
             , List<String> jobIds
             , String versionDesc
-            , String rgtrId
+            , String createdBy
     ) {
-        var version = PipelineVersion.create(pipelineId, nextVersion, versionDesc, rgtrId);
+        var version = PipelineVersion.create(pipelineId, nextVersion, versionDesc, createdBy);
         for (int i = 0; i < jobIds.size(); i++) {
-            version.addStep(jobIds.get(i), i + 1, rgtrId);
+            version.addStep(jobIds.get(i), i + 1, createdBy);
         }
         return version;
     }

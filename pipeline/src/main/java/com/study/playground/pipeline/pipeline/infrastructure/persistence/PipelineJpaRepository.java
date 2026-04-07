@@ -6,7 +6,7 @@ import java.util.List;
 
 public interface PipelineJpaRepository extends JpaRepository<PipelineEntity, String> {
 
-    List<PipelineEntity> findByProjectIdAndDelYn(String projectId, String delYn);
+    List<PipelineEntity> findByProjectIdAndDeletedFalse(String projectId);
 
-    List<PipelineEntity> findByDelYn(String delYn);
+    List<PipelineEntity> findByDeletedFalse();
 }

@@ -28,9 +28,9 @@ public class JobCrudService implements CreateJobUseCase, DeleteJobUseCase {
 
     @Override
     @Transactional
-    public Job create(String projectId, String presetId, JobCategory category, JobType type, String rgtrId) {
+    public Job create(String projectId, String presetId, JobCategory category, JobType type, String createdBy) {
         var jobId = UUID.randomUUID().toString().substring(0, 20);
-        var job = Job.create(jobId, projectId, presetId, category, type, rgtrId);
+        var job = Job.create(jobId, projectId, presetId, category, type, createdBy);
         var saved = savePort.save(job);
         log.info("[Job] Created: jobId={}, category={}, type={}", saved.getJobId(), category, type);
 

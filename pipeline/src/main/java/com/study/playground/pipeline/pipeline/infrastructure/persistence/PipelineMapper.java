@@ -14,10 +14,10 @@ public class PipelineMapper {
         var p = Pipeline.create(
                 entity.getPipelineId(), entity.getProjectId()
                 , entity.getName(), entity.getDescription()
-                , entity.getRgtrId()
+                , entity.getCreatedBy()
         );
-        if ("Y".equals(entity.getFailContinueYn())) {
-            p.update(p.getName(), p.getDescription(), true, p.getMdfrId());
+        if (entity.isFailContinue()) {
+            p.update(p.getName(), p.getDescription(), true, p.getUpdatedBy());
         }
         return p;
     }
@@ -28,24 +28,24 @@ public class PipelineMapper {
         e.setProjectId(domain.getProjectId());
         e.setName(domain.getName());
         e.setDescription(domain.getDescription());
-        e.setFailContinueYn(domain.isFailContinue() ? "Y" : "N");
-        e.setInOutSe(domain.getInOutSe());
-        e.setDelYn(domain.isDeleted() ? "Y" : "N");
-        e.setRegDt(domain.getRegDt());
-        e.setRgtrId(domain.getRgtrId());
-        e.setMdfcnDt(domain.getMdfcnDt());
-        e.setMdfrId(domain.getMdfrId());
+        e.setFailContinue(domain.isFailContinue());
+        e.setInOutType(domain.getInOutType());
+        e.setDeleted(domain.isDeleted());
+        e.setCreatedAt(domain.getCreatedAt());
+        e.setCreatedBy(domain.getCreatedBy());
+        e.setUpdatedAt(domain.getUpdatedAt());
+        e.setUpdatedBy(domain.getUpdatedBy());
         return e;
     }
 
     public PipelineVersion toVersionDomain(PipelineVersionEntity entity, List<PipelineStepEntity> stepEntities) {
         var v = PipelineVersion.create(
                 entity.getPipelineId(), entity.getVersion()
-                , entity.getDescription(), entity.getRgtrId()
+                , entity.getDescription(), entity.getCreatedBy()
         );
         v.setVersionId(entity.getVersionId());
         for (var se : stepEntities) {
-            v.addStep(se.getJobId(), se.getSeq(), se.getRgtrId());
+            v.addStep(se.getJobId(), se.getStepOrder(), se.getCreatedBy());
         }
         return v;
     }
@@ -56,8 +56,8 @@ public class PipelineMapper {
         e.setPipelineId(domain.getPipelineId());
         e.setVersion(domain.getVersion());
         e.setDescription(domain.getDescription());
-        e.setRegDt(domain.getRegDt());
-        e.setRgtrId(domain.getRgtrId());
+        e.setCreatedAt(domain.getCreatedAt());
+        e.setCreatedBy(domain.getCreatedBy());
         return e;
     }
 
@@ -65,9 +65,9 @@ public class PipelineMapper {
         var e = new PipelineStepEntity();
         e.setVersionId(versionId);
         e.setJobId(domain.getJobId());
-        e.setSeq(domain.getSeq());
-        e.setRegDt(domain.getRegDt());
-        e.setRgtrId(domain.getRgtrId());
+        e.setStepOrder(domain.getStepOrder());
+        e.setCreatedAt(domain.getCreatedAt());
+        e.setCreatedBy(domain.getCreatedBy());
         return e;
     }
 }

@@ -25,8 +25,8 @@ public interface CreateJobUseCase {
      * @param presetId  소속 목적(Preset) ID
      * @param category  작업 범주 (BLD, DPLY, TEST)
      * @param type      작업 타입 (GUIDE, FREE)
-     * @param rgtrId    등록자 ID
+     * @param createdBy 등록자 ID
      * @return 생성된 Job 도메인 모델
      */
-    Job create(String projectId, String presetId, JobCategory category, JobType type, String rgtrId);
+    Job create(String projectId, String presetId, JobCategory category, JobType type, String createdBy);
 }

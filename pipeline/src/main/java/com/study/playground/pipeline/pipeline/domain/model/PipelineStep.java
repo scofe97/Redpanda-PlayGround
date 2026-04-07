@@ -14,16 +14,16 @@ public class PipelineStep {
     private Long stepId;
     private Long versionId;
     private String jobId;
-    private int seq;
-    private LocalDateTime regDt;
-    private String rgtrId;
+    private int stepOrder;
+    private LocalDateTime createdAt;
+    private String createdBy;
 
-    public static PipelineStep create(String jobId, int seq, String rgtrId) {
+    public static PipelineStep create(String jobId, int stepOrder, String createdBy) {
         var s = new PipelineStep();
         s.jobId = jobId;
-        s.seq = seq;
-        s.regDt = LocalDateTime.now();
-        s.rgtrId = rgtrId;
+        s.stepOrder = stepOrder;
+        s.createdAt = LocalDateTime.now();
+        s.createdBy = createdBy;
         return s;
     }
 

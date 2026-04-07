@@ -20,10 +20,10 @@ public class Job {
     private String tags;
     private String linkJobId;
     private boolean deleted;
-    private LocalDateTime regDt;
-    private String rgtrId;
-    private LocalDateTime mdfcnDt;
-    private String mdfrId;
+    private LocalDateTime createdAt;
+    private String createdBy;
+    private LocalDateTime updatedAt;
+    private String updatedBy;
 
     // === Factory ===
 
@@ -33,7 +33,7 @@ public class Job {
             , String presetId
             , JobCategory category
             , JobType type
-            , String rgtrId
+            , String createdBy
     ) {
         var job = new Job();
         job.jobId = jobId;
@@ -43,10 +43,10 @@ public class Job {
         job.type = type;
         job.locked = false;
         job.deleted = false;
-        job.regDt = LocalDateTime.now();
-        job.mdfcnDt = LocalDateTime.now();
-        job.rgtrId = rgtrId;
-        job.mdfrId = rgtrId;
+        job.createdAt = LocalDateTime.now();
+        job.updatedAt = LocalDateTime.now();
+        job.createdBy = createdBy;
+        job.updatedBy = createdBy;
         return job;
     }
 
@@ -54,25 +54,25 @@ public class Job {
 
     public void lock() {
         this.locked = true;
-        this.mdfcnDt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
     }
 
     public void unlock() {
         this.locked = false;
-        this.mdfcnDt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
     }
 
     public void softDelete() {
         this.deleted = true;
-        this.mdfcnDt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
     }
 
     public void linkTo(String linkJobId) {
         this.linkJobId = linkJobId;
-        this.mdfcnDt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
     }
 
-    public void setTags(String tags) { this.tags = tags; this.mdfcnDt = LocalDateTime.now(); }
+    public void setTags(String tags) { this.tags = tags; this.updatedAt = LocalDateTime.now(); }
 
     protected Job() {}
 }

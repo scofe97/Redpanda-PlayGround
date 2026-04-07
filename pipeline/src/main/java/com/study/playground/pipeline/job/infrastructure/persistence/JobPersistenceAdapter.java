@@ -23,13 +23,13 @@ public class JobPersistenceAdapter implements LoadJobPort, SaveJobPort {
 
     @Override
     public List<Job> findByProjectId(String projectId) {
-        return jpaRepository.findByProjectIdAndDelYn(projectId, "N").stream()
+        return jpaRepository.findByProjectIdAndDeletedFalse(projectId).stream()
                 .map(mapper::toDomain).toList();
     }
 
     @Override
     public List<Job> findAll() {
-        return jpaRepository.findByDelYn("N").stream()
+        return jpaRepository.findByDeletedFalse().stream()
                 .map(mapper::toDomain).toList();
     }
 

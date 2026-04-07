@@ -19,32 +19,32 @@ public class PipelineEntity {
     @Column(name = "project_id", nullable = false, length = 20)
     private String projectId;
 
-    @Column(name = "pipeline_nm", nullable = false, length = 128)
+    @Column(name = "pipeline_name", nullable = false, length = 128)
     private String name;
 
     @Column(name = "pipeline_desc", length = 512)
     private String description;
 
-    @Column(name = "fail_continue_yn", nullable = false, length = 1)
-    private String failContinueYn = "N";
+    @Column(name = "fail_continue", nullable = false)
+    private boolean failContinue = false;
 
-    @Column(name = "in_out_se", nullable = false, length = 1)
-    private String inOutSe = "IN";
+    @Column(name = "in_out_type", nullable = false, length = 1)
+    private String inOutType = "IN";
 
-    @Column(name = "del_yn", nullable = false, length = 1)
-    private String delYn = "N";
+    @Column(name = "deleted", nullable = false)
+    private boolean deleted = false;
 
-    @Column(name = "reg_dt", nullable = false, updatable = false)
-    private LocalDateTime regDt;
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
 
-    @Column(name = "rgtr_id", nullable = false, length = 10)
-    private String rgtrId;
+    @Column(name = "created_by", nullable = false, length = 10)
+    private String createdBy;
 
-    @Column(name = "mdfcn_dt", nullable = false)
-    private LocalDateTime mdfcnDt;
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
 
-    @Column(name = "mdfr_id", nullable = false, length = 10)
-    private String mdfrId;
+    @Column(name = "updated_by", nullable = false, length = 10)
+    private String updatedBy;
 
     protected PipelineEntity() {}
 }

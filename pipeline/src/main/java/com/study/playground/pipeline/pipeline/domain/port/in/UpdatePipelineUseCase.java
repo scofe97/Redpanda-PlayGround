@@ -13,8 +13,8 @@ public interface UpdatePipelineUseCase {
      * @param failContinue   실패 시 계속 여부
      * @param jobIds         새 버전의 스텝 Job ID 목록 (순서대로)
      * @param versionDesc    버전 메모
-     * @param mdfrId         수정자
+     * @param updatedBy      수정자
      */
     void update(String pipelineId, String name, String description, boolean failContinue
-            , List<String> jobIds, String versionDesc, String mdfrId);
+            , List<String> jobIds, String versionDesc, String updatedBy);
 }

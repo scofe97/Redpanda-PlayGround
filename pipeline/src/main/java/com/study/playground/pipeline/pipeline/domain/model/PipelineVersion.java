@@ -17,27 +17,27 @@ public class PipelineVersion {
     private String pipelineId;
     private int version;
     private String description;
-    private LocalDateTime regDt;
-    private String rgtrId;
+    private LocalDateTime createdAt;
+    private String createdBy;
     private List<PipelineStep> steps = new ArrayList<>();
 
     public static PipelineVersion create(
             String pipelineId
             , int version
             , String description
-            , String rgtrId
+            , String createdBy
     ) {
         var v = new PipelineVersion();
         v.pipelineId = pipelineId;
         v.version = version;
         v.description = description;
-        v.regDt = LocalDateTime.now();
-        v.rgtrId = rgtrId;
+        v.createdAt = LocalDateTime.now();
+        v.createdBy = createdBy;
         return v;
     }
 
-    public void addStep(String jobId, int seq, String rgtrId) {
-        steps.add(PipelineStep.create(jobId, seq, rgtrId));
+    public void addStep(String jobId, int stepOrder, String createdBy) {
+        steps.add(PipelineStep.create(jobId, stepOrder, createdBy));
     }
 
     public void setVersionId(Long versionId) { this.versionId = versionId; }

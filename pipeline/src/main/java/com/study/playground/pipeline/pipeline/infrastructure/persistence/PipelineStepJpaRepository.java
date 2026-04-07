@@ -6,5 +6,5 @@ import java.util.List;
 
 public interface PipelineStepJpaRepository extends JpaRepository<PipelineStepEntity, Long> {
 
-    List<PipelineStepEntity> findByVersionIdOrderBySeqAsc(Long versionId);
+    List<PipelineStepEntity> findByVersionIdOrderByStepOrderAsc(Long versionId);
 }

@@ -27,12 +27,12 @@ public class PipelineCrudService implements CreatePipelineUseCase, UpdatePipelin
 
     @Override
     @Transactional
-    public Pipeline create(String projectId, String name, String description, List<String> jobIds, String rgtrId) {
+    public Pipeline create(String projectId, String name, String description, List<String> jobIds, String createdBy) {
         var pipelineId = UUID.randomUUID().toString().substring(0, 20);
-        var pipeline = Pipeline.create(pipelineId, projectId, name, description, rgtrId);
+        var pipeline = Pipeline.create(pipelineId, projectId, name, description, createdBy);
         var saved = savePort.save(pipeline);
 
-        var version = pipelineService.createInitialVersion(saved.getPipelineId(), jobIds, rgtrId);
+        var version = pipelineService.createInitialVersion(saved.getPipelineId(), jobIds, createdBy);
         savePort.saveVersion(version);
 
         log.info("[Pipeline] Created: id={}, name={}, steps={}", saved.getPipelineId(), name, jobIds.size());
@@ -42,16 +42,16 @@ public class PipelineCrudService implements CreatePipelineUseCase, UpdatePipelin
     @Override
     @Transactional
     public void update(String pipelineId, String name, String description, boolean failContinue
-            , List<String> jobIds, String versionDesc, String mdfrId) {
+            , List<String> jobIds, String versionDesc, String updatedBy) {
         var pipeline = loadPort.findById(pipelineId)
                 .orElseThrow(() -> new IllegalArgumentException("Pipeline not found: " + pipelineId));
         pipelineService.validateNotDeleted(pipeline);
 
-        pipeline.update(name, description, failContinue, mdfrId);
+        pipeline.update(name, description, failContinue, updatedBy);
         savePort.save(pipeline);
 
         int nextVer = loadPort.getNextVersionNumber(pipelineId);
-        var version = pipelineService.createNewVersion(pipelineId, nextVer, jobIds, versionDesc, mdfrId);
+        var version = pipelineService.createNewVersion(pipelineId, nextVer, jobIds, versionDesc, updatedBy);
         savePort.saveVersion(version);
 
         log.info("[Pipeline] Updated: id={}, newVersion={}", pipelineId, nextVer);

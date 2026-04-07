@@ -22,14 +22,14 @@ public class JobEntity {
     @Column(name = "preset_id", nullable = false, length = 50)
     private String presetId;
 
-    @Column(name = "job_ctgr_cd", nullable = false, length = 20)
+    @Column(name = "category", nullable = false, length = 20)
     private String categoryCode;
 
-    @Column(name = "job_type_cd", nullable = false, length = 20)
+    @Column(name = "type", nullable = false, length = 20)
     private String typeCode;
 
-    @Column(name = "job_lck_yn", nullable = false, length = 1)
-    private String lockYn = "N";
+    @Column(name = "locked", nullable = false)
+    private boolean locked = false;
 
     @Column(name = "job_tags", columnDefinition = "text")
     private String tags;
@@ -37,20 +37,20 @@ public class JobEntity {
     @Column(name = "link_job_id", length = 20)
     private String linkJobId;
 
-    @Column(name = "del_yn", nullable = false, length = 1)
-    private String delYn = "N";
+    @Column(name = "deleted", nullable = false)
+    private boolean deleted = false;
 
-    @Column(name = "reg_dt", nullable = false, updatable = false)
-    private LocalDateTime regDt;
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
 
-    @Column(name = "rgtr_id", length = 50)
-    private String rgtrId;
+    @Column(name = "created_by", length = 50)
+    private String createdBy;
 
-    @Column(name = "mdfcn_dt")
-    private LocalDateTime mdfcnDt;
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
 
-    @Column(name = "mdfr_id", length = 50)
-    private String mdfrId;
+    @Column(name = "updated_by", length = 50)
+    private String updatedBy;
 
     protected JobEntity() {}
 }

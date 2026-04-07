@@ -13,7 +13,7 @@ public class JobMapper {
                 entity.getJobId(), entity.getProjectId(), entity.getPresetId()
                 , JobCategory.valueOf(entity.getCategoryCode())
                 , JobType.valueOf(entity.getTypeCode())
-                , entity.getRgtrId()
+                , entity.getCreatedBy()
         );
         job.setTags(entity.getTags());
         return job;
@@ -26,14 +26,14 @@ public class JobMapper {
         entity.setPresetId(domain.getPresetId());
         entity.setCategoryCode(domain.getCategory().name());
         entity.setTypeCode(domain.getType().name());
-        entity.setLockYn(domain.isLocked() ? "Y" : "N");
+        entity.setLocked(domain.isLocked());
         entity.setTags(domain.getTags());
         entity.setLinkJobId(domain.getLinkJobId());
-        entity.setDelYn(domain.isDeleted() ? "Y" : "N");
-        entity.setRegDt(domain.getRegDt());
-        entity.setRgtrId(domain.getRgtrId());
-        entity.setMdfcnDt(domain.getMdfcnDt());
-        entity.setMdfrId(domain.getMdfrId());
+        entity.setDeleted(domain.isDeleted());
+        entity.setCreatedAt(domain.getCreatedAt());
+        entity.setCreatedBy(domain.getCreatedBy());
+        entity.setUpdatedAt(domain.getUpdatedAt());
+        entity.setUpdatedBy(domain.getUpdatedBy());
         return entity;
     }
 }

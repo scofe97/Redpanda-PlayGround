@@ -6,7 +6,7 @@ import java.util.List;
 
 public interface JobJpaRepository extends JpaRepository<JobEntity, String> {
 
-    List<JobEntity> findByProjectIdAndDelYn(String projectId, String delYn);
+    List<JobEntity> findByProjectIdAndDeletedFalse(String projectId);
 
-    List<JobEntity> findByDelYn(String delYn);
+    List<JobEntity> findByDeletedFalse();
 }

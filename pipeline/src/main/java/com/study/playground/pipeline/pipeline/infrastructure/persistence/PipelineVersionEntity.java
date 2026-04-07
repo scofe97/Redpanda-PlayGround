@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "pipeline_ver", uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"pipeline_id", "pl_ver"})
+        @UniqueConstraint(columnNames = {"pipeline_id", "version"})
 })
 @Getter
 @Setter
@@ -16,23 +16,23 @@ public class PipelineVersionEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "pipeline_ver_id")
+    @Column(name = "pipeline_version_id")
     private Long versionId;
 
     @Column(name = "pipeline_id", nullable = false, length = 20)
     private String pipelineId;
 
-    @Column(name = "pl_ver", nullable = false)
+    @Column(name = "version", nullable = false)
     private int version;
 
-    @Column(name = "pl_ver_desc", length = 512)
+    @Column(name = "description", length = 512)
     private String description;
 
-    @Column(name = "reg_dt", nullable = false, updatable = false)
-    private LocalDateTime regDt;
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
 
-    @Column(name = "rgtr_id", length = 10)
-    private String rgtrId;
+    @Column(name = "created_by", length = 10)
+    private String createdBy;
 
     protected PipelineVersionEntity() {}
 }

@@ -15,19 +15,19 @@ public class Pipeline {
     private String name;
     private String description;
     private boolean failContinue;
-    private String inOutSe;
+    private String inOutType;
     private boolean deleted;
-    private LocalDateTime regDt;
-    private String rgtrId;
-    private LocalDateTime mdfcnDt;
-    private String mdfrId;
+    private LocalDateTime createdAt;
+    private String createdBy;
+    private LocalDateTime updatedAt;
+    private String updatedBy;
 
     public static Pipeline create(
             String pipelineId
             , String projectId
             , String name
             , String description
-            , String rgtrId
+            , String createdBy
     ) {
         var p = new Pipeline();
         p.pipelineId = pipelineId;
@@ -35,26 +35,26 @@ public class Pipeline {
         p.name = name;
         p.description = description;
         p.failContinue = false;
-        p.inOutSe = "IN";
+        p.inOutType = "IN";
         p.deleted = false;
-        p.regDt = LocalDateTime.now();
-        p.mdfcnDt = LocalDateTime.now();
-        p.rgtrId = rgtrId;
-        p.mdfrId = rgtrId;
+        p.createdAt = LocalDateTime.now();
+        p.updatedAt = LocalDateTime.now();
+        p.createdBy = createdBy;
+        p.updatedBy = createdBy;
         return p;
     }
 
-    public void update(String name, String description, boolean failContinue, String mdfrId) {
+    public void update(String name, String description, boolean failContinue, String updatedBy) {
         this.name = name;
         this.description = description;
         this.failContinue = failContinue;
-        this.mdfrId = mdfrId;
-        this.mdfcnDt = LocalDateTime.now();
+        this.updatedBy = updatedBy;
+        this.updatedAt = LocalDateTime.now();
     }
 
     public void softDelete() {
         this.deleted = true;
-        this.mdfcnDt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
     }
 
     protected Pipeline() {}

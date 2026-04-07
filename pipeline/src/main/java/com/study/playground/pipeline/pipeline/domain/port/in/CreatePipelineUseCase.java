@@ -13,8 +13,8 @@ public interface CreatePipelineUseCase {
      * @param name        파이프라인 이름
      * @param description 설명
      * @param jobIds      스텝 순서대로의 Job ID 목록
-     * @param rgtrId      등록자
+     * @param createdBy   등록자
      * @return 생성된 파이프라인
      */
-    Pipeline create(String projectId, String name, String description, List<String> jobIds, String rgtrId);
+    Pipeline create(String projectId, String name, String description, List<String> jobIds, String createdBy);
 }
