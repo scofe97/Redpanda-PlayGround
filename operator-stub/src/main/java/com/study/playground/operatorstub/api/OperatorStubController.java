@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -51,12 +52,13 @@ public class OperatorStubController {
                 })
                 .toList();
 
-        // 메시지 발행 + 상태 QUEUING 전환
-        for (OperatorJob job : jobs) {
-            jobDispatchPublisher.publishJobDispatch(job);
-            job.updateStatus(OperatorJobStatus.QUEUING);
-            operatorJobRepository.save(job);
-        }
+        // 순차 실행: 첫 번째 Job만 디스패치
+        OperatorJob firstJob = jobs.stream()
+                .min(Comparator.comparingInt(OperatorJob::getJobOrder))
+                .orElseThrow();
+        jobDispatchPublisher.publishJobDispatch(firstJob);
+        firstJob.updateStatus(OperatorJobStatus.QUEUING);
+        operatorJobRepository.save(firstJob);
 
         log.info("[Operator] Pipeline execution started: pipelineId={}, executionPipelineId={}, jobs={}"
                 , pipelineId, executionPipelineId, jobs.size());

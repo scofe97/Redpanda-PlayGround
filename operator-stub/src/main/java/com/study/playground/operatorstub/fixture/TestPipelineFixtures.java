@@ -20,6 +20,12 @@ public final class TestPipelineFixtures {
                 , new TestPipeline("single", "Single Job", List.of(
                         new TestJob(1L, "executor-test", 1, 1L, null)
                 ))
+                , new TestPipeline("seq-4-k8s", "Sequential 4 Jobs (K8s)", List.of(
+                        new TestJob(1L, "executor-test", 1, 1L, null)
+                        , new TestJob(2L, "executor-test", 2, 1L, null)
+                        , new TestJob(3L, "executor-test", 3, 1L, null)
+                        , new TestJob(4L, "executor-test", 4, 1L, null)
+                ))
         );
     }
 

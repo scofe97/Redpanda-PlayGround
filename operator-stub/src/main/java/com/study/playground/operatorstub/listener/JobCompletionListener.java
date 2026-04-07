@@ -7,6 +7,7 @@ import com.study.playground.kafka.serialization.AvroSerializer;
 import com.study.playground.kafka.topic.Topics;
 import com.study.playground.operatorstub.domain.OperatorJobRepository;
 import com.study.playground.operatorstub.domain.OperatorJobStatus;
+import com.study.playground.operatorstub.publisher.JobDispatchPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -22,6 +23,7 @@ public class JobCompletionListener {
     private static final byte AVRO_MAGIC_BYTE = 0x00;
 
     private final OperatorJobRepository operatorJobRepository;
+    private final JobDispatchPublisher jobDispatchPublisher;
     private final AvroSerializer avroSerializer;
     private final ObjectMapper objectMapper;
 
@@ -63,6 +65,21 @@ public class JobCompletionListener {
                     operatorJobRepository.save(job);
                     log.info("[OpListener] Job {}: id={}, jobName={}, logFile={}, logFileYn={}"
                             , newStatus, job.getId(), job.getJobName(), logFilePath, logFileYn);
+
+                    // 순차 파이프라인: 성공 시 다음 Job 디스패치
+                    if (success && job.getExecutionPipelineId() != null) {
+                        operatorJobRepository.findFirstByExecutionPipelineIdAndJobOrderGreaterThanAndStatusOrderByJobOrderAsc(
+                                job.getExecutionPipelineId()
+                                , job.getJobOrder()
+                                , OperatorJobStatus.PENDING
+                        ).ifPresent(nextJob -> {
+                            jobDispatchPublisher.publishJobDispatch(nextJob);
+                            nextJob.updateStatus(OperatorJobStatus.QUEUING);
+                            operatorJobRepository.save(nextJob);
+                            log.info("[OpListener] Next job dispatched: id={}, jobName={}, order={}"
+                                    , nextJob.getId(), nextJob.getJobName(), nextJob.getJobOrder());
+                        });
+                    }
                 });
     }
 
