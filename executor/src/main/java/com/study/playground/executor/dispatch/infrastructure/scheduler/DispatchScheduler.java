@@ -1,4 +1,4 @@
-package com.study.playground.executor.dispatch.scheduler;
+package com.study.playground.executor.dispatch.infrastructure.scheduler;
 
 import com.study.playground.executor.dispatch.domain.port.in.EvaluateDispatchUseCase;
 import lombok.RequiredArgsConstructor;
