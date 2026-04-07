@@ -40,7 +40,7 @@ class TC05_DuplicatePreventionTest extends ExecutorIntegrationTestBase {
 
         // jobA는 QUEUED 이상 진행되어야 한다
         String jobAStatus = (String) jobAResult.get("status");
-        assertThat(List.of("QUEUED", "RUNNING", "SUCCESS")).contains(jobAStatus);
+        assertThat(List.of("QUEUED", "SUBMITTED", "RUNNING", "SUCCESS")).contains(jobAStatus);
 
         // jobB는 PENDING에 머물러야 한다 (동일 jobName 중복 방지)
         assertThat(jobBResult.get("status")).isEqualTo("PENDING");

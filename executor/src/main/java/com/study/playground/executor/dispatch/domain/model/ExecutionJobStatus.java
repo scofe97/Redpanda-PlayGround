@@ -9,8 +9,9 @@ import java.util.Set;
  * PENDING ~ RUNNING: executor 내부 상태
  * 터미널 상태: Jenkins 실제 상태와 1:1 매핑
  *
- * PENDING  → QUEUED  → RUNNING → SUCCESS / FAILURE / UNSTABLE / ABORTED / NOT_BUILT / NOT_EXECUTED
+ * PENDING  → QUEUED  → SUBMITTED → RUNNING → SUCCESS / FAILURE / UNSTABLE / ABORTED / NOT_BUILT / NOT_EXECUTED
  * QUEUED   → PENDING (Jenkins 트리거 실패 → 재시도)
+ * SUBMITTED → PENDING (Jenkins 트리거 실패 → 재시도)
  * RUNNING  → PENDING (타임아웃 → 재시도)
  */
 public enum ExecutionJobStatus {
@@ -18,6 +19,7 @@ public enum ExecutionJobStatus {
     // executor 내부 상태
     PENDING,
     QUEUED,
+    SUBMITTED,
     RUNNING,
 
     // Jenkins 실제 상태 (터미널)
@@ -30,7 +32,8 @@ public enum ExecutionJobStatus {
 
     private static final Map<ExecutionJobStatus, Set<ExecutionJobStatus>> ALLOWED_TRANSITIONS = Map.of(
             PENDING, Set.of(QUEUED)
-            , QUEUED, Set.of(RUNNING, PENDING, FAILURE)
+            , QUEUED, Set.of(SUBMITTED, PENDING, FAILURE)
+            , SUBMITTED, Set.of(RUNNING, PENDING, FAILURE)
             , RUNNING, Set.of(SUCCESS, FAILURE, UNSTABLE, ABORTED, NOT_BUILT, NOT_EXECUTED, PENDING)
     );
 

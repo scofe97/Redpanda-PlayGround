@@ -83,6 +83,7 @@ class ExecutionJobTest {
         // given
         ExecutionJob job = createSampleJob();
         job.transitionTo(ExecutionJobStatus.QUEUED);
+        job.transitionTo(ExecutionJobStatus.SUBMITTED);
 
         // when
         job.transitionTo(ExecutionJobStatus.RUNNING);
@@ -97,6 +98,7 @@ class ExecutionJobTest {
         // given — SUCCESS 케이스
         ExecutionJob jobSuccess = createSampleJob();
         jobSuccess.transitionTo(ExecutionJobStatus.QUEUED);
+        jobSuccess.transitionTo(ExecutionJobStatus.SUBMITTED);
         jobSuccess.transitionTo(ExecutionJobStatus.RUNNING);
 
         // when
@@ -108,6 +110,7 @@ class ExecutionJobTest {
         // given — FAILURE 케이스
         ExecutionJob jobFailure = createSampleJob();
         jobFailure.transitionTo(ExecutionJobStatus.QUEUED);
+        jobFailure.transitionTo(ExecutionJobStatus.SUBMITTED);
         jobFailure.transitionTo(ExecutionJobStatus.RUNNING);
 
         // when

@@ -2,6 +2,7 @@ package com.study.playground.executor.runner.infrastructure.jenkins;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.study.playground.executor.dispatch.domain.port.out.JenkinsQueryPort;
+import com.study.playground.executor.dispatch.domain.port.out.JenkinsTriggerPort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
@@ -17,13 +18,13 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Jenkins REST API 클라이언트.
- * JenkinsQueryPort 구현 + 빌드 트리거.
+ * JenkinsQueryPort + JenkinsTriggerPort 구현.
  * Jenkins 인스턴스 정보는 cross-schema 쿼리로 SupportTool에서 동적 조회.
  */
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class JenkinsClient implements JenkinsQueryPort {
+public class JenkinsClient implements JenkinsQueryPort, JenkinsTriggerPort {
 
     private final JenkinsFeignClient feignClient;
     private final RestTemplate restTemplate;

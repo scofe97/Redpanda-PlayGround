@@ -39,10 +39,25 @@ class DispatchServiceTest {
         ExecutionJob job = createPendingJob();
 
         // when
-        dispatchService.prepareForDispatch(job, 42);
+        dispatchService.prepareForDispatch(job);
 
         // then
         assertThat(job.getStatus()).isEqualTo(ExecutionJobStatus.QUEUED);
+        assertThat(job.getBuildNo()).isNull();
+    }
+
+    @Test
+    @DisplayName("markAsSubmitted()는 Job을 SUBMITTED 상태로 전이하고 buildNo를 기록해야 한다")
+    void markAsSubmitted_shouldTransitionToSubmittedAndRecordBuildNo() {
+        // given
+        ExecutionJob job = createPendingJob();
+        dispatchService.prepareForDispatch(job); // PENDING → QUEUED
+
+        // when
+        dispatchService.markAsSubmitted(job, 42);
+
+        // then
+        assertThat(job.getStatus()).isEqualTo(ExecutionJobStatus.SUBMITTED);
         assertThat(job.getBuildNo()).isEqualTo(42);
     }
 
@@ -51,7 +66,8 @@ class DispatchServiceTest {
     void markAsRunning_shouldTransitionToRunning() {
         // given
         ExecutionJob job = createPendingJob();
-        dispatchService.prepareForDispatch(job, 42); // PENDING → QUEUED
+        dispatchService.prepareForDispatch(job);        // PENDING → QUEUED
+        dispatchService.markAsSubmitted(job, 42);     // QUEUED → SUBMITTED
 
         // when
         dispatchService.markAsRunning(job, 1);
@@ -66,8 +82,9 @@ class DispatchServiceTest {
     void markAsCompleted_successResult_shouldTransitionToSuccess() {
         // given
         ExecutionJob job = createPendingJob();
-        dispatchService.prepareForDispatch(job, 42); // QUEUED
-        dispatchService.markAsRunning(job, 1);      // RUNNING
+        dispatchService.prepareForDispatch(job);       // QUEUED
+        dispatchService.markAsSubmitted(job, 42);     // SUBMITTED
+        dispatchService.markAsRunning(job, 1);        // RUNNING
 
         // when
         dispatchService.markAsCompleted(job, "SUCCESS");
@@ -82,8 +99,9 @@ class DispatchServiceTest {
     void markAsCompleted_failureResult_shouldTransitionToFailure() {
         // given
         ExecutionJob job = createPendingJob();
-        dispatchService.prepareForDispatch(job, 42); // QUEUED
-        dispatchService.markAsRunning(job, 1);      // RUNNING
+        dispatchService.prepareForDispatch(job);       // QUEUED
+        dispatchService.markAsSubmitted(job, 42);     // SUBMITTED
+        dispatchService.markAsRunning(job, 1);        // RUNNING
 
         // when
         dispatchService.markAsCompleted(job, "FAILURE");
@@ -98,7 +116,7 @@ class DispatchServiceTest {
     void retryOrFail_canRetry_shouldResetToPendingAndReturnTrue() {
         // given — QUEUED 상태에서 재시도 (retryCnt=0, maxRetries=2)
         ExecutionJob job = createPendingJob();
-        dispatchService.prepareForDispatch(job, 42); // QUEUED
+        dispatchService.prepareForDispatch(job); // QUEUED
 
         // when
         boolean result = dispatchService.retryOrFail(job, 2);
@@ -116,7 +134,7 @@ class DispatchServiceTest {
         ExecutionJob job = createPendingJob();
         job.incrementRetry(); // retryCnt=1
         job.incrementRetry(); // retryCnt=2
-        dispatchService.prepareForDispatch(job, 42); // QUEUED
+        dispatchService.prepareForDispatch(job); // QUEUED
 
         // when
         boolean result = dispatchService.retryOrFail(job, 2);

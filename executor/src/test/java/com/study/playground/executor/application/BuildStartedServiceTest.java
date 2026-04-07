@@ -45,7 +45,7 @@ class BuildStartedServiceTest {
 
     private static final int BUILD_NO = 7;
 
-    private ExecutionJob queuedJob(String jobExcnId) {
+    private ExecutionJob submittedJob(String jobExcnId) {
         ExecutionJob job = ExecutionJob.create(
                 jobExcnId
                 , "pipe-001"
@@ -54,8 +54,9 @@ class BuildStartedServiceTest {
                 , LocalDateTime.now()
                 , "user-01"
         );
+        job.transitionTo(ExecutionJobStatus.QUEUED);     // PENDING → QUEUED
         job.recordBuildNo(BUILD_NO);
-        job.transitionTo(ExecutionJobStatus.QUEUED); // PENDING → QUEUED
+        job.transitionTo(ExecutionJobStatus.SUBMITTED);  // QUEUED → SUBMITTED
         return job;
     }
 
@@ -63,7 +64,7 @@ class BuildStartedServiceTest {
     @DisplayName("유효한 콜백 수신 시 RUNNING으로 전환하고 알림을 호출해야 한다")
     void handle_validCallback_shouldTransitionToRunningAndNotify() {
         // given
-        ExecutionJob job = queuedJob("excn-001");
+        ExecutionJob job = submittedJob("excn-001");
         given(jobPort.findByJobIdAndBuildNo("job-001", BUILD_NO)).willReturn(Optional.of(job));
         BuildCallback callback = BuildCallback.started("job-001", BUILD_NO);
 
@@ -95,9 +96,9 @@ class BuildStartedServiceTest {
     @DisplayName("터미널 상태 Job은 notify를 호출하지 않아야 한다")
     void handle_terminalJob_shouldIgnore() {
         // given — SUCCESS(터미널) 상태 Job
-        ExecutionJob job = queuedJob("excn-001");
-        job.transitionTo(ExecutionJobStatus.RUNNING); // QUEUED → RUNNING
-        job.transitionTo(ExecutionJobStatus.SUCCESS); // RUNNING → SUCCESS
+        ExecutionJob job = submittedJob("excn-001");
+        job.transitionTo(ExecutionJobStatus.RUNNING);  // SUBMITTED → RUNNING
+        job.transitionTo(ExecutionJobStatus.SUCCESS);  // RUNNING → SUCCESS
         given(jobPort.findByJobIdAndBuildNo("job-001", BUILD_NO)).willReturn(Optional.of(job));
         BuildCallback callback = BuildCallback.started("job-001", BUILD_NO);
 

@@ -35,6 +35,7 @@ public class DispatchEvaluatorService implements EvaluateDispatchUseCase {
     private static final List<ExecutionJobStatus> ACTIVE_STATUSES =
             List.of(
                     ExecutionJobStatus.QUEUED
+                    , ExecutionJobStatus.SUBMITTED
                     , ExecutionJobStatus.RUNNING
             );
 
@@ -84,10 +85,8 @@ public class DispatchEvaluatorService implements EvaluateDispatchUseCase {
             return;
         }
 
-        // 4. nextBuildNumber 조회 + buildNo 기록 + QUEUED 전환
-        var jenkinsJobPath = defInfo.jenkinsJobPath();
-        int nextBuildNo = jenkinsQueryPort.queryNextBuildNumber(jenkinsInstanceId, jenkinsJobPath);
-        dispatchService.prepareForDispatch(job, nextBuildNo);
+        // 4. QUEUED 전환 (buildNo는 SUBMITTED 전환 시 기록)
+        dispatchService.prepareForDispatch(job);
         jobPort.save(job);
 
         // 5. 실행 토픽 발행

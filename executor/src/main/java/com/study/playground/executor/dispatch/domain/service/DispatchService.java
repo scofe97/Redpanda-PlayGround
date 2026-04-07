@@ -13,9 +13,17 @@ public class DispatchService {
      * 디스패치 준비: QUEUED 전환.
      * 슬롯 확인이 완료된 후 호출한다.
      */
-    public void prepareForDispatch(ExecutionJob job, int buildNo) {
-        job.recordBuildNo(buildNo);
+    public void prepareForDispatch(ExecutionJob job) {
         job.transitionTo(ExecutionJobStatus.QUEUED);
+    }
+
+    /**
+     * Jenkins 빌드 트리거 성공: SUBMITTED 전환 + 빌드번호 기록.
+     * Jenkins 큐에 적재되었으나 아직 실행되지 않은 상태.
+     */
+    public void markAsSubmitted(ExecutionJob job, int buildNo) {
+        job.recordBuildNo(buildNo);
+        job.transitionTo(ExecutionJobStatus.SUBMITTED);
     }
 
     /**

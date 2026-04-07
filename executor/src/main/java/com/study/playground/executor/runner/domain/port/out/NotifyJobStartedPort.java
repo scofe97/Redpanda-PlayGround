@@ -14,5 +14,10 @@ public interface NotifyJobStartedPort {
      * @param jobId          Job 정의 식별자
      * @param buildNo        Jenkins 빌드 번호
      */
-    void notify(String jobExcnId, String pipelineExcnId, String jobId, int buildNo);
+    void notify(
+            String jobExcnId
+            , String pipelineExcnId
+            , String jobId
+            , int buildNo
+    );
 }

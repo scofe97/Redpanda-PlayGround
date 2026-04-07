@@ -45,7 +45,7 @@ class TC07_MultiTriggerTest extends ExecutorIntegrationTestBase {
         Thread.sleep(20_000);
 
         // then
-        var activeStatuses = List.of("QUEUED", "RUNNING", "SUCCESS");
+        var activeStatuses = List.of("QUEUED", "SUBMITTED", "RUNNING", "SUCCESS");
 
         long totalCount = ids.stream()
                 .map(this::getExecutorJob)
@@ -68,7 +68,7 @@ class TC07_MultiTriggerTest extends ExecutorIntegrationTestBase {
         assertThat(totalCount).as("3건 모두 DB에 저장").isEqualTo(3);
 
         // 최소 1개 활성
-        assertThat(activeCount).as("최소 1개 활성 (QUEUED/RUNNING/SUCCESS)").isGreaterThanOrEqualTo(1);
+        assertThat(activeCount).as("최소 1개 활성 (QUEUED/SUBMITTED/RUNNING/SUCCESS)").isGreaterThanOrEqualTo(1);
 
         // 참고: 동시 발행 시 Kafka consumer concurrency로 인해 race condition이 발생하여
         // 중복 체크 전에 여러 Job이 QUEUED될 수 있다. 이는 알려진 동작이다.

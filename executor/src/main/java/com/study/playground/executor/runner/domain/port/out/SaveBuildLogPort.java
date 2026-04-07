@@ -17,5 +17,9 @@ public interface SaveBuildLogPort {
      * @param logContent    저장할 로그 내용
      * @return 저장 성공 여부 (실패해도 예외를 던지지 않음)
      */
-    boolean save(String directoryPath, String jobExcnId, String logContent);
+    boolean save(
+            String directoryPath
+            , String jobExcnId
+            , String logContent
+    );
 }

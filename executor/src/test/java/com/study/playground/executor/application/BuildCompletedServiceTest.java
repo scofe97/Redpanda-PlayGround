@@ -71,9 +71,10 @@ class BuildCompletedServiceTest {
                 , LocalDateTime.now()
                 , "user-01"
         );
+        job.transitionTo(ExecutionJobStatus.QUEUED);     // PENDING → QUEUED
         job.recordBuildNo(BUILD_NO);
-        job.transitionTo(ExecutionJobStatus.QUEUED);  // PENDING → QUEUED
-        job.transitionTo(ExecutionJobStatus.RUNNING); // QUEUED → RUNNING
+        job.transitionTo(ExecutionJobStatus.SUBMITTED);  // QUEUED → SUBMITTED
+        job.transitionTo(ExecutionJobStatus.RUNNING);    // SUBMITTED → RUNNING
         return job;
     }
 

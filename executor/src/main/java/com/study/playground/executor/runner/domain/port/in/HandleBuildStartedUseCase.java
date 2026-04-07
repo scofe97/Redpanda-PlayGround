@@ -16,5 +16,7 @@ public interface HandleBuildStartedUseCase {
     /**
      * @param callback Jenkins 시작 콜백 (경로, buildNo)
      */
-    void handle(BuildCallback callback);
+    void handle(
+            BuildCallback callback
+    );
 }

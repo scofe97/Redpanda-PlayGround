@@ -1,7 +1,7 @@
-package com.study.playground.executor.runner.infrastructure.messaging;
+package com.study.playground.executor.dispatch.infrastructure.messaging;
 
 import com.study.playground.avro.executor.ExecutorJobExecuteCommand;
-import com.study.playground.executor.runner.application.JobExecuteService;
+import com.study.playground.executor.dispatch.application.JobExecuteService;
 import com.study.playground.kafka.topic.Topics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

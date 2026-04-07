@@ -1,12 +1,14 @@
-package com.study.playground.executor.runner.application;
+package com.study.playground.executor.dispatch.application;
 
 import com.study.playground.executor.config.ExecutorProperties;
 import com.study.playground.executor.dispatch.domain.model.ExecutionJob;
 import com.study.playground.executor.dispatch.domain.model.ExecutionJobStatus;
+import com.study.playground.executor.dispatch.domain.port.in.ExecuteJobUseCase;
 import com.study.playground.executor.dispatch.domain.port.out.ExecutionJobPort;
+import com.study.playground.executor.dispatch.domain.port.out.JenkinsQueryPort;
+import com.study.playground.executor.dispatch.domain.port.out.JenkinsTriggerPort;
 import com.study.playground.executor.dispatch.domain.port.out.JobDefinitionQueryPort;
 import com.study.playground.executor.dispatch.domain.service.DispatchService;
-import com.study.playground.executor.runner.infrastructure.jenkins.JenkinsClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -14,19 +16,22 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * CMD_JOB_EXECUTE 수신 처리.
- * Jenkins API로 빌드를 트리거한다. BUILD_NO 채번은 STARTED 콜백에서 수행한다.
+ * Jenkins API로 빌드를 트리거하고 SUBMITTED 상태로 전환한다.
+ * triggerBuild 성공 후 nextBuildNumber를 조회하여 DB에 기록한다.
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class JobExecuteService {
+public class JobExecuteService implements ExecuteJobUseCase {
 
     private final ExecutionJobPort jobPort;
-    private final JenkinsClient jenkinsClient;
+    private final JenkinsTriggerPort jenkinsTriggerPort;
+    private final JenkinsQueryPort jenkinsQueryPort;
     private final JobDefinitionQueryPort jobDefinitionQueryPort;
     private final DispatchService dispatchService;
     private final ExecutorProperties properties;
 
+    @Override
     @Transactional
     public void execute(String jobExcnId) {
         ExecutionJob job = jobPort.findById(jobExcnId).orElse(null);
@@ -47,10 +52,14 @@ public class JobExecuteService {
             long jenkinsInstanceId = defInfo.jenkinsInstanceId();
             var jenkinsJobPath = defInfo.jenkinsJobPath();
 
-            jenkinsClient.triggerBuild(jenkinsInstanceId, jenkinsJobPath, job.getJobId());
+            int nextBuildNo = jenkinsQueryPort.queryNextBuildNumber(jenkinsInstanceId, jenkinsJobPath);
+            jenkinsTriggerPort.triggerBuild(jenkinsInstanceId, jenkinsJobPath, job.getJobId());
 
-            log.info("[JobExecute] Build triggered: jobExcnId={}, path={}"
-                    , jobExcnId, jenkinsJobPath);
+            dispatchService.markAsSubmitted(job, nextBuildNo);
+            jobPort.save(job);
+
+            log.info("[JobExecute] Build triggered: jobExcnId={}, buildNo={}, path={}"
+                    , jobExcnId, nextBuildNo, jenkinsJobPath);
         } catch (Exception e) {
             log.error("[JobExecute] Failed: jobExcnId={}, error={}"
                     , jobExcnId, e.getMessage());

@@ -8,14 +8,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * TC-01: 정상 실행 (Happy Path).
  * <p>
- * dispatch command 발행 → PENDING → QUEUED → RUNNING → SUCCESS 전체 흐름을 검증한다.
+ * dispatch command 발행 → PENDING → QUEUED → SUBMITTED → RUNNING → SUCCESS 전체 흐름을 검증한다.
  * Jenkins K8s pod 생성 시간을 감안하여 타임아웃을 120초로 설정한다.
  */
 @DisplayName("TC-01: 정상 실행 (Happy Path)")
 class TC01_HappyPathTest extends ExecutorIntegrationTestBase {
 
     @Test
-    @DisplayName("dispatch → PENDING → QUEUED → RUNNING → SUCCESS, 로그 파일 저장")
+    @DisplayName("dispatch → PENDING → QUEUED → SUBMITTED → RUNNING → SUCCESS, 로그 파일 저장")
     void happyPath_shouldCompleteWithSuccess() throws InterruptedException {
         // given
         String jobExcnId = uniqueId("tc01-");

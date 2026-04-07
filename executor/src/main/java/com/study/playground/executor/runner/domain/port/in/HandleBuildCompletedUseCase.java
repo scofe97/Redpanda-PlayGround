@@ -18,5 +18,7 @@ public interface HandleBuildCompletedUseCase {
     /**
      * @param callback Jenkins 종료 콜백 (경로, buildNo, result, logContent)
      */
-    void handle(BuildCallback callback);
+    void handle(
+            BuildCallback callback
+    );
 }

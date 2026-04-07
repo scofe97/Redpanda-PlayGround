@@ -5,10 +5,11 @@ import com.study.playground.executor.dispatch.domain.model.ExecutionJob;
 import com.study.playground.executor.dispatch.domain.model.ExecutionJobStatus;
 import com.study.playground.executor.dispatch.domain.model.JobDefinitionInfo;
 import com.study.playground.executor.dispatch.domain.port.out.ExecutionJobPort;
+import com.study.playground.executor.dispatch.domain.port.out.JenkinsQueryPort;
+import com.study.playground.executor.dispatch.domain.port.out.JenkinsTriggerPort;
 import com.study.playground.executor.dispatch.domain.port.out.JobDefinitionQueryPort;
 import com.study.playground.executor.dispatch.domain.service.DispatchService;
-import com.study.playground.executor.runner.application.JobExecuteService;
-import com.study.playground.executor.runner.infrastructure.jenkins.JenkinsClient;
+import com.study.playground.executor.dispatch.application.JobExecuteService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -38,7 +39,10 @@ class JobExecuteServiceTest {
     ExecutionJobPort jobPort;
 
     @Mock
-    JenkinsClient jenkinsClient;
+    JenkinsTriggerPort jenkinsTriggerPort;
+
+    @Mock
+    JenkinsQueryPort jenkinsQueryPort;
 
     @Mock
     JobDefinitionQueryPort jobDefinitionQueryPort;
@@ -53,8 +57,8 @@ class JobExecuteServiceTest {
     void setUp() {
         properties.setJobMaxRetries(2);
         service = new JobExecuteService(
-                jobPort, jenkinsClient, jobDefinitionQueryPort
-                , dispatchService, properties
+                jobPort, jenkinsTriggerPort, jenkinsQueryPort
+                , jobDefinitionQueryPort, dispatchService, properties
         );
     }
 
@@ -75,20 +79,24 @@ class JobExecuteServiceTest {
     }
 
     @Test
-    @DisplayName("QUEUED 상태 Job은 빌드를 트리거해야 한다 (buildNo 기록은 STARTED 콜백에서)")
-    void execute_queuedJob_shouldTriggerBuild() {
+    @DisplayName("QUEUED 상태 Job은 빌드를 트리거하고 SUBMITTED로 전환 + buildNo 기록해야 한다")
+    void execute_queuedJob_shouldTriggerBuildAndSubmit() {
         // given
         ExecutionJob job = queuedJob("excn-001");
         given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
         given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
-        willDoNothing().given(jenkinsClient).triggerBuild(1L, "10/20/job-001", "job-001");
+        given(jenkinsQueryPort.queryNextBuildNumber(1L, "10/20/job-001")).willReturn(42);
+        willDoNothing().given(jenkinsTriggerPort).triggerBuild(1L, "10/20/job-001", "job-001");
 
         // when
         service.execute("excn-001");
 
         // then
-        verify(jenkinsClient).triggerBuild(1L, "10/20/job-001", "job-001");
-        verify(jobPort, never()).save(any());
+        verify(jenkinsTriggerPort).triggerBuild(1L, "10/20/job-001", "job-001");
+        ArgumentCaptor<ExecutionJob> captor = ArgumentCaptor.forClass(ExecutionJob.class);
+        verify(jobPort).save(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo(ExecutionJobStatus.SUBMITTED);
+        assertThat(captor.getValue().getBuildNo()).isEqualTo(42);
     }
 
     @Test
@@ -105,7 +113,7 @@ class JobExecuteServiceTest {
         service.execute("excn-001");
 
         // then
-        verify(jenkinsClient, never()).triggerBuild(any(Long.class), anyString(), anyString());
+        verify(jenkinsTriggerPort, never()).triggerBuild(any(Long.class), anyString(), anyString());
     }
 
     @Test
@@ -118,7 +126,7 @@ class JobExecuteServiceTest {
         service.execute("excn-999");
 
         // then
-        verify(jenkinsClient, never()).triggerBuild(any(Long.class), anyString(), anyString());
+        verify(jenkinsTriggerPort, never()).triggerBuild(any(Long.class), anyString(), anyString());
     }
 
     @Test
@@ -129,7 +137,7 @@ class JobExecuteServiceTest {
         given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
         given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
         willThrow(new RuntimeException("Jenkins 연결 실패"))
-                .given(jenkinsClient).triggerBuild(eq(1L), eq("10/20/job-001"), eq("job-001"));
+                .given(jenkinsTriggerPort).triggerBuild(eq(1L), eq("10/20/job-001"), eq("job-001"));
 
         // when
         service.execute("excn-001");
@@ -151,7 +159,7 @@ class JobExecuteServiceTest {
         given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
         given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
         willThrow(new RuntimeException("Jenkins 연결 실패"))
-                .given(jenkinsClient).triggerBuild(eq(1L), eq("10/20/job-001"), eq("job-001"));
+                .given(jenkinsTriggerPort).triggerBuild(eq(1L), eq("10/20/job-001"), eq("job-001"));
 
         // when
         service.execute("excn-001");

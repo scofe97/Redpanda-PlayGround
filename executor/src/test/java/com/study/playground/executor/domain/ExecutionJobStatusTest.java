@@ -17,10 +17,15 @@ class ExecutionJobStatusTest {
         // PENDING → QUEUED
         assertThat(PENDING.canTransitionTo(QUEUED)).isTrue();
 
-        // QUEUED → RUNNING, PENDING, FAILURE
-        assertThat(QUEUED.canTransitionTo(RUNNING)).isTrue();
+        // QUEUED → SUBMITTED, PENDING, FAILURE
+        assertThat(QUEUED.canTransitionTo(SUBMITTED)).isTrue();
         assertThat(QUEUED.canTransitionTo(PENDING)).isTrue();
         assertThat(QUEUED.canTransitionTo(FAILURE)).isTrue();
+
+        // SUBMITTED → RUNNING, PENDING, FAILURE
+        assertThat(SUBMITTED.canTransitionTo(RUNNING)).isTrue();
+        assertThat(SUBMITTED.canTransitionTo(PENDING)).isTrue();
+        assertThat(SUBMITTED.canTransitionTo(FAILURE)).isTrue();
 
         // RUNNING → 모든 터미널 상태 + PENDING
         assertThat(RUNNING.canTransitionTo(SUCCESS)).isTrue();
@@ -30,6 +35,12 @@ class ExecutionJobStatusTest {
         assertThat(RUNNING.canTransitionTo(NOT_BUILT)).isTrue();
         assertThat(RUNNING.canTransitionTo(NOT_EXECUTED)).isTrue();
         assertThat(RUNNING.canTransitionTo(PENDING)).isTrue();
+    }
+
+    @Test
+    @DisplayName("QUEUED → RUNNING 직접 전이는 불가해야 한다")
+    void invalidTransition_queuedToRunning_shouldFail() {
+        assertThat(QUEUED.canTransitionTo(RUNNING)).isFalse();
     }
 
     @Test
@@ -74,6 +85,7 @@ class ExecutionJobStatusTest {
     void isTerminal_nonTerminalStatuses_shouldReturnFalse() {
         assertThat(PENDING.isTerminal()).isFalse();
         assertThat(QUEUED.isTerminal()).isFalse();
+        assertThat(SUBMITTED.isTerminal()).isFalse();
         assertThat(RUNNING.isTerminal()).isFalse();
     }
 
