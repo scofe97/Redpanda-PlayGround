@@ -401,9 +401,9 @@
     <div class="comp-desc">비즈니스 코드가 호출하는 유일한 진입점이다. <code>AvroSerializer</code>로 직렬화하고, <code>TraceContextUtil</code>로 현재 traceparent를 캡처한 뒤 <code>outbox_event</code> 테이블에 INSERT한다. 반드시 <code>@Transactional</code> 컨텍스트 안에서 호출해야 한다.</div>
   </div>
   <div class="comp-card">
-    <div class="comp-role">Poller (핵심 엔진)</div>
-    <div class="comp-name">OutboxPoller</div>
-    <div class="comp-desc">500ms 주기로 PENDING 이벤트를 <code>SELECT ... FOR UPDATE SKIP LOCKED</code>로 가져온다. CloudEvents 헤더 추가, traceparent 복원, Kafka 발행, 실패 시 지수 백오프 재시도, 최종 실패 시 DEAD 전환까지 전체 발행 라이프사이클을 관리한다. Aggregate 단위 순서를 보장한다.</div>
+    <div class="comp-role">Application (오케스트레이션)</div>
+    <div class="comp-name">OutboxPollService</div>
+    <div class="comp-desc">폴링 오케스트레이션 서비스. <code>OutboxPollScheduler</code>에서 500ms 주기로 호출된다. PENDING 이벤트를 <code>SELECT ... FOR UPDATE SKIP LOCKED</code>로 가져오고, 커스텀 핸들러 라우팅 → Kafka 발행 → 실패 처리(재시도/DEAD) 흐름을 관리한다. Aggregate 단위 순서를 보장한다.</div>
   </div>
   <div class="comp-card">
     <div class="comp-role">Repository</div>
@@ -514,7 +514,7 @@
 </div>
 
 <pre>
-<span class="cmt">// OutboxPoller.handleFailure()</span>
+<span class="cmt">// OutboxPollService.handleFailure()</span>
 <span class="kw">if</span> (event.getRetryCount() >= properties.<span class="typ">getMaxRetries</span>()) {
     repository.<span class="hl">markAsDead</span>(event.getId());
     metrics.<span class="typ">incrementDead</span>();
@@ -532,7 +532,7 @@
 <p>
   Outbox 패턴은 이벤트를 비동기로 발행하기 때문에, 원래 요청의 트레이스 컨텍스트가 유실될 수 있다.
   이 모듈은 <code>EventPublisher.publish()</code> 시점에 현재 OTel Span의 traceparent를 <code>outbox_event.trace_parent</code> 컬럼에 저장하고,
-  <code>OutboxPoller</code>가 Kafka 발행 시 이를 복원하여 부모 Span으로 설정한다.
+  <code>OutboxPollService</code>가 Kafka 발행 시 이를 복원하여 부모 Span으로 설정한다.
 </p>
 
 <div class="panel">
@@ -543,11 +543,11 @@ HTTP 요청 Span → <span class="hl">TraceContextUtil.captureTraceParent()</spa
                 → <span class="str">"00-{traceId}-{spanId}-01"</span>
                 → outbox_event.trace_parent 컬럼에 저장
 
-<span class="cmt">② 발행 시점 (OutboxPoller)</span>
+<span class="cmt">② 발행 시점 (OutboxPollService)</span>
 outbox_event.trace_parent 읽기
 → <span class="hl">TraceContextUtil.publishWithTrace()</span>
   → SpanContext.createFromRemoteParent(traceId, spanId)
-  → tracer.spanBuilder(<span class="str">"OutboxPoller.publish"</span>).setParent(...)
+  → tracer.spanBuilder(<span class="str">"OutboxKafkaPublisher.publish"</span>).setParent(...)
   → Span 속성: outbox.event.id, outbox.event.type, outbox.aggregate.id
   → kafkaTemplate.send() 실행
   → traceparent 헤더가 Kafka 레코드에 자동 전파
@@ -582,7 +582,7 @@ outbox_event.trace_parent 읽기
 
 <p>
   <code>CloudEventsHeaderInterceptor</code>가 KafkaTemplate의 ProducerInterceptor로 등록되어 기본 헤더(<code>ce_specversion</code>, <code>ce_id</code>, <code>ce_source</code>, <code>ce_time</code>)를 자동 추가한다.
-  <code>OutboxPoller</code>는 이벤트별 헤더(<code>ce_type</code>, <code>ce_correlationid</code>)를 추가로 설정한다.
+  <code>OutboxPollService</code>는 이벤트별 헤더(<code>ce_type</code>, <code>ce_correlationid</code>)를 추가로 설정한다.
 </p>
 
 <h2 id="schema">테이블 스키마</h2>
