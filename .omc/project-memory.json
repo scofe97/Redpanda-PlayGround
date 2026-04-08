@@ -1,0 +1,337 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1775565167138,
+  "projectRoot": "/Users/simbohyeon/Library/CloudStorage/GoogleDrive-tscofet@gmail.com/내 드라이브/study/runners-high/project/redpanda-playground",
+  "techStack": {
+    "languages": [
+      {
+        "name": "Java/Kotlin",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "build.gradle"
+        ]
+      },
+      {
+        "name": "C/C++",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "Makefile"
+        ]
+      }
+    ],
+    "frameworks": [],
+    "packageManager": "gradle",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": "make build",
+    "testCommand": "make test",
+    "lintCommand": null,
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "app",
+      "docs",
+      "lib"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "app": {
+      "path": "app",
+      "purpose": "Application code",
+      "fileCount": 1,
+      "lastAccessed": 1775565167104,
+      "keyFiles": [
+        "build.gradle"
+      ]
+    },
+    "build": {
+      "path": "build",
+      "purpose": "Build output",
+      "fileCount": 0,
+      "lastAccessed": 1775565167105,
+      "keyFiles": []
+    },
+    "common": {
+      "path": "common",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1775565167105,
+      "keyFiles": [
+        "build.gradle"
+      ]
+    },
+    "common-kafka": {
+      "path": "common-kafka",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1775565167105,
+      "keyFiles": [
+        "build.gradle"
+      ]
+    },
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 6,
+      "lastAccessed": 1775565167105,
+      "keyFiles": [
+        "README.md",
+        "api-spec.md",
+        "architecture.md",
+        "demo-script.md",
+        "domain-guide.md"
+      ]
+    },
+    "executor": {
+      "path": "executor",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1775565167106,
+      "keyFiles": [
+        "build.gradle"
+      ]
+    },
+    "frontend": {
+      "path": "frontend",
+      "purpose": null,
+      "fileCount": 8,
+      "lastAccessed": 1775565167106,
+      "keyFiles": [
+        "Dockerfile",
+        "index.html",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.tsbuildinfo"
+      ]
+    },
+    "gradle": {
+      "path": "gradle",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1775565167108,
+      "keyFiles": []
+    },
+    "infra": {
+      "path": "infra",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1775565167109,
+      "keyFiles": []
+    },
+    "lib": {
+      "path": "lib",
+      "purpose": "Library code",
+      "fileCount": 58,
+      "lastAccessed": 1775565167111,
+      "keyFiles": [
+        "groovy-5.0.0-sources.jar",
+        "groovy-5.0.0.jar",
+        "groovy-ant-5.0.0-sources.jar",
+        "groovy-ant-5.0.0.jar",
+        "groovy-astbuilder-5.0.0-sources.jar"
+      ]
+    },
+    "operator-stub": {
+      "path": "operator-stub",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1775565167114,
+      "keyFiles": [
+        "build.gradle"
+      ]
+    },
+    "pipeline": {
+      "path": "pipeline",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1775565167115,
+      "keyFiles": [
+        "build.gradle"
+      ]
+    },
+    "specs": {
+      "path": "specs",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1775565167115,
+      "keyFiles": [
+        "README.md",
+        "_template.md"
+      ]
+    },
+    "app/build": {
+      "path": "app/build",
+      "purpose": "Build output",
+      "fileCount": 1,
+      "lastAccessed": 1775565167116,
+      "keyFiles": [
+        "resolvedMainClassName"
+      ]
+    },
+    "app/src": {
+      "path": "app/src",
+      "purpose": "Source code",
+      "fileCount": 0,
+      "lastAccessed": 1775565167116,
+      "keyFiles": []
+    },
+    "common/build": {
+      "path": "common/build",
+      "purpose": "Build output",
+      "fileCount": 0,
+      "lastAccessed": 1775565167117,
+      "keyFiles": []
+    },
+    "common/src": {
+      "path": "common/src",
+      "purpose": "Source code",
+      "fileCount": 0,
+      "lastAccessed": 1775565167117,
+      "keyFiles": []
+    },
+    "common-kafka/build": {
+      "path": "common-kafka/build",
+      "purpose": "Build output",
+      "fileCount": 0,
+      "lastAccessed": 1775565167120,
+      "keyFiles": []
+    },
+    "common-kafka/src": {
+      "path": "common-kafka/src",
+      "purpose": "Source code",
+      "fileCount": 0,
+      "lastAccessed": 1775565167121,
+      "keyFiles": []
+    },
+    "docs/app": {
+      "path": "docs/app",
+      "purpose": "Application code",
+      "fileCount": 0,
+      "lastAccessed": 1775565167122,
+      "keyFiles": []
+    },
+    "executor/build": {
+      "path": "executor/build",
+      "purpose": "Build output",
+      "fileCount": 1,
+      "lastAccessed": 1775565167123,
+      "keyFiles": [
+        "resolvedMainClassName"
+      ]
+    },
+    "executor/docs": {
+      "path": "executor/docs",
+      "purpose": "Documentation",
+      "fileCount": 2,
+      "lastAccessed": 1775565167125,
+      "keyFiles": [
+        "callback-matching-design.md",
+        "spec.md"
+      ]
+    },
+    "executor/scripts": {
+      "path": "executor/scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 1,
+      "lastAccessed": 1775565167127,
+      "keyFiles": [
+        "e2e-test.sh"
+      ]
+    },
+    "executor/src": {
+      "path": "executor/src",
+      "purpose": "Source code",
+      "fileCount": 0,
+      "lastAccessed": 1775565167128,
+      "keyFiles": []
+    },
+    "frontend/dist": {
+      "path": "frontend/dist",
+      "purpose": "Distribution/build output",
+      "fileCount": 1,
+      "lastAccessed": 1775565167129,
+      "keyFiles": [
+        "index.html"
+      ]
+    },
+    "frontend/node_modules": {
+      "path": "frontend/node_modules",
+      "purpose": "Dependencies",
+      "fileCount": 1,
+      "lastAccessed": 1775565167130,
+      "keyFiles": []
+    },
+    "frontend/src": {
+      "path": "frontend/src",
+      "purpose": "Source code",
+      "fileCount": 4,
+      "lastAccessed": 1775565167131,
+      "keyFiles": [
+        "App.tsx",
+        "index.css",
+        "main.tsx"
+      ]
+    },
+    "infra/docs": {
+      "path": "infra/docs",
+      "purpose": "Documentation",
+      "fileCount": 5,
+      "lastAccessed": 1775565167132,
+      "keyFiles": [
+        "01-docker-compose.md",
+        "02-redpanda-guide.md",
+        "03-jenkins.md"
+      ]
+    },
+    "operator-stub/build": {
+      "path": "operator-stub/build",
+      "purpose": "Build output",
+      "fileCount": 1,
+      "lastAccessed": 1775565167133,
+      "keyFiles": [
+        "resolvedMainClassName"
+      ]
+    },
+    "operator-stub/src": {
+      "path": "operator-stub/src",
+      "purpose": "Source code",
+      "fileCount": 0,
+      "lastAccessed": 1775565167134,
+      "keyFiles": []
+    },
+    "pipeline/build": {
+      "path": "pipeline/build",
+      "purpose": "Build output",
+      "fileCount": 0,
+      "lastAccessed": 1775565167136,
+      "keyFiles": []
+    },
+    "pipeline/src": {
+      "path": "pipeline/src",
+      "purpose": "Source code",
+      "fileCount": 0,
+      "lastAccessed": 1775565167137,
+      "keyFiles": []
+    }
+  },
+  "hotPaths": [],
+  "userDirectives": []
+}

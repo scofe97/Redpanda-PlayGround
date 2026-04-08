@@ -26,6 +26,16 @@ public final class TestPipelineFixtures {
                         , new TestJob(3L, "executor-test", 3, 1L, null)
                         , new TestJob(4L, "executor-test", 4, 1L, null)
                 ))
+                , new TestPipeline("mixed-3-multi-jenkins", "Mixed 3 Jobs (Multi-Jenkins)", List.of(
+                        new TestJob(1L, "executor-test", 1, 1L, null)      // Jenkins-1
+                        , new TestJob(2L, "executor-test", 2, 6L, null)    // Jenkins-2
+                        , new TestJob(3L, "executor-test", 3, 1L, null)    // Jenkins-1
+                ))
+                , new TestPipeline("mixed-3-jenkins2-first", "Mixed 3 Jobs (Jenkins-2 First)", List.of(
+                        new TestJob(2L, "executor-test", 1, 6L, null)      // Jenkins-2
+                        , new TestJob(1L, "executor-test", 2, 1L, null)    // Jenkins-1
+                        , new TestJob(3L, "executor-test", 3, 6L, null)    // Jenkins-2
+                ))
         );
     }
 
@@ -34,5 +44,13 @@ public final class TestPipelineFixtures {
                 .filter(p -> p.pipelineId().equals(pipelineId))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Unknown pipelineId: " + pipelineId));
+    }
+
+    public static TestJob findJobByName(String jobName) {
+        return all().stream()
+                .flatMap(p -> p.jobs().stream())
+                .filter(j -> j.jobName().equals(jobName))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Unknown jobName: " + jobName));
     }
 }

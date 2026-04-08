@@ -72,9 +72,14 @@ public final class TraceContextUtil {
      * OutboxPoller 전용: traceparent 복원 + span 생성 + 발행 action 실행.
      * OTel이 없으면 action만 실행한다.
      */
-    public static void publishWithTrace(String traceParent, String spanName
-            , Long eventId, String eventType, String aggregateId
-            , Runnable action) {
+    public static void publishWithTrace(
+            String traceParent
+            , String spanName
+            , Long eventId
+            , String eventType
+            , String aggregateId
+            , Runnable action
+    ) {
         if (!OTEL_AVAILABLE || !isValidTraceParent(traceParent)) {
             action.run();
             return;

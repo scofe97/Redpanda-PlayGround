@@ -8,6 +8,8 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
+
 @Slf4j
 @Component
 public class DlqConsumer {
@@ -19,10 +21,18 @@ public class DlqConsumer {
     ))
     @KafkaListener(topics = Topics.DLQ, groupId = "dlq-handler")
     public void onDlqMessage(ConsumerRecord<String, byte[]> record) {
-        log.error("[DLQ] Dead letter received: topic={}, key={}, size={}, headers={}",
-                record.topic(), record.key(),
-                record.value() != null ? record.value().length : 0,
-                record.headers());
-        // 관리자 알림은 콘솔 로그로 대체
+        var originalTopic = headerValue(record, "dlq.original.topic");
+        var eventType = headerValue(record, "dlq.original.event.type");
+        var reason = headerValue(record, "dlq.failure.reason");
+
+        log.error("[DLQ] Dead letter received: topic={}, originalTopic={}, eventType={}, reason={}, key={}, size={}"
+                , record.topic(), originalTopic, eventType, reason
+                , record.key()
+                , record.value() != null ? record.value().length : 0);
+    }
+
+    private String headerValue(ConsumerRecord<?, ?> record, String key) {
+        var header = record.headers().lastHeader(key);
+        return header != null ? new String(header.value(), StandardCharsets.UTF_8) : "unknown";
     }
 }

@@ -1,5 +1,6 @@
 package com.study.playground.kafka.outbox;
 
+import com.study.playground.kafka.topic.Topics;
 import com.study.playground.kafka.tracing.TraceContextUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -19,17 +20,22 @@ import java.util.concurrent.TimeUnit;
 /**
  * Transactional Outbox 패턴의 폴링 퍼블리셔.
  *
- * DB outbox 테이블에 저장된 이벤트를 주기적으로 폴링하여 Kafka로 발행한다.
+ * <p>DB outbox 테이블에 저장된 이벤트를 주기적으로 폴링하여 Kafka로 발행한다.
  * 트랜잭션과 메시지 발행의 원자성을 보장하기 위해, 비즈니스 로직은 DB에만 쓰고
  * 이 폴러가 비동기로 Kafka 발행을 담당한다.
  *
- * 고도화 항목:
- * - aggregate 순서 보장: 동일 aggregate 실패 시 후속 이벤트 skip
- * - 건별 트랜잭션: TransactionTemplate으로 조회/실패처리/배치마킹 분리
- * - 지수 백오프: 2^retryCount 초 후 재시도
- * - 배치 UPDATE: 성공 ID를 모아 한 번에 SENT 마킹
- * - Micrometer 메트릭: published/failed/dead/pending 4종
- * - SENT 정리: cron 스케줄로 보존 기간 초과 레코드 삭제
+ * <h3>순서 보장</h3>
+ * <p>동일 aggregate의 이벤트 순서는 두 가지 메커니즘으로 보장된다:
+ * <ul>
+ *   <li><b>인스턴스 간</b>: {@code findAndMarkProcessing}의 {@code NOT EXISTS} 가드.
+ *       PROCESSING 상태인 이벤트가 있는 aggregate는 다른 인스턴스가 조회하지 않는다.</li>
+ *   <li><b>배치 내</b>: {@code failedAggregates} Set.
+ *       실패한 aggregate의 후속 이벤트를 skip하여 순서 역전을 방지한다.</li>
+ * </ul>
+ *
+ * <h3>DLQ 라우팅</h3>
+ * <p>최대 재시도 초과 시 DEAD 마킹 후 {@code playground.dlq} 토픽으로 best-effort 전송한다.
+ * DLQ 전송 실패는 DEAD 상태 전환을 막지 않는다.
  */
 @Slf4j
 @Component
@@ -103,7 +109,11 @@ public class OutboxPoller {
                         , event.getAggregateId()
                         , event.getPayload()
                 );
+
+                // 헤더 추가
                 addHeaders(record, event);
+
+                // 전송
                 publishWithTraceContext(record, event);
                 sentIds.add(event.getId());
                 metrics.incrementPublished();
@@ -111,9 +121,12 @@ public class OutboxPoller {
                 log.debug("Published outbox event: type={}, aggregateId={}"
                         , event.getEventType(), event.getAggregateId());
             } catch (Exception e) {
+                // 아웃박스 전송 실패
                 log.error("Failed to publish outbox event: id={}, type={}, retryCount={}"
                         , event.getId(), event.getEventType(), event.getRetryCount(), e);
                 failedAggregates.add(event.getAggregateId());
+
+                //
                 txTemplate.executeWithoutResult(status -> handleFailure(event));
                 metrics.incrementFailed();
             }
@@ -148,6 +161,7 @@ public class OutboxPoller {
         if (event.getRetryCount() != null && event.getRetryCount() >= properties.getMaxRetries()) {
             outboxEventRepository.markAsDead(event.getId());
             metrics.incrementDead();
+            publishToDlq(event);
             notifyDeadToHandler(event);
             log.warn("Outbox event exceeded max retries, marked as DEAD: id={}", event.getId());
         } else {
@@ -166,6 +180,34 @@ public class OutboxPoller {
         var before = LocalDateTime.now().minusDays(properties.getCleanupRetentionDays());
         outboxEventRepository.deleteOlderThan(before);
         log.info("Cleaned up SENT outbox events older than {}", before);
+    }
+
+    /** DEAD 상태의 원본 이벤트를 DLQ 토픽으로 best-effort 전송한다. */
+    private void publishToDlq(OutboxEvent event) {
+        try {
+            var record = new ProducerRecord<String, byte[]>(
+                    Topics.DLQ
+                    , null
+                    , event.getAggregateId()
+                    , event.getPayload()
+            );
+            record.headers().add("dlq.original.topic"
+                    , event.getTopic().getBytes(StandardCharsets.UTF_8));
+            record.headers().add("dlq.original.event.type"
+                    , event.getEventType().getBytes(StandardCharsets.UTF_8));
+            record.headers().add("dlq.original.aggregate.type"
+                    , event.getAggregateType().getBytes(StandardCharsets.UTF_8));
+            record.headers().add("dlq.failure.reason"
+                    , "max_retries_exceeded".getBytes(StandardCharsets.UTF_8));
+            record.headers().add("dlq.retry.count"
+                    , String.valueOf(event.getRetryCount()).getBytes(StandardCharsets.UTF_8));
+
+            kafkaTemplate.send(record).get(5, TimeUnit.SECONDS);
+            log.info("Published DEAD outbox event to DLQ: id={}, type={}"
+                    , event.getId(), event.getEventType());
+        } catch (Exception e) {
+            log.error("Failed to publish DEAD event to DLQ: id={}", event.getId(), e);
+        }
     }
 
     /** DEAD 상태 전환 시 커스텀 핸들러에 통지한다. */
@@ -188,15 +230,23 @@ public class OutboxPoller {
      * OTel이 classpath에 없으면 trace 복원 없이 바로 발행한다.
      * OTel이 있고 traceparent가 유효하면 원래 HTTP 요청 trace의 자식 스팬으로 발행된다.
      */
-    private void publishWithTraceContext(ProducerRecord<String, byte[]> record
-            , OutboxEvent event) throws Exception {
+    private void publishWithTraceContext(
+            ProducerRecord<String, byte[]> record
+            , OutboxEvent event
+    ) throws Exception {
+
+        //
         if (!TraceContextUtil.isOtelAvailable()) {
             kafkaTemplate.send(record).get(5, TimeUnit.SECONDS);
             return;
         }
 
-        TraceContextUtil.publishWithTrace(event.getTraceParent(), "OutboxPoller.publish"
-                , event.getId(), event.getEventType(), event.getAggregateId()
+        TraceContextUtil.publishWithTrace(
+                event.getTraceParent()
+                , "OutboxPoller.publish"
+                , event.getId()
+                , event.getEventType()
+                , event.getAggregateId()
                 , () -> {
                     String traceparent = TraceContextUtil.captureTraceParent();
                     if (traceparent != null) {

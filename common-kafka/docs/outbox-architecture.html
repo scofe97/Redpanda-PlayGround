@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transactional Outbox 아키텍처</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0d0d0d;
+    color: #e8e4df;
+    font-family: 'Pretendard', -apple-system, system-ui, sans-serif;
+    padding: 32px;
+    line-height: 1.7;
+    max-width: 960px;
+    margin: 0 auto;
+  }
+
+  h1 {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .subtitle {
+    color: rgb(138, 133, 128);
+    font-size: 14px;
+    margin-bottom: 32px;
+    border-bottom: 1px solid rgb(42, 37, 32);
+    padding-bottom: 16px;
+  }
+
+  h2 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-top: 40px;
+    margin-bottom: 16px;
+    color: rgb(212, 168, 83);
+  }
+
+  h3 {
+    font-size: 15px;
+    font-weight: 600;
+    margin-top: 24px;
+    margin-bottom: 12px;
+    color: #e8e4df;
+  }
+
+  p {
+    margin-bottom: 12px;
+    font-size: 14px;
+  }
+
+  .panel {
+    background: #0d0d0d;
+    border: 1px solid rgb(42, 37, 32);
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 16px;
+  }
+
+  .panel-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: rgb(138, 133, 128);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+  }
+
+  code {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.88em;
+    background: rgb(26, 26, 26);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: rgb(212, 168, 83);
+  }
+
+  pre {
+    background: rgb(26, 26, 26);
+    border: 1px solid rgb(42, 37, 32);
+    border-radius: 8px;
+    padding: 16px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    margin-bottom: 16px;
+    color: #e8e4df;
+  }
+
+  pre .kw { color: #c792ea; }
+  pre .str { color: #c3e88d; }
+  pre .cmt { color: rgb(138, 133, 128); font-style: italic; }
+  pre .hl { color: rgb(212, 168, 83); }
+  pre .typ { color: #82aaff; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 16px;
+    font-size: 13px;
+  }
+
+  th {
+    background: rgb(26, 26, 26);
+    color: rgb(212, 168, 83);
+    text-align: left;
+    padding: 10px 12px;
+    border: 1px solid rgb(42, 37, 32);
+    font-weight: 600;
+  }
+
+  td {
+    padding: 10px 12px;
+    border: 1px solid rgb(42, 37, 32);
+    font-size: 13px;
+  }
+
+  tr:nth-child(even) {
+    background: rgba(26, 26, 26, 0.5);
+  }
+
+  /* State Machine */
+  .state-machine {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 32px 0;
+    flex-wrap: wrap;
+  }
+
+  .state-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 100px;
+  }
+
+  .state-box {
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    text-align: center;
+    min-width: 100px;
+  }
+
+  .state-pending {
+    background: rgba(212, 168, 83, 0.15);
+    border: 2px solid rgb(212, 168, 83);
+    color: rgb(212, 168, 83);
+  }
+
+  .state-processing {
+    background: rgba(217, 119, 87, 0.15);
+    border: 2px solid rgb(217, 119, 87);
+    color: rgb(217, 119, 87);
+  }
+
+  .state-sent {
+    background: rgba(102, 187, 106, 0.15);
+    border: 2px solid #66bb6a;
+    color: #66bb6a;
+  }
+
+  .state-dead {
+    background: rgba(244, 67, 54, 0.15);
+    border: 2px solid #f44336;
+    color: #f44336;
+  }
+
+  .state-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 8px;
+  }
+
+  .state-arrow-line {
+    font-size: 20px;
+    color: rgb(138, 133, 128);
+    line-height: 1;
+  }
+
+  .state-arrow-label {
+    font-size: 10px;
+    color: rgb(138, 133, 128);
+    white-space: nowrap;
+    margin-top: 2px;
+  }
+
+  .state-branch {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .state-branch-label {
+    font-size: 10px;
+    color: rgb(138, 133, 128);
+  }
+
+  /* Component cards */
+  .comp-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  @media (max-width: 700px) {
+    .comp-grid { grid-template-columns: 1fr; }
+  }
+
+  .comp-card {
+    border: 1px solid rgb(42, 37, 32);
+    border-radius: 8px;
+    padding: 16px;
+    background: #0d0d0d;
+  }
+
+  .comp-name {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 14px;
+    color: rgb(212, 168, 83);
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .comp-role {
+    font-size: 12px;
+    color: rgb(138, 133, 128);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+
+  .comp-desc {
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  /* Nav */
+  .toc {
+    position: fixed;
+    top: 32px;
+    right: 32px;
+    width: 180px;
+    font-size: 12px;
+  }
+
+  .toc a {
+    display: block;
+    color: rgb(138, 133, 128);
+    text-decoration: none;
+    padding: 4px 0;
+    transition: color 0.2s;
+  }
+
+  .toc a:hover {
+    color: rgb(212, 168, 83);
+  }
+
+  @media (max-width: 1200px) {
+    .toc { display: none; }
+  }
+
+  /* Backoff chart */
+  .backoff-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    height: 120px;
+    padding: 16px 0;
+  }
+
+  .backoff-bar-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .backoff-bar {
+    width: 48px;
+    background: rgba(212, 168, 83, 0.3);
+    border: 1px solid rgb(212, 168, 83);
+    border-radius: 4px 4px 0 0;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: rgb(212, 168, 83);
+  }
+
+  .backoff-label {
+    font-size: 11px;
+    color: rgb(138, 133, 128);
+  }
+
+  .backoff-bar.dead-bar {
+    background: rgba(244, 67, 54, 0.3);
+    border-color: #f44336;
+    color: #f44336;
+  }
+
+  ul {
+    margin-bottom: 12px;
+    padding-left: 20px;
+  }
+
+  li {
+    font-size: 14px;
+    margin-bottom: 6px;
+  }
+
+  .muted {
+    color: rgb(138, 133, 128);
+  }
+
+  .highlight-text {
+    color: rgb(212, 168, 83);
+  }
+</style>
+</head>
+<body>
+
+<nav class="toc">
+  <a href="#overview">개요</a>
+  <a href="#why">왜 필요한가</a>
+  <a href="#components">구성 요소</a>
+  <a href="#lifecycle">이벤트 라이프사이클</a>
+  <a href="#backoff">지수 백오프</a>
+  <a href="#tracing">트레이싱</a>
+  <a href="#cloudevents">CloudEvents</a>
+  <a href="#schema">테이블 스키마</a>
+  <a href="#config">설정 레퍼런스</a>
+  <a href="#metrics">메트릭</a>
+</nav>
+
+<h1>Transactional Outbox 아키텍처</h1>
+<p class="subtitle">common-kafka 모듈 — DB 트랜잭션과 메시지 발행의 원자성을 보장하는 폴링 기반 Outbox 패턴 구현</p>
+
+<h2 id="overview">개요</h2>
+
+<p>
+  Transactional Outbox 패턴은 비즈니스 로직의 DB 변경과 Kafka 메시지 발행을 하나의 원자적 단위로 만드는 설계 기법이다.
+  비즈니스 트랜잭션 내에서 Kafka로 직접 발행하면, DB 커밋은 성공했지만 Kafka 발행이 실패하는 "이중 쓰기(Dual Write)" 문제가 발생할 수 있다.
+</p>
+
+<p>
+  이 모듈은 이벤트를 DB의 <code>outbox_event</code> 테이블에 먼저 저장하고, 별도 폴러가 주기적으로 이를 읽어 Kafka로 발행하는 방식으로 이 문제를 해결한다.
+  DB 트랜잭션이 롤백되면 outbox 레코드도 함께 롤백되므로, "메시지가 발행됐지만 비즈니스 로직은 실패한" 상황이 원천 차단된다.
+</p>
+
+<h2 id="why">왜 필요한가</h2>
+
+<div class="panel">
+  <div class="panel-title">이중 쓰기 문제</div>
+<pre>
+<span class="cmt">// 위험한 패턴: DB 커밋 후 Kafka 발행 실패 가능</span>
+<span class="kw">@Transactional</span>
+<span class="kw">public void</span> <span class="hl">createJob</span>(JobCommand cmd) {
+    jobRepository.<span class="typ">save</span>(job);          <span class="cmt">// ✅ DB 커밋 성공</span>
+    kafkaTemplate.<span class="typ">send</span>(topic, event); <span class="cmt">// ❌ 브로커 다운 → 메시지 유실</span>
+}
+</pre>
+<pre>
+<span class="cmt">// Outbox 패턴: 같은 TX에서 이벤트를 DB에 저장</span>
+<span class="kw">@Transactional</span>
+<span class="kw">public void</span> <span class="hl">createJob</span>(JobCommand cmd) {
+    jobRepository.<span class="typ">save</span>(job);
+    eventPublisher.<span class="typ">publish</span>(             <span class="cmt">// ✅ 같은 TX → 원자성 보장</span>
+        <span class="str">"EXECUTION_JOB"</span>, executionId
+        , <span class="str">"JOB_EXECUTE"</span>
+        , avroSerializer.<span class="typ">serialize</span>(event)
+        , Topics.EXECUTOR_CMD_JOB_EXECUTE, executionId
+    );
+}
+</pre>
+</div>
+
+<h2 id="components">구성 요소</h2>
+
+<div class="comp-grid">
+  <div class="comp-card">
+    <div class="comp-role">JPA Entity</div>
+    <div class="comp-name">OutboxEvent</div>
+    <div class="comp-desc">이벤트 저장소. <code>aggregateType</code>, <code>aggregateId</code>, <code>eventType</code>, <code>payload</code>(Avro 바이너리), <code>status</code>, <code>retryCount</code>, <code>traceParent</code> 등을 보관한다. 팩토리 메서드 <code>OutboxEvent.of()</code>로 생성한다.</div>
+  </div>
+  <div class="comp-card">
+    <div class="comp-role">Publisher (진입점)</div>
+    <div class="comp-name">EventPublisher</div>
+    <div class="comp-desc">비즈니스 코드가 호출하는 유일한 진입점이다. <code>AvroSerializer</code>로 직렬화하고, <code>TraceContextUtil</code>로 현재 traceparent를 캡처한 뒤 <code>outbox_event</code> 테이블에 INSERT한다. 반드시 <code>@Transactional</code> 컨텍스트 안에서 호출해야 한다.</div>
+  </div>
+  <div class="comp-card">
+    <div class="comp-role">Poller (핵심 엔진)</div>
+    <div class="comp-name">OutboxPoller</div>
+    <div class="comp-desc">500ms 주기로 PENDING 이벤트를 <code>SELECT ... FOR UPDATE SKIP LOCKED</code>로 가져온다. CloudEvents 헤더 추가, traceparent 복원, Kafka 발행, 실패 시 지수 백오프 재시도, 최종 실패 시 DEAD 전환까지 전체 발행 라이프사이클을 관리한다. Aggregate 단위 순서를 보장한다.</div>
+  </div>
+  <div class="comp-card">
+    <div class="comp-role">Repository</div>
+    <div class="comp-name">OutboxRepository</div>
+    <div class="comp-desc"><code>SKIP LOCKED</code> 기반 CTE 쿼리로 동시 폴러 간 경쟁을 방지한다. <code>batchMarkAsSent()</code>, <code>incrementRetryAndSetNextRetryAt()</code>, <code>markAsDead()</code>, <code>deleteOlderThan()</code> 등 상태 전이를 위한 네이티브 SQL을 제공한다.</div>
+  </div>
+  <div class="comp-card">
+    <div class="comp-role">직렬화</div>
+    <div class="comp-name">AvroSerializer</div>
+    <div class="comp-desc">Confluent Wire Format(<code>0x00</code> + 4바이트 schema ID + Avro binary)으로 직렬화한다. Schema Registry에 스키마를 자동 등록하고, <code>RecordNameStrategy</code>로 subject를 결정한다. JSON 역직렬화(<code>deserializeJson</code>)도 지원하여 Jenkins 같은 외부 시스템의 JSON 페이로드를 처리한다.</div>
+  </div>
+  <div class="comp-card">
+    <div class="comp-role">트레이싱</div>
+    <div class="comp-name">TraceContextUtil</div>
+    <div class="comp-desc">OpenTelemetry가 classpath에 있으면 W3C traceparent를 캡처/복원한다. OTel이 없으면 자동으로 건너뛴다(graceful degradation). 내부의 <code>OtelBridge</code>가 Span 생성, 부모 컨텍스트 복원, 속성 기록을 처리한다.</div>
+  </div>
+  <div class="comp-card">
+    <div class="comp-role">설정</div>
+    <div class="comp-name">OutboxProperties</div>
+    <div class="comp-desc"><code>outbox.*</code> prefix로 바인딩된다. <code>batchSize</code>(50), <code>pollIntervalMs</code>(500), <code>maxRetries</code>(5), <code>cleanupRetentionDays</code>(7), <code>cleanupCron</code>(매일 03시)을 제공한다.</div>
+  </div>
+  <div class="comp-card">
+    <div class="comp-role">관측성</div>
+    <div class="comp-name">OutboxMetrics</div>
+    <div class="comp-desc">Micrometer 기반 4개 메트릭을 등록한다. Counter: <code>outbox.events.published</code>, <code>outbox.events.failed</code>, <code>outbox.events.dead</code>. Gauge: <code>outbox.queue.pending</code>(현재 PENDING 수).</div>
+  </div>
+</div>
+
+<h2 id="lifecycle">이벤트 라이프사이클</h2>
+
+<p>
+  모든 outbox 이벤트는 4가지 상태를 거친다. PENDING에서 시작하여 정상 경로에서는 SENT로, 반복 실패 시 DEAD로 종료된다.
+</p>
+
+<div class="panel">
+  <div class="panel-title">상태 머신</div>
+  <div class="state-machine">
+    <div class="state-node">
+      <div class="state-box state-pending">PENDING</div>
+    </div>
+    <div class="state-arrow">
+      <div class="state-arrow-line">→</div>
+      <div class="state-arrow-label">Poll SELECT</div>
+    </div>
+    <div class="state-node">
+      <div class="state-box state-processing">PROCESSING</div>
+    </div>
+    <div class="state-arrow">
+      <div class="state-arrow-line">→</div>
+      <div class="state-arrow-label">Kafka OK</div>
+    </div>
+    <div class="state-node">
+      <div class="state-box state-sent">SENT</div>
+    </div>
+  </div>
+
+  <div style="text-align: center; margin: -8px 0 16px;">
+    <div style="display: inline-flex; align-items: center; gap: 12px;">
+      <span class="muted" style="font-size: 12px;">PROCESSING에서 실패 시:</span>
+      <span style="font-size: 12px;">retryCount &lt; maxRetries →</span>
+      <span class="state-box state-pending" style="font-size: 12px; padding: 4px 12px; display: inline-block;">PENDING (재시도)</span>
+      <span style="font-size: 12px; margin-left: 16px;">retryCount &ge; maxRetries →</span>
+      <span class="state-box state-dead" style="font-size: 12px; padding: 4px 12px; display: inline-block;">DEAD</span>
+    </div>
+  </div>
+</div>
+
+<p>
+  PROCESSING → PENDING 복귀 시 <code>revertToRetryable()</code>가 호출된다.
+  이 메서드는 <code>WHERE status = 'PROCESSING'</code> 조건이 있어, 이미 다른 경로로 상태가 변경된 이벤트를 실수로 되돌리는 것을 방지한다.
+</p>
+
+<h2 id="backoff">지수 백오프</h2>
+
+<p>
+  실패한 이벤트는 <code>2^retryCount</code>초 만큼 대기 후 재시도된다.
+  지수적으로 간격이 늘어나므로 일시적 장애 시 브로커에 과도한 부하를 주지 않으면서, 짧은 장애에는 빠르게 복구할 수 있다.
+</p>
+
+<div class="panel">
+  <div class="panel-title">백오프 간격 (maxRetries=5)</div>
+  <div class="backoff-chart">
+    <div class="backoff-bar-group">
+      <div class="backoff-bar" style="height: 15px;">1s</div>
+      <div class="backoff-label">Retry 0</div>
+    </div>
+    <div class="backoff-bar-group">
+      <div class="backoff-bar" style="height: 30px;">2s</div>
+      <div class="backoff-label">Retry 1</div>
+    </div>
+    <div class="backoff-bar-group">
+      <div class="backoff-bar" style="height: 45px;">4s</div>
+      <div class="backoff-label">Retry 2</div>
+    </div>
+    <div class="backoff-bar-group">
+      <div class="backoff-bar" style="height: 60px;">8s</div>
+      <div class="backoff-label">Retry 3</div>
+    </div>
+    <div class="backoff-bar-group">
+      <div class="backoff-bar" style="height: 80px;">16s</div>
+      <div class="backoff-label">Retry 4</div>
+    </div>
+    <div class="backoff-bar-group">
+      <div class="backoff-bar dead-bar" style="height: 100px;">DEAD</div>
+      <div class="backoff-label">Retry 5</div>
+    </div>
+  </div>
+</div>
+
+<pre>
+<span class="cmt">// OutboxPoller.handleFailure()</span>
+<span class="kw">if</span> (event.getRetryCount() >= properties.<span class="typ">getMaxRetries</span>()) {
+    repository.<span class="hl">markAsDead</span>(event.getId());
+    metrics.<span class="typ">incrementDead</span>();
+} <span class="kw">else</span> {
+    repository.<span class="typ">revertToRetryable</span>(event.getId());
+    <span class="typ">LocalDateTime</span> nextRetry = LocalDateTime.<span class="typ">now</span>()
+        .plusSeconds((<span class="kw">long</span>) Math.<span class="typ">pow</span>(<span class="str">2</span>, event.getRetryCount()));
+    repository.<span class="hl">incrementRetryAndSetNextRetryAt</span>(event.getId(), nextRetry);
+    metrics.<span class="typ">incrementFailed</span>();
+}
+</pre>
+
+<h2 id="tracing">트레이싱</h2>
+
+<p>
+  Outbox 패턴은 이벤트를 비동기로 발행하기 때문에, 원래 요청의 트레이스 컨텍스트가 유실될 수 있다.
+  이 모듈은 <code>EventPublisher.publish()</code> 시점에 현재 OTel Span의 traceparent를 <code>outbox_event.trace_parent</code> 컬럼에 저장하고,
+  <code>OutboxPoller</code>가 Kafka 발행 시 이를 복원하여 부모 Span으로 설정한다.
+</p>
+
+<div class="panel">
+  <div class="panel-title">traceparent 흐름</div>
+<pre>
+<span class="cmt">① 저장 시점 (EventPublisher)</span>
+HTTP 요청 Span → <span class="hl">TraceContextUtil.captureTraceParent()</span>
+                → <span class="str">"00-{traceId}-{spanId}-01"</span>
+                → outbox_event.trace_parent 컬럼에 저장
+
+<span class="cmt">② 발행 시점 (OutboxPoller)</span>
+outbox_event.trace_parent 읽기
+→ <span class="hl">TraceContextUtil.publishWithTrace()</span>
+  → SpanContext.createFromRemoteParent(traceId, spanId)
+  → tracer.spanBuilder(<span class="str">"OutboxPoller.publish"</span>).setParent(...)
+  → Span 속성: outbox.event.id, outbox.event.type, outbox.aggregate.id
+  → kafkaTemplate.send() 실행
+  → traceparent 헤더가 Kafka 레코드에 자동 전파
+</pre>
+</div>
+
+<p>
+  OpenTelemetry가 classpath에 없으면 <code>TraceContextUtil.isOtelAvailable()</code>이 false를 반환하고,
+  트레이싱 관련 코드를 전부 건너뛴다. 런타임 에러 없이 정상 동작한다.
+</p>
+
+<h2 id="cloudevents">CloudEvents 헤더</h2>
+
+<p>
+  모든 Outbox 이벤트는 CloudEvents 1.0 Binary Content Mode 헤더를 포함한다.
+  이 표준 헤더를 통해 소비자가 메시지의 출처, 유형, 상관 관계를 메타데이터만으로 파악할 수 있다.
+</p>
+
+<table>
+  <thead>
+    <tr><th>헤더</th><th>값</th><th>설명</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>ce_specversion</code></td><td><code>"1.0"</code></td><td>CloudEvents 스펙 버전</td></tr>
+    <tr><td><code>ce_id</code></td><td>이벤트 ID (PK)</td><td>메시지 고유 식별자</td></tr>
+    <tr><td><code>ce_source</code></td><td><code>"/{applicationName}"</code></td><td>발행 서비스 식별 (spring.application.name)</td></tr>
+    <tr><td><code>ce_type</code></td><td>eventType</td><td>이벤트 유형 (JOB_EXECUTE, JOB_STARTED_NOTIFY 등)</td></tr>
+    <tr><td><code>ce_correlationid</code></td><td>correlationId</td><td>요청 추적 ID (선택)</td></tr>
+    <tr><td><code>traceparent</code></td><td>W3C format</td><td>OTel 트레이스 전파 (선택)</td></tr>
+  </tbody>
+</table>
+
+<p>
+  <code>CloudEventsHeaderInterceptor</code>가 KafkaTemplate의 ProducerInterceptor로 등록되어 기본 헤더(<code>ce_specversion</code>, <code>ce_id</code>, <code>ce_source</code>, <code>ce_time</code>)를 자동 추가한다.
+  <code>OutboxPoller</code>는 이벤트별 헤더(<code>ce_type</code>, <code>ce_correlationid</code>)를 추가로 설정한다.
+</p>
+
+<h2 id="schema">테이블 스키마</h2>
+
+<pre>
+<span class="kw">CREATE TABLE IF NOT EXISTS</span> <span class="hl">outbox_event</span> (
+    id              <span class="typ">BIGINT</span> AUTO_INCREMENT PRIMARY KEY,
+    aggregate_type  <span class="typ">VARCHAR(100)</span>  NOT NULL,
+    aggregate_id    <span class="typ">VARCHAR(255)</span>  NOT NULL,
+    event_type      <span class="typ">VARCHAR(100)</span>  NOT NULL,
+    payload         <span class="typ">LONGBLOB</span>      NOT NULL,     <span class="cmt">-- Avro wire format</span>
+    topic           <span class="typ">VARCHAR(255)</span>  NOT NULL,
+    status          <span class="typ">VARCHAR(20)</span>   NOT NULL DEFAULT <span class="str">'PENDING'</span>,
+    created_at      <span class="typ">DATETIME(6)</span>   NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    sent_at         <span class="typ">DATETIME(6)</span>   NULL,
+    retry_count     <span class="typ">INT</span>           NOT NULL DEFAULT 0,
+    correlation_id  <span class="typ">VARCHAR(255)</span>  NULL,
+    trace_parent    <span class="typ">VARCHAR(255)</span>  NULL,
+    next_retry_at   <span class="typ">DATETIME(6)</span>   NULL,
+
+    <span class="kw">INDEX</span> idx_outbox_pending (status, next_retry_at),  <span class="cmt">-- Poll 쿼리</span>
+    <span class="kw">INDEX</span> idx_outbox_cleanup (status, sent_at)          <span class="cmt">-- Cleanup 쿼리</span>
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+</pre>
+
+<p>
+  <code>idx_outbox_pending</code>은 Poller의 <code>SELECT ... WHERE status='PENDING' AND next_retry_at &lt;= NOW()</code> 쿼리를 커버한다.
+  <code>idx_outbox_cleanup</code>은 <code>deleteOlderThan()</code>의 SENT 레코드 정리 쿼리를 커버한다.
+</p>
+
+<h2 id="config">설정 레퍼런스</h2>
+
+<table>
+  <thead>
+    <tr><th>프로퍼티</th><th>타입</th><th>기본값</th><th>설명</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>outbox.batch-size</code></td><td>int</td><td>50</td><td>Poll 당 가져오는 이벤트 수</td></tr>
+    <tr><td><code>outbox.poll-interval-ms</code></td><td>long</td><td>500</td><td>폴링 주기 (밀리초)</td></tr>
+    <tr><td><code>outbox.max-retries</code></td><td>int</td><td>5</td><td>최대 재시도 횟수 (초과 시 DEAD)</td></tr>
+    <tr><td><code>outbox.cleanup-retention-days</code></td><td>int</td><td>7</td><td>SENT 레코드 보관 일수</td></tr>
+    <tr><td><code>outbox.cleanup-cron</code></td><td>String</td><td><code>0 0 3 * * *</code></td><td>정리 스케줄 (매일 03시 UTC)</td></tr>
+  </tbody>
+</table>
+
+<h3>Kafka Producer 기본값</h3>
+
+<p>
+  <code>kafka-defaults.yml</code>에서 아래 값이 자동 적용된다.
+  Outbox 발행은 <code>ByteArraySerializer</code>를 사용하며, <code>acks=all</code>과 <code>enable.idempotence=true</code>로 메시지 유실을 방지한다.
+</p>
+
+<table>
+  <thead>
+    <tr><th>설정</th><th>값</th><th>이유</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>acks</code></td><td>all</td><td>모든 ISR 복제본 확인 후 ACK</td></tr>
+    <tr><td><code>retries</code></td><td>3</td><td>일시적 네트워크 에러 대응</td></tr>
+    <tr><td><code>enable.idempotence</code></td><td>true</td><td>중복 메시지 방지</td></tr>
+    <tr><td><code>key-serializer</code></td><td>StringSerializer</td><td>aggregateId를 키로 사용</td></tr>
+    <tr><td><code>value-serializer</code></td><td>ByteArraySerializer</td><td>Avro wire format 그대로 전송</td></tr>
+  </tbody>
+</table>
+
+<h2 id="metrics">메트릭</h2>
+
+<table>
+  <thead>
+    <tr><th>메트릭</th><th>타입</th><th>설명</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>outbox.events.published</code></td><td>Counter</td><td>Kafka 발행 성공 수</td></tr>
+    <tr><td><code>outbox.events.failed</code></td><td>Counter</td><td>발행 실패 수 (재시도 대상)</td></tr>
+    <tr><td><code>outbox.events.dead</code></td><td>Counter</td><td>DEAD 전환 수 (수동 개입 필요)</td></tr>
+    <tr><td><code>outbox.queue.pending</code></td><td>Gauge</td><td>현재 PENDING 상태 이벤트 수</td></tr>
+  </tbody>
+</table>
+
+<p>
+  <code>OutboxAutoConfiguration</code>이 <code>MeterRegistry</code> Bean이 존재할 때만 <code>OutboxMetrics</code>를 등록한다.
+  Prometheus/Grafana 환경에서 <code>outbox.queue.pending</code> gauge가 지속적으로 증가하면 Kafka 브로커 장애나 Schema Registry 문제를 의심해야 한다.
+</p>
+
+</body>
+</html>

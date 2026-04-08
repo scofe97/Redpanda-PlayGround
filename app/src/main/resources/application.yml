@@ -2,8 +2,6 @@ server:
   port: 8070
 
 spring:
-  config:
-    import: classpath:kafka-defaults.yml
   servlet:
     multipart:
       max-file-size: 200MB

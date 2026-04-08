@@ -1,1 +1,2 @@
 com.study.playground.kafka.outbox.OutboxAutoConfiguration
+com.study.playground.kafka.config.KafkaDefaultsAutoConfiguration

@@ -34,8 +34,9 @@ public class OutboxEvent {
     @Column(name = "topic", nullable = false, length = 200)
     private String topic;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
-    private String status;
+    private OutboxStatus status;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
@@ -57,7 +58,7 @@ public class OutboxEvent {
 
     @Builder
     public OutboxEvent(Long id, String aggregateType, String aggregateId
-            , String eventType, byte[] payload, String topic, String status
+            , String eventType, byte[] payload, String topic, OutboxStatus status
             , LocalDateTime createdAt, LocalDateTime sentAt, Integer retryCount
             , String correlationId, String traceParent, LocalDateTime nextRetryAt) {
         this.id = id;
@@ -91,7 +92,7 @@ public class OutboxEvent {
                 .eventType(eventType)
                 .payload(payload)
                 .topic(topic)
-                .status("PENDING")
+                .status(OutboxStatus.PENDING)
                 .retryCount(0)
                 .correlationId(correlationId)
                 .build();

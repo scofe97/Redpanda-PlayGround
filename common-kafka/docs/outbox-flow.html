@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transactional Outbox 흐름도</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0d0d0d;
+    color: #e8e4df;
+    font-family: 'Pretendard', -apple-system, system-ui, sans-serif;
+    padding: 0;
+    margin: 0;
+    line-height: 1.6;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .fixed-header {
+    flex-shrink: 0;
+    padding: 24px 32px 0;
+    background: #0d0d0d;
+    z-index: 10;
+  }
+
+  .scroll-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 32px 32px;
+  }
+
+  h1 {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .subtitle {
+    color: rgb(138, 133, 128);
+    font-size: 14px;
+    margin-bottom: 24px;
+  }
+
+  .panel {
+    background: #0d0d0d;
+    border: 1px solid rgb(42, 37, 32);
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 16px;
+  }
+
+  .panel-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: rgb(138, 133, 128);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+  }
+
+  /* Scenario Selector */
+  .scenario-selector {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+
+  .scenario-pill {
+    background: rgb(26, 26, 26);
+    border: 1px solid rgb(42, 37, 32);
+    border-radius: 20px;
+    color: rgb(138, 133, 128);
+    padding: 6px 16px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+  }
+
+  .scenario-pill:hover {
+    border-color: rgb(80, 75, 70);
+  }
+
+  .scenario-pill.active {
+    background: rgba(212, 168, 83, 0.15);
+    border-color: rgb(212, 168, 83);
+    color: rgb(212, 168, 83);
+  }
+
+  /* Pipeline */
+  .pipeline {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 0;
+    overflow-x: auto;
+    gap: 0;
+  }
+
+  .pipeline-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    min-width: 56px;
+  }
+
+  .step-circle {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgb(26, 26, 26);
+    border: 2px solid rgb(42, 37, 32);
+    color: rgb(138, 133, 128);
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.3s;
+  }
+
+  .step-label {
+    margin-top: 6px;
+    font-size: 11px;
+    color: rgb(138, 133, 128);
+    white-space: nowrap;
+    transition: color 0.3s;
+  }
+
+  .pipeline-step.active .step-circle {
+    background: rgba(212, 168, 83, 0.2);
+    border-color: rgb(212, 168, 83);
+    color: rgb(212, 168, 83);
+    box-shadow: 0 0 8px rgba(212, 168, 83, 0.4);
+    animation: node-glow 2s ease-in-out infinite;
+  }
+
+  .pipeline-step.active .step-label {
+    color: rgb(212, 168, 83);
+  }
+
+  .pipeline-step.completed .step-circle {
+    background: rgba(212, 168, 83, 0.1);
+    border-color: rgb(212, 168, 83);
+    color: rgb(212, 168, 83);
+  }
+
+  .pipeline-step.completed .step-label {
+    color: rgb(212, 168, 83);
+  }
+
+  .pipeline-step.failed .step-circle {
+    background: rgba(244, 67, 54, 0.15);
+    border-color: #f44336;
+    color: #f44336;
+    box-shadow: 0 0 8px rgba(244, 67, 54, 0.3);
+  }
+
+  .pipeline-step.failed .step-label {
+    color: #f44336;
+  }
+
+  .pipeline-connector {
+    width: 32px;
+    height: 2px;
+    background: rgb(42, 37, 32);
+    margin-bottom: 22px;
+    transition: background 0.5s;
+  }
+
+  .pipeline-connector.filled {
+    background: rgb(212, 168, 83);
+  }
+
+  .pipeline-connector.failed-line {
+    background: #f44336;
+  }
+
+  /* Narration */
+  .narration-step-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: rgb(212, 168, 83);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+  }
+
+  .narration-body {
+    font-size: 14px;
+    line-height: 1.8;
+  }
+
+  .hl { color: rgb(212, 168, 83); font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.9em; }
+  .ok { color: #66bb6a; }
+  .fail { color: #f44336; }
+  .warn { color: rgb(212, 168, 83); }
+
+  /* DB State */
+  .db-panel {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  .db-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .db-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid rgb(32, 28, 24);
+  }
+
+  .db-table tr:last-child td {
+    border-bottom: none;
+  }
+
+  .db-key {
+    color: rgb(138, 133, 128);
+    white-space: nowrap;
+    width: 1%;
+    padding-right: 16px;
+    vertical-align: top;
+  }
+
+  .db-val {
+    color: #e8e4df;
+    word-break: break-all;
+  }
+
+  .db-section-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: rgb(138, 133, 128);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 10px 10px 4px;
+    border-bottom: 1px solid rgb(42, 37, 32);
+  }
+
+  .db-note {
+    color: rgb(138, 133, 128);
+    font-style: italic;
+    font-size: 12px;
+    padding: 8px 10px 0;
+  }
+
+  .changed {
+    color: rgb(212, 168, 83);
+    font-weight: 600;
+    text-shadow: 0 0 6px rgba(212, 168, 83, 0.3);
+  }
+
+  .dead-val {
+    color: #f44336;
+    font-weight: 600;
+    text-shadow: 0 0 6px rgba(244, 67, 54, 0.3);
+  }
+
+  .sent-val {
+    color: #66bb6a;
+    font-weight: 600;
+    text-shadow: 0 0 6px rgba(102, 187, 106, 0.3);
+  }
+
+  /* Controls */
+  .start-overlay {
+    text-align: center;
+    padding: 32px;
+  }
+
+  .btn-start {
+    background: rgba(212, 168, 83, 0.15);
+    border: 1px solid rgb(212, 168, 83);
+    border-radius: 8px;
+    color: rgb(212, 168, 83);
+    padding: 12px 32px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+  }
+
+  .btn-start:hover {
+    background: rgba(212, 168, 83, 0.25);
+  }
+
+  .start-hint {
+    color: rgb(138, 133, 128);
+    font-size: 13px;
+    margin-top: 8px;
+  }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 0 16px;
+    border-top: 1px solid rgb(42, 37, 32);
+    border-bottom: 1px solid rgb(42, 37, 32);
+    margin-top: 12px;
+  }
+
+  .controls-nav {
+    display: flex;
+    gap: 8px;
+  }
+
+  .btn-ctrl {
+    background: rgb(26, 26, 26);
+    border: 1px solid rgb(42, 37, 32);
+    border-radius: 6px;
+    color: #e8e4df;
+    padding: 6px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+  }
+
+  .btn-ctrl:hover {
+    border-color: rgb(212, 168, 83);
+    color: rgb(212, 168, 83);
+  }
+
+  .btn-play { min-width: 72px; }
+
+  .speed-group {
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+  }
+
+  .speed-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: rgb(138, 133, 128);
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .speed-btn.active {
+    border-color: rgb(42, 37, 32);
+    color: #e8e4df;
+  }
+
+  .step-counter {
+    color: rgb(138, 133, 128);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    min-width: 48px;
+    text-align: right;
+  }
+
+  /* Animations */
+  @keyframes node-glow {
+    0%   { box-shadow: 0 0 4px rgba(212, 168, 83, 0.2); }
+    50%  { box-shadow: 0 0 12px rgba(212, 168, 83, 0.6); }
+    100% { box-shadow: 0 0 4px rgba(212, 168, 83, 0.2); }
+  }
+
+  @keyframes glow-success {
+    0%   { box-shadow: 0 0 8px rgba(102, 187, 106, 0.7); }
+    100% { box-shadow: none; }
+  }
+
+  /* Two-column layout */
+  .content-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  @media (max-width: 900px) {
+    .content-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="fixed-header">
+  <h1>Transactional Outbox 흐름도</h1>
+  <p class="subtitle">common-kafka 모듈 — EventPublisher → outbox_event → OutboxPoller → Kafka</p>
+
+  <div class="scenario-selector">
+    <button class="scenario-pill active" onclick="switchScenario(0)">케이스 1: 정상 발행</button>
+    <button class="scenario-pill" onclick="switchScenario(1)">케이스 2: 재시도 후 복구</button>
+    <button class="scenario-pill" onclick="switchScenario(2)">케이스 3: Dead Letter</button>
+  </div>
+
+  <div class="panel" style="margin-bottom: 0;">
+    <div class="panel-title">파이프라인</div>
+    <div class="pipeline" id="pipeline"></div>
+  </div>
+
+  <div class="start-overlay" id="startOverlay">
+    <button class="btn-start" onclick="startSimulation()">시뮬레이션 시작 ▶</button>
+    <p class="start-hint">Outbox 이벤트의 라이프사이클을 단계별로 확인한다</p>
+  </div>
+
+  <div class="controls" id="controlBar" style="display: none;">
+    <div class="controls-nav">
+      <button class="btn-ctrl" onclick="prevStep()">◀ 이전</button>
+      <button class="btn-ctrl btn-play" onclick="togglePlay()" id="playBtn">▶ 재생</button>
+      <button class="btn-ctrl" onclick="nextStep()">다음 ▶</button>
+    </div>
+    <div class="speed-group">
+      <button class="speed-btn" onclick="setSpeed(0.5)">0.5x</button>
+      <button class="speed-btn active" onclick="setSpeed(1)">1x</button>
+      <button class="speed-btn" onclick="setSpeed(2)">2x</button>
+    </div>
+    <span class="step-counter" id="stepCounter">0 / 0</span>
+  </div>
+</div>
+
+<div class="scroll-content" id="scrollContent" style="display: none;">
+  <div class="content-grid">
+    <div class="panel">
+      <div class="panel-title">내레이션</div>
+      <div class="narration-step-title" id="narrationTitle">—</div>
+      <div class="narration-body" id="narrationBody">시뮬레이션 시작 버튼을 누르면 흐름이 시작된다.</div>
+    </div>
+    <div class="panel db-panel">
+      <div class="panel-title">outbox_event 테이블</div>
+      <div id="dbState">
+        <div class="db-row">id=42, aggregate_type=EXECUTION_JOB</div>
+        <div class="db-row">event_type=JOB_EXECUTE, topic=cmd.job-execute</div>
+        <div class="db-row">status=—, retry_count=0, next_retry_at=NULL</div>
+        <div class="db-row">sent_at=NULL, trace_parent=NULL</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentStep = -1;
+let currentScenario = 0;
+let isPlaying = false;
+let playSpeed = 1;
+let timer = null;
+
+// Helper: build structured DB table HTML
+function db(rows, opts) {
+  let html = '<table class="db-table">';
+  if (opts && opts.section) {
+    html += '<tr><td colspan="2" class="db-section-title">' + opts.section + '</td></tr>';
+  }
+  rows.forEach(r => {
+    html += '<tr><td class="db-key">' + r[0] + '</td><td class="db-val">' + r[1] + '</td></tr>';
+  });
+  if (opts && opts.note) {
+    html += '</table><div class="db-note">' + opts.note + '</div>';
+  } else {
+    html += '</table>';
+  }
+  return html;
+}
+
+function dbMulti(sections) {
+  return sections.map(s => db(s.rows, s)).join('');
+}
+
+const scenarios = {
+  0: {
+    title: '케이스 1: 정상 발행',
+    nodes: [
+      {
+        label: 'Biz TX',
+        narration: '<span class="hl">@Transactional</span> 비즈니스 메서드가 실행된다. 도메인 로직(Job 생성 등)이 완료되고, 같은 트랜잭션 안에서 <span class="hl">EventPublisher.publish()</span>를 호출한다.',
+        db: () => db([
+          ['id', '42'],
+          ['aggregate_type', 'EXECUTION_JOB'],
+          ['event_type', 'JOB_EXECUTE'],
+          ['topic', 'cmd.job-execute'],
+          ['status', '—'],
+          ['retry_count', '0'],
+          ['sent_at', 'NULL'],
+          ['trace_parent', 'NULL']
+        ]),
+        stepClass: 'active'
+      },
+      {
+        label: 'Serialize',
+        narration: '<span class="hl">AvroSerializer.serialize(topic, record)</span>가 SpecificRecord를 Confluent Wire Format(magic byte + schema ID + Avro binary)으로 직렬화한다. Schema Registry에 스키마가 자동 등록된다.',
+        db: () => db([
+          ['id', '42'],
+          ['aggregate_type', 'EXECUTION_JOB'],
+          ['event_type', 'JOB_EXECUTE'],
+          ['topic', 'cmd.job-execute'],
+          ['payload', '<span class="changed">[0x00][schemaId][avro bytes]</span>'],
+          ['status', '—'],
+          ['retry_count', '0']
+        ]),
+        stepClass: 'active'
+      },
+      {
+        label: 'Save',
+        narration: '<span class="hl">OutboxEvent.of()</span> 팩토리 메서드로 이벤트를 생성하고, <span class="hl">TraceContextUtil.captureTraceParent()</span>로 현재 OTel Span의 W3C traceparent를 캡처한다. JPA <span class="hl">repository.save()</span>로 outbox_event 테이블에 INSERT한다. 비즈니스 TX와 동일 트랜잭션이므로 <span class="ok">원자성이 보장</span>된다.',
+        db: () => db([
+          ['id', '42'],
+          ['aggregate_type', 'EXECUTION_JOB'],
+          ['event_type', 'JOB_EXECUTE'],
+          ['topic', 'cmd.job-execute'],
+          ['status', '<span class="changed">PENDING</span>'],
+          ['retry_count', '0'],
+          ['next_retry_at', 'NULL'],
+          ['trace_parent', '<span class="changed">00-abc123-def456-01</span>'],
+          ['created_at', '<span class="changed">2026-04-08T10:00:00</span>'],
+          ['sent_at', 'NULL']
+        ]),
+        stepClass: 'active'
+      },
+      {
+        label: 'Poll',
+        narration: '<span class="hl">OutboxPoller.pollAndPublish()</span>가 500ms 주기로 실행된다. <span class="hl">SELECT ... FOR UPDATE SKIP LOCKED</span> 쿼리로 PENDING 이벤트를 batch-size(기본 50)만큼 가져온다. SKIP LOCKED 덕분에 다른 Poller 인스턴스와 경쟁 없이 행을 잠근다.',
+        db: () => db([
+          ['id', '42'],
+          ['aggregate_type', 'EXECUTION_JOB'],
+          ['event_type', 'JOB_EXECUTE'],
+          ['topic', 'cmd.job-execute'],
+          ['status', '<span class="changed">PROCESSING</span>'],
+          ['retry_count', '0'],
+          ['trace_parent', '00-abc123-def456-01']
+        ]),
+        stepClass: 'active'
+      },
+      {
+        label: 'Headers',
+        narration: 'ProducerRecord에 CloudEvents 1.0 Binary Content Mode 헤더를 추가한다:<br>- <span class="hl">ce_specversion</span>: "1.0"<br>- <span class="hl">ce_id</span>: 42 (이벤트 ID)<br>- <span class="hl">ce_source</span>: "/executor"<br>- <span class="hl">ce_type</span>: JOB_EXECUTE<br>- <span class="hl">ce_correlationid</span>: 요청 추적 ID',
+        db: () => dbMulti([
+          { section: 'outbox_event', rows: [
+            ['id', '42'],
+            ['status', 'PROCESSING']
+          ]},
+          { section: 'Kafka Headers', rows: [
+            ['ce_specversion', '<span class="changed">1.0</span>'],
+            ['ce_id', '<span class="changed">42</span>'],
+            ['ce_source', '<span class="changed">/executor</span>'],
+            ['ce_type', '<span class="changed">JOB_EXECUTE</span>']
+          ]}
+        ]),
+        stepClass: 'active'
+      },
+      {
+        label: 'Trace',
+        narration: '<span class="hl">publishWithTraceContext()</span>가 저장된 traceparent를 복원하여 부모 Span으로 설정한다. 새 자식 Span "OutboxPoller.publish"를 생성하고, <span class="hl">outbox.event.id</span>, <span class="hl">outbox.event.type</span>, <span class="hl">outbox.aggregate.id</span> 속성을 기록한다. OTel이 없으면 이 단계를 건너뛴다.',
+        db: () => dbMulti([
+          { section: 'outbox_event', rows: [
+            ['id', '42'],
+            ['status', 'PROCESSING']
+          ]},
+          { section: 'OTel Span: OutboxPoller.publish', rows: [
+            ['parent', '<span class="changed">00-abc123-def456-01</span>'],
+            ['outbox.event.id', '42'],
+            ['outbox.event.type', 'JOB_EXECUTE']
+          ]}
+        ]),
+        stepClass: 'active'
+      },
+      {
+        label: 'Publish',
+        narration: '<span class="hl">kafkaTemplate.send(record).get(5, SECONDS)</span>로 Kafka에 동기 발행한다. aggregateId를 ProducerRecord key로 사용하여 같은 Aggregate의 이벤트가 동일 파티션에 순서대로 도착하도록 보장한다. <span class="ok">발행 성공!</span>',
+        db: () => db([
+          ['id', '42'],
+          ['aggregate_type', 'EXECUTION_JOB'],
+          ['topic', 'playground.executor.commands.job-execute'],
+          ['status', 'PROCESSING → <span class="changed">SENT</span>'],
+          ['sent_at', '<span class="changed">2026-04-08T10:00:01</span>'],
+          ['retry_count', '0']
+        ]),
+        stepClass: 'active'
+      },
+      {
+        label: 'Batch OK',
+        narration: 'Poll 주기 내 처리한 모든 성공 이벤트를 <span class="hl">batchMarkAsSent(sentIds)</span>로 일괄 SENT 처리한다. 배치 업데이트이므로 DB 라운드트립을 최소화한다.',
+        db: () => db([
+          ['id', '42'],
+          ['status', '<span class="sent-val">SENT</span>'],
+          ['sent_at', '2026-04-08T10:00:01'],
+          ['retry_count', '0']
+        ], { note: '7일 후 cleanupSentEvents()가 삭제' }),
+        stepClass: 'active'
+      }
+    ]
+  },
+  1: {
+    title: '케이스 2: 재시도 후 복구',
+    nodes: [
+      {
+        label: 'Save',
+        narration: '비즈니스 트랜잭션이 완료되고 outbox_event가 PENDING 상태로 저장되었다.',
+        db: () => db([
+          ['id', '99'],
+          ['aggregate_type', 'EXECUTION_JOB'],
+          ['event_type', 'JOB_EXECUTE'],
+          ['status', '<span class="changed">PENDING</span>'],
+          ['retry_count', '0'],
+          ['next_retry_at', 'NULL']
+        ]),
+        stepClass: 'active'
+      },
+      {
+        label: 'Poll #1',
+        narration: '<span class="hl">OutboxPoller.pollAndPublish()</span>가 이벤트를 가져와 PROCESSING으로 전환한다.',
+        db: () => db([
+          ['id', '99'],
+          ['status', '<span class="changed">PROCESSING</span>'],
+          ['retry_count', '0'],
+          ['next_retry_at', 'NULL']
+        ]),
+        stepClass: 'active'
+      },
+      {
+        label: 'Fail #1',
+        narration: 'Kafka 브로커 연결 실패! <span class="fail">TimeoutException</span> 발생. <span class="hl">handleFailure()</span>가 호출되어 retryCount(0) < maxRetries(5)를 확인한다. 상태를 PENDING으로 되돌리고, 지수 백오프 <span class="warn">2^0 = 1초</span> 후 재시도를 스케줄한다.',
+        db: () => db([
+          ['id', '99'],
+          ['status', 'PROCESSING → <span class="changed">PENDING</span>'],
+          ['retry_count', '<span class="changed">1</span>'],
+          ['next_retry_at', '<span class="changed">T+1s</span>']
+        ]),
+        stepClass: 'failed'
+      },
+      {
+        label: 'Wait 1s',
+        narration: 'next_retry_at이 아직 도래하지 않았으므로, Poller의 <span class="hl">WHERE next_retry_at &lt;= NOW()</span> 조건에 걸리지 않아 건너뛴다. 1초 후 재시도 대상이 된다.',
+        db: () => db([
+          ['id', '99'],
+          ['status', 'PENDING'],
+          ['retry_count', '1'],
+          ['next_retry_at', 'T+1s <span class="warn">(대기 중)</span>']
+        ]),
+        stepClass: 'active'
+      },
+      {
+        label: 'Poll #2',
+        narration: '1초가 경과하여 next_retry_at 조건을 만족한다. 다시 SELECT ... FOR UPDATE SKIP LOCKED로 가져온다.',
+        db: () => db([
+          ['id', '99'],
+          ['status', '<span class="changed">PROCESSING</span>'],
+          ['retry_count', '1']
+        ]),
+        stepClass: 'active'
+      },
+      {
+        label: 'Fail #2',
+        narration: '브로커가 여전히 불안정하다. <span class="fail">두 번째 실패</span>. 지수 백오프 <span class="warn">2^1 = 2초</span> 후 재시도.',
+        db: () => db([
+          ['id', '99'],
+          ['status', '<span class="changed">PENDING</span>'],
+          ['retry_count', '<span class="changed">2</span>'],
+          ['next_retry_at', '<span class="changed">T+2s</span>']
+        ]),
+        stepClass: 'failed'
+      },
+      {
+        label: 'Poll #3',
+        narration: '2초 후 세 번째 시도. 브로커가 복구되었다.',
+        db: () => db([
+          ['id', '99'],
+          ['status', '<span class="changed">PROCESSING</span>'],
+          ['retry_count', '2']
+        ]),
+        stepClass: 'active'
+      },
+      {
+        label: 'Publish',
+        narration: '<span class="ok">발행 성공!</span> 브로커가 복구되어 메시지가 정상 전달되었다. 지수 백오프 전략 덕분에 브로커에 과도한 부하 없이 복구 시점에 재시도가 성공했다.',
+        db: () => db([
+          ['id', '99'],
+          ['status', '<span class="sent-val">SENT</span>'],
+          ['retry_count', '2'],
+          ['sent_at', '<span class="changed">2026-04-08T10:00:04</span>']
+        ]),
+        stepClass: 'active'
+      }
+    ]
+  },
+  2: {
+    title: '케이스 3: Dead Letter',
+    nodes: [
+      {
+        label: 'Save',
+        narration: 'outbox_event가 PENDING으로 저장되었다.',
+        db: () => db([
+          ['id', '77'],
+          ['aggregate_type', 'EXECUTION_JOB'],
+          ['status', '<span class="changed">PENDING</span>'],
+          ['retry_count', '0']
+        ]),
+        stepClass: 'active'
+      },
+      {
+        label: 'Retry 1',
+        narration: '첫 번째 시도 실패. <span class="fail">SerializationException</span> — Schema Registry 응답 에러. 백오프 <span class="warn">2^0 = 1초</span>.',
+        db: () => db([
+          ['id', '77'],
+          ['status', '<span class="changed">PENDING</span>'],
+          ['retry_count', '<span class="changed">1</span>'],
+          ['next_retry_at', '<span class="changed">T+1s</span>']
+        ]),
+        stepClass: 'failed'
+      },
+      {
+        label: 'Retry 2',
+        narration: '두 번째 시도 실패. 백오프 <span class="warn">2^1 = 2초</span>.',
+        db: () => db([
+          ['id', '77'],
+          ['status', 'PENDING'],
+          ['retry_count', '<span class="changed">2</span>'],
+          ['next_retry_at', '<span class="changed">T+2s</span>']
+        ]),
+        stepClass: 'failed'
+      },
+      {
+        label: 'Retry 3',
+        narration: '세 번째 시도 실패. 백오프 <span class="warn">2^2 = 4초</span>.',
+        db: () => db([
+          ['id', '77'],
+          ['status', 'PENDING'],
+          ['retry_count', '<span class="changed">3</span>'],
+          ['next_retry_at', '<span class="changed">T+4s</span>']
+        ]),
+        stepClass: 'failed'
+      },
+      {
+        label: 'Retry 4',
+        narration: '네 번째 시도 실패. 백오프 <span class="warn">2^3 = 8초</span>.',
+        db: () => db([
+          ['id', '77'],
+          ['status', 'PENDING'],
+          ['retry_count', '<span class="changed">4</span>'],
+          ['next_retry_at', '<span class="changed">T+8s</span>']
+        ]),
+        stepClass: 'failed'
+      },
+      {
+        label: 'Retry 5',
+        narration: '다섯 번째 시도도 실패. retryCount(5) >= maxRetries(5) 조건 충족.',
+        db: () => db([
+          ['id', '77'],
+          ['status', 'PENDING'],
+          ['retry_count', '<span class="changed">5</span>']
+        ]),
+        stepClass: 'failed'
+      },
+      {
+        label: 'DEAD',
+        narration: '<span class="hl">markAsDead(id)</span> 호출. 이벤트가 <span class="fail">DEAD</span> 상태로 전환된다. <span class="hl">outbox.events.dead</span> Micrometer 카운터가 증가한다. 운영자가 수동으로 원인을 파악하고 재처리해야 한다.',
+        db: () => db([
+          ['id', '77'],
+          ['aggregate_type', 'EXECUTION_JOB'],
+          ['status', '<span class="dead-val">DEAD</span>'],
+          ['retry_count', '5']
+        ], { note: '수동 개입 필요' }),
+        stepClass: 'failed'
+      },
+      {
+        label: 'DLQ',
+        narration: 'DEAD 이벤트를 <span class="hl">playground.dlq</span> 토픽으로 발행한다. 헤더에 원본 정보를 포함한다:<br>- <span class="hl">dlq.original.topic</span>: cmd.job-execute<br>- <span class="hl">dlq.failure.reason</span>: max_retries_exceeded<br>- <span class="hl">dlq.retry.count</span>: 5<br><span class="hl">DlqConsumer</span>가 이를 수신하여 로깅한다.',
+        db: () => dbMulti([
+          { section: 'outbox_event', rows: [
+            ['id', '77'],
+            ['status', '<span class="dead-val">DEAD</span>']
+          ]},
+          { section: 'playground.dlq 헤더', rows: [
+            ['dlq.original.topic', '<span class="changed">cmd.job-execute</span>'],
+            ['dlq.failure.reason', '<span class="changed">max_retries_exceeded</span>'],
+            ['dlq.retry.count', '<span class="changed">5</span>']
+          ]}
+        ]),
+        stepClass: 'failed'
+      }
+    ]
+  }
+};
+
+function renderPipeline() {
+  const pipeline = document.getElementById('pipeline');
+  const nodes = scenarios[currentScenario].nodes;
+  pipeline.innerHTML = '';
+  nodes.forEach((node, i) => {
+    if (i > 0) {
+      const conn = document.createElement('div');
+      let cls = 'pipeline-connector';
+      if (i <= currentStep) {
+        const prevNode = nodes[i - 1];
+        cls += prevNode.stepClass === 'failed' ? ' failed-line' : ' filled';
+      }
+      conn.className = cls;
+      pipeline.appendChild(conn);
+    }
+    const el = document.createElement('div');
+    let stepCls = 'pipeline-step';
+    if (i === currentStep) {
+      stepCls += ' ' + node.stepClass;
+    } else if (i < currentStep) {
+      stepCls += ' completed';
+    }
+    el.className = stepCls;
+    el.onclick = () => goToStep(i);
+    el.innerHTML = '<div class="step-circle">' + (i + 1) + '</div>'
+      + '<div class="step-label">' + node.label + '</div>';
+    pipeline.appendChild(el);
+  });
+}
+
+function updateNarration(node, index) {
+  document.getElementById('narrationTitle').textContent =
+    'Step ' + (index + 1) + ': ' + node.label;
+  document.getElementById('narrationBody').innerHTML = node.narration;
+}
+
+function updateDb(node) {
+  document.getElementById('dbState').innerHTML = typeof node.db === 'function' ? node.db() : node.db;
+}
+
+function goToStep(n) {
+  const nodes = scenarios[currentScenario].nodes;
+  if (n < 0 || n >= nodes.length) {
+    if (isPlaying) stopPlay();
+    return;
+  }
+  currentStep = n;
+  updateNarration(nodes[n], n);
+  updateDb(nodes[n]);
+  document.getElementById('stepCounter').textContent =
+    (currentStep + 1) + ' / ' + nodes.length;
+  renderPipeline();
+}
+
+function nextStep() { goToStep(currentStep + 1); }
+function prevStep() { goToStep(currentStep - 1); }
+
+function startSimulation() {
+  document.getElementById('startOverlay').style.display = 'none';
+  document.getElementById('controlBar').style.display = 'flex';
+  document.getElementById('scrollContent').style.display = 'block';
+  const nodes = scenarios[currentScenario].nodes;
+  document.getElementById('stepCounter').textContent = '0 / ' + nodes.length;
+  goToStep(0);
+}
+
+function togglePlay() {
+  if (isPlaying) {
+    stopPlay();
+  } else {
+    isPlaying = true;
+    document.getElementById('playBtn').textContent = '⏸ 일시정지';
+    scheduleNext();
+  }
+}
+
+function stopPlay() {
+  isPlaying = false;
+  clearTimeout(timer);
+  document.getElementById('playBtn').textContent = '▶ 재생';
+}
+
+function scheduleNext() {
+  if (!isPlaying) return;
+  timer = setTimeout(() => {
+    nextStep();
+    if (currentStep < scenarios[currentScenario].nodes.length - 1) {
+      scheduleNext();
+    } else {
+      stopPlay();
+    }
+  }, 2000 / playSpeed);
+}
+
+function setSpeed(s) {
+  playSpeed = s;
+  document.querySelectorAll('.speed-btn').forEach(el => {
+    el.classList.toggle('active', parseFloat(el.textContent) === s);
+  });
+  if (isPlaying) {
+    clearTimeout(timer);
+    scheduleNext();
+  }
+}
+
+function switchScenario(index) {
+  currentScenario = index;
+  currentStep = -1;
+  stopPlay();
+  document.querySelectorAll('.scenario-pill').forEach((el, i) => {
+    el.classList.toggle('active', i === index);
+  });
+  renderPipeline();
+  const nodes = scenarios[index].nodes;
+  document.getElementById('stepCounter').textContent = '0 / ' + nodes.length;
+  document.getElementById('narrationTitle').textContent = '—';
+  document.getElementById('narrationBody').textContent = '시뮬레이션 시작 버튼을 누르거나 "다음" 버튼을 클릭한다.';
+  document.getElementById('dbState').innerHTML =
+    '<div class="db-row" style="color:rgb(138,133,128)">단계를 선택하면 DB 상태가 표시된다</div>';
+
+  // If overlay is hidden, show controls directly
+  if (document.getElementById('startOverlay').style.display === 'none') {
+    document.getElementById('controlBar').style.display = 'flex';
+    document.getElementById('scrollContent').style.display = 'block';
+  }
+}
+
+// Initial render
+renderPipeline();
+</script>
+</body>
+</html>

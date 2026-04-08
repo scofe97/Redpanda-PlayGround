@@ -71,7 +71,7 @@ public class OperatorStubController {
 
     /**
      * 단독 Job 실행 트리거.
-     * POST /api/operator/jobs/execute?jobName=hello-world&jenkinsInstanceId=1
+     * POST /api/operator/jobs/execute?jobName=executor-test&jenkinsInstanceId=1
      */
     @PostMapping("/jobs/execute")
     @Transactional
@@ -79,9 +79,10 @@ public class OperatorStubController {
             @RequestParam String jobName
             , @RequestParam(defaultValue = "1") long jenkinsInstanceId
     ) {
+        TestJob matched = TestPipelineFixtures.findJobByName(jobName);
         OperatorJob job = OperatorJob.create(
                 null  // 단독 Job: executionPipelineId = null
-                , 0L
+                , matched.jobId()
                 , null
                 , jobName
                 , 1
