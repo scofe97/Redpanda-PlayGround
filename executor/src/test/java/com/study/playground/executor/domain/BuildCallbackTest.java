@@ -1,6 +1,6 @@
 package com.study.playground.executor.domain;
 
-import com.study.playground.executor.runner.domain.model.BuildCallback;
+import com.study.playground.executor.execution.domain.model.BuildCallback;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

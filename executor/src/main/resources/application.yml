@@ -44,6 +44,9 @@ executor:
   job-timeout-minutes: 30
   timeout-check-interval-ms: 60000
   log-path: /tmp/executor-logs
+  submitted-stale-seconds: 30
+  submitted-check-interval-ms: 10000
+  running-stale-minutes: 10
 
 logging:
   level:

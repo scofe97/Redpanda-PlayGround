@@ -1,15 +1,15 @@
 package com.study.playground.executor.application;
 
-import com.study.playground.executor.dispatch.domain.model.ExecutionJob;
-import com.study.playground.executor.dispatch.domain.model.ExecutionJobStatus;
-import com.study.playground.executor.dispatch.domain.model.JobDefinitionInfo;
-import com.study.playground.executor.dispatch.domain.port.out.ExecutionJobPort;
-import com.study.playground.executor.dispatch.domain.port.out.JobDefinitionQueryPort;
-import com.study.playground.executor.dispatch.domain.service.DispatchService;
-import com.study.playground.executor.runner.application.BuildCompletedService;
-import com.study.playground.executor.runner.domain.model.BuildCallback;
-import com.study.playground.executor.runner.domain.port.out.NotifyJobCompletedPort;
-import com.study.playground.executor.runner.domain.port.out.SaveBuildLogPort;
+import com.study.playground.executor.execution.domain.model.ExecutionJob;
+import com.study.playground.executor.execution.domain.model.ExecutionJobStatus;
+import com.study.playground.executor.execution.domain.model.JobDefinitionInfo;
+import com.study.playground.executor.execution.domain.port.out.ExecutionJobPort;
+import com.study.playground.executor.execution.domain.port.out.JobDefinitionQueryPort;
+import com.study.playground.executor.execution.domain.service.DispatchService;
+import com.study.playground.executor.execution.application.BuildCompletedService;
+import com.study.playground.executor.execution.domain.model.BuildCallback;
+import com.study.playground.executor.execution.domain.port.out.NotifyJobCompletedPort;
+import com.study.playground.executor.execution.domain.port.out.SaveBuildLogPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

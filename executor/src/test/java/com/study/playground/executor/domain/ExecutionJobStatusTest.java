@@ -1,10 +1,10 @@
 package com.study.playground.executor.domain;
 
-import com.study.playground.executor.dispatch.domain.model.ExecutionJobStatus;
+import com.study.playground.executor.execution.domain.model.ExecutionJobStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import static com.study.playground.executor.dispatch.domain.model.ExecutionJobStatus.*;
+import static com.study.playground.executor.execution.domain.model.ExecutionJobStatus.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -106,5 +106,15 @@ class ExecutionJobStatusTest {
         assertThat(fromJenkinsResult(null)).isEqualTo(FAILURE);
         assertThat(fromJenkinsResult("UNKNOWN")).isEqualTo(FAILURE);
         assertThat(fromJenkinsResult("")).isEqualTo(FAILURE);
+    }
+
+    @Test
+    @DisplayName("SUBMITTED → 터미널 상태 전이가 가능해야 한다 (시작 웹훅 유실 대비)")
+    void submittedToTerminal_shouldSucceed() {
+        assertThat(SUBMITTED.canTransitionTo(SUCCESS)).isTrue();
+        assertThat(SUBMITTED.canTransitionTo(UNSTABLE)).isTrue();
+        assertThat(SUBMITTED.canTransitionTo(ABORTED)).isTrue();
+        assertThat(SUBMITTED.canTransitionTo(NOT_BUILT)).isTrue();
+        assertThat(SUBMITTED.canTransitionTo(NOT_EXECUTED)).isTrue();
     }
 }

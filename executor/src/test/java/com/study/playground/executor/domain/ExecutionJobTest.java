@@ -1,7 +1,7 @@
 package com.study.playground.executor.domain;
 
-import com.study.playground.executor.dispatch.domain.model.ExecutionJob;
-import com.study.playground.executor.dispatch.domain.model.ExecutionJobStatus;
+import com.study.playground.executor.execution.domain.model.ExecutionJob;
+import com.study.playground.executor.execution.domain.model.ExecutionJobStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

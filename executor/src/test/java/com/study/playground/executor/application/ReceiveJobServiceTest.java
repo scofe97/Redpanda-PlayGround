@@ -1,7 +1,7 @@
 package com.study.playground.executor.application;
 
-import com.study.playground.executor.dispatch.application.ReceiveJobService;
-import com.study.playground.executor.dispatch.domain.port.out.ExecutionJobPort;
+import com.study.playground.executor.execution.application.ReceiveJobService;
+import com.study.playground.executor.execution.domain.port.out.ExecutionJobPort;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

@@ -1,6 +1,6 @@
 package com.study.playground.executor.config;
 
-import com.study.playground.executor.dispatch.domain.service.DispatchService;
+import com.study.playground.executor.execution.domain.service.DispatchService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 

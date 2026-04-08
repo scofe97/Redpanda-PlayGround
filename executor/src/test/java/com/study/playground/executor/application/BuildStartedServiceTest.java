@@ -1,12 +1,12 @@
 package com.study.playground.executor.application;
 
-import com.study.playground.executor.dispatch.domain.model.ExecutionJob;
-import com.study.playground.executor.dispatch.domain.model.ExecutionJobStatus;
-import com.study.playground.executor.dispatch.domain.port.out.ExecutionJobPort;
-import com.study.playground.executor.dispatch.domain.service.DispatchService;
-import com.study.playground.executor.runner.application.BuildStartedService;
-import com.study.playground.executor.runner.domain.model.BuildCallback;
-import com.study.playground.executor.runner.domain.port.out.NotifyJobStartedPort;
+import com.study.playground.executor.execution.domain.model.ExecutionJob;
+import com.study.playground.executor.execution.domain.model.ExecutionJobStatus;
+import com.study.playground.executor.execution.domain.port.out.ExecutionJobPort;
+import com.study.playground.executor.execution.domain.service.DispatchService;
+import com.study.playground.executor.execution.application.BuildStartedService;
+import com.study.playground.executor.execution.domain.model.BuildCallback;
+import com.study.playground.executor.execution.domain.port.out.NotifyJobStartedPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -106,6 +106,23 @@ class BuildStartedServiceTest {
         service.handle(callback);
 
         // then
+        verify(notifyStartedPort, never()).notify(any(), any(), any(), any(Integer.class));
+    }
+
+    @Test
+    @DisplayName("이미 RUNNING 상태인 Job은 중복 전이하지 않아야 한다")
+    void handle_alreadyRunning_shouldSkip() {
+        // given — SUBMITTED → RUNNING 상태
+        ExecutionJob job = submittedJob("excn-001");
+        job.transitionTo(ExecutionJobStatus.RUNNING);  // SUBMITTED → RUNNING
+        given(jobPort.findByJobIdAndBuildNo("job-001", BUILD_NO)).willReturn(Optional.of(job));
+        BuildCallback callback = BuildCallback.started("job-001", BUILD_NO);
+
+        // when
+        service.handle(callback);
+
+        // then — save, notify 모두 호출하지 않아야 함
+        verify(jobPort, never()).save(any());
         verify(notifyStartedPort, never()).notify(any(), any(), any(), any(Integer.class));
     }
 }

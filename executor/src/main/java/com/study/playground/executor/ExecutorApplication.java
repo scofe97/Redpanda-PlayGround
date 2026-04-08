@@ -12,12 +12,11 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         , "com.study.playground.kafka"
 })
 @EntityScan(basePackages = {
-        "com.study.playground.executor.dispatch.infrastructure.persistence"
+        "com.study.playground.executor.execution.infrastructure.persistence"
         , "com.study.playground.kafka.outbox"
 })
 @EnableJpaRepositories(basePackages = {
-        "com.study.playground.executor.dispatch.infrastructure.persistence"
-        , "com.study.playground.executor.runner.infrastructure.persistence"
+        "com.study.playground.executor.execution.infrastructure.persistence"
         , "com.study.playground.kafka.outbox"
 })
 @EnableScheduling

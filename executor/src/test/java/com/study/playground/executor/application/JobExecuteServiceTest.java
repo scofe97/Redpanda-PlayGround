@@ -1,15 +1,15 @@
 package com.study.playground.executor.application;
 
 import com.study.playground.executor.config.ExecutorProperties;
-import com.study.playground.executor.dispatch.domain.model.ExecutionJob;
-import com.study.playground.executor.dispatch.domain.model.ExecutionJobStatus;
-import com.study.playground.executor.dispatch.domain.model.JobDefinitionInfo;
-import com.study.playground.executor.dispatch.domain.port.out.ExecutionJobPort;
-import com.study.playground.executor.dispatch.domain.port.out.JenkinsQueryPort;
-import com.study.playground.executor.dispatch.domain.port.out.JenkinsTriggerPort;
-import com.study.playground.executor.dispatch.domain.port.out.JobDefinitionQueryPort;
-import com.study.playground.executor.dispatch.domain.service.DispatchService;
-import com.study.playground.executor.dispatch.application.JobExecuteService;
+import com.study.playground.executor.execution.domain.model.ExecutionJob;
+import com.study.playground.executor.execution.domain.model.ExecutionJobStatus;
+import com.study.playground.executor.execution.domain.model.JobDefinitionInfo;
+import com.study.playground.executor.execution.domain.port.out.ExecutionJobPort;
+import com.study.playground.executor.execution.domain.port.out.JenkinsQueryPort;
+import com.study.playground.executor.execution.domain.port.out.JenkinsTriggerPort;
+import com.study.playground.executor.execution.domain.port.out.JobDefinitionQueryPort;
+import com.study.playground.executor.execution.domain.service.DispatchService;
+import com.study.playground.executor.execution.application.JobExecuteService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
