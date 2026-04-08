@@ -13,7 +13,10 @@ public class DispatchScheduler {
 
     private final EvaluateDispatchUseCase evaluateDispatchUseCase;
 
-    @Scheduled(fixedDelayString = "${executor.dispatch-interval-ms:3000}")
+    @Scheduled(
+            fixedDelayString = "${executor.dispatch-interval-ms:3000}"
+            , initialDelayString = "${executor.dispatch-initial-delay-ms:0}"
+    )
     public void scheduledDispatch() {
         evaluateDispatchUseCase.tryDispatch();
     }

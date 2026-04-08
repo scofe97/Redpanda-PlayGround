@@ -1,5 +1,9 @@
 # Executor v2 스펙
 
+> 2026-04-09 기준 현재 구현은 이 문서보다 앞서 있다.
+> 실제 코드는 `operator` 스키마 cross-schema 조회, Jenkins 인스턴스별 그룹 디스패치, `QUEUED` stale recovery, scheduler thread pool 분리, Avro retry-topic 재발행 경로를 포함한다.
+> 또한 본문 초반의 "3초 폴링 스케줄러 제거" 설명은 현재 live 코드와 다르다.
+
 ## Context
 
 Executor는 operator에서 전달받은 Job을 내부 테이블에 저장하고, 우선순위 기반으로 Jenkins에 즉시 실행 가능한지 판단한 뒤 실행하는 **실행 제어 계층**이다.

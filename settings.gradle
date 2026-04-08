@@ -7,4 +7,4 @@ pluginManagement {
 
 rootProject.name = 'redpanda-playground'
 
-include 'common', 'common-kafka', 'pipeline', 'app', 'executor', 'operator-stub'
+include 'common', 'common-kafka', 'operator', 'executor'

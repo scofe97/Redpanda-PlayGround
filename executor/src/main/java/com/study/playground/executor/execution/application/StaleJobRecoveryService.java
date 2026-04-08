@@ -68,6 +68,23 @@ public class StaleJobRecoveryService {
         }
     }
 
+    /**
+     * QUEUED 상태에서 queuedStaleSeconds 이상 체류한 Job을 방어한다.
+     * execute 메시지가 유실된 경우 PENDING으로 복귀시키거나 FAILURE로 전환한다.
+     */
+    @Transactional
+    public void recoverStaleQueued() {
+        var cutoff = LocalDateTime.now().minusSeconds(properties.getQueuedStaleSeconds());
+        var staleJobs = jobPort.findByStatusAndMdfcnDtBefore(ExecutionJobStatus.QUEUED, cutoff);
+
+        for (ExecutionJob job : staleJobs) {
+            log.warn("[StaleRecovery] QUEUED stale detected: jobExcnId={}, lastModified={}"
+                    , job.getJobExcnId(), job.getMdfcnDt());
+            dispatchService.retryOrFail(job, properties.getJobMaxRetries());
+            jobPort.save(job);
+        }
+    }
+
     private void recoverSubmitted(ExecutionJob job) {
         var defInfo = jobDefinitionQueryPort.load(job.getJobId());
         var buildStatus = jenkinsQueryPort.queryBuildStatus(

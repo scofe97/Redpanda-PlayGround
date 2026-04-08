@@ -1,5 +1,9 @@
 # Executor E2E 테스트 결과 보고서
 
+> 이 문서는 `operator-stub` 기반 토폴로지에서 작성된 historical 보고서다.
+> 2026-04-09 이후 현재 저장소의 live 구조는 `operator` + `executor`이며, `operator-stub` 디렉토리는 제거됐다.
+> 본문에서 나오는 `operator-stub`, `operator_stub.operator_job`, `make operator-stub`는 현재 구조와 직접 일치하지 않는다.
+
 ## 개요
 
 Executor PoC의 E2E 테스트 전체 결과를 기록한다. 단일 job Happy Path(TC-01)부터 멀티 파이프라인 × 멀티 Jenkins 교차 실행(TC-09)까지, 10개의 시나리오로 executor의 디스패치, 실행, 재시도, 순차 실행, 중복 방지, 멀티 Jenkins 기능을 검증한다.

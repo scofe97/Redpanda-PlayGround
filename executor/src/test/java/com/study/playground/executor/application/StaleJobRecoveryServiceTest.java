@@ -157,6 +157,28 @@ class StaleJobRecoveryServiceTest {
     }
 
     @Nested
+    @DisplayName("recoverStaleQueued")
+    class RecoverStaleQueued {
+
+        @Test
+        @DisplayName("QUEUED 상태 장기 체류 Job은 retryOrFail 처리한다")
+        void queued_shouldRetryOrFail() {
+            ExecutionJob job = ExecutionJob.create(
+                    "excn-001", "pipe-001", "job-001"
+                    , 1, LocalDateTime.now().minusMinutes(2), "user-01"
+            );
+            job.transitionTo(ExecutionJobStatus.QUEUED);
+
+            given(jobPort.findByStatusAndMdfcnDtBefore(eq(ExecutionJobStatus.QUEUED), any()))
+                    .willReturn(List.of(job));
+
+            service.recoverStaleQueued();
+
+            verify(jobPort).save(any());
+        }
+    }
+
+    @Nested
     @DisplayName("recoverStaleRunning")
     class RecoverStaleRunning {
 

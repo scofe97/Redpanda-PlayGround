@@ -2,6 +2,12 @@
 
 TPS 트럼본(배포 플랫폼)의 간소화 버전. Redpanda 도입 구조와 정책을 코드로 설명하는 데모 프로젝트.
 
+## 현재 코드 기준
+
+- 현재 백엔드 런타임 모듈은 `operator`와 `executor`다.
+- 2026-04-09 기준으로 기존 `app`, `pipeline`, `operator-stub` 디렉토리는 `operator`로 통합되어 저장소에서 제거됐다.
+- 아래 문서 중 일부 Ticket/Pipeline 중심 설명은 통합 이전 phase 문서를 그대로 포함하므로, 실제 실행/검증 기준은 `make backend`, `./gradlew :operator:bootRun`, `./gradlew :executor:test`를 우선 참고한다.
+
 ## 기술 스택
 
 | 영역 | 기술 |

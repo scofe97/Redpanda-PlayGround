@@ -21,7 +21,7 @@ public class JobStartedConsumer {
 
     @KafkaListener(
             topics = Topics.EXECUTOR_EVT_JOB_STARTED
-            , groupId = "executor-group"
+            , groupId = "${spring.kafka.consumer.group-id:executor-group}"
     )
     public void onJobStarted(ConsumerRecord<String, byte[]> record) {
         try {

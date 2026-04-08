@@ -75,6 +75,12 @@ public class ExecutionJobPersistenceAdapter implements ExecutionJobPort {
     }
 
     @Override
+    public int countActiveJobsByJenkinsInstanceId(long jenkinsInstanceId, List<ExecutionJobStatus> statuses) {
+        var statusNames = statuses.stream().map(Enum::name).toList();
+        return jpaRepository.countActiveJobsByJenkinsInstanceId(jenkinsInstanceId, statusNames);
+    }
+
+    @Override
     public boolean existsByJobIdAndStatusIn(String jobId, List<ExecutionJobStatus> statuses) {
         var statusNames = statuses.stream().map(Enum::name).toList();
         return jpaRepository.existsByJobIdAndStatusIn(jobId, statusNames);

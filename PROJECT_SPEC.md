@@ -458,24 +458,26 @@ V1~V38까지 38개 마이그레이션. 주요 변경점만 기술한다.
 # Makefile 사용 (JAVA_HOME 자동 설정)
 make build           # 전체 빌드 (테스트 제외)
 make test            # 테스트 실행
-make backend         # Spring Boot 실행 (GCP 프로필)
+make backend         # Operator 실행 (GCP 프로필)
 make backend-local   # Spring Boot 실행 (로컬 프로필)
+make executor        # Executor 실행 (GCP 프로필)
 
 # 직접 실행
 export JAVA_HOME=$(/usr/libexec/java_home -v 21)
 ./gradlew clean build
-./gradlew :app:bootRun                          # 로컬
-SPRING_PROFILES_ACTIVE=gcp ./gradlew :app:bootRun  # GCP
+./gradlew :operator:bootRun                          # 로컬
+SPRING_PROFILES_ACTIVE=gcp ./gradlew :operator:bootRun  # GCP
+SPRING_PROFILES_ACTIVE=gcp ./gradlew :executor:bootRun
 ```
 
 ## 프로젝트 구조 (멀티모듈)
 
 Gradle 4-모듈 구조로 공통 코드(`common`), Kafka 인프라(`common-kafka`),
-파이프라인 엔진(`pipeline`), 비즈니스 로직(`app`)을 분리했다.
+운영자 역할 통합 모듈(`operator`), 실행 제어 모듈(`executor`)를 사용한다.
 
 ```
 redpanda-playground/
-├── settings.gradle          # include 'common', 'common-kafka', 'pipeline', 'app'
+├── settings.gradle          # include 'common', 'common-kafka', 'operator', 'executor'
 ├── build.gradle             # subprojects 공통 설정 (Spring Boot BOM, Java 21)
 ├── Makefile                 # 빌드/실행/인프라 명령어
 ├── common/                  # 공통 모듈
@@ -491,40 +493,22 @@ redpanda-playground/
 │       │   ├── outbox/      # Outbox 도메인 (EventPublisher, OutboxPoller)
 │       │   └── serialization/ # AvroSerializer
 │       └── avro/            # Avro 스키마 (.avsc)
-├── pipeline/                # 파이프라인 엔진 모듈
+├── operator/                # 통합 Spring Boot 메인 모듈
 │   ├── build.gradle
-│   └── src/main/java/com/study/playground/pipeline/
-│       ├── adapter/         # JenkinsAdapter (REST 호출)
-│       ├── api/             # JobController, PipelineSseController
-│       ├── config/          # PipelineConfig, PipelineProperties
-│       ├── dag/             # DAG 파이프라인
-│       │   ├── api/         # PipelineDefinitionController
-│       │   ├── domain/      # PipelineDefinition, PipelineJob, FailurePolicy
-│       │   ├── dto/         # Request/Response DTO
-│       │   ├── engine/      # DagExecutionCoordinator, DagValidator
-│       │   ├── event/       # DagEventProducer
-│       │   ├── mapper/      # MyBatis Mapper
-│       │   └── service/     # PipelineDefinitionService
-│       ├── domain/          # PipelineExecution, PipelineJobExecution
-│       ├── dto/             # JobRequest/Response
-│       ├── engine/          # PipelineEngine, SagaCompensator, ParameterResolver
-│       │   └── step/        # 스텝 구현체 (Jenkins, Nexus, Registry, Deploy)
-│       ├── event/           # Kafka Producer/Consumer
-│       ├── jenkins/         # JenkinsOutboxHandler, JenkinsReconciler
-│       ├── mapper/          # MyBatis Mapper
-│       ├── port/            # ToolRegistryPort (역전된 의존성)
-│       ├── service/         # JobService
-│       └── sse/             # SSE Emitter Registry + Consumer
-├── app/                     # 비즈니스 로직 모듈 (Spring Boot 메인)
-│   ├── build.gradle         # spring-boot + implementation project(':pipeline')
-│   └── src/main/java/com/study/playground/
-│       ├── adapter/         # GitLab, Nexus, Registry 어댑터
-│       ├── ticket/          # 티켓 도메인
-│       ├── webhook/         # 웹훅 도메인
+│   └── src/main/java/com/study/playground/operator/
+│       ├── project/         # 프로젝트 도메인
+│       ├── purpose/         # 목적/프리셋 도메인
 │       ├── supporttool/     # 지원 도구 도메인
-│       ├── connector/       # Connect 스트림 관리
-│       ├── preset/          # 미들웨어 프리셋
-│       └── PlaygroundApplication.java
+│       ├── pipeline/        # 파이프라인/Job 관리 도메인
+│       ├── operatorjob/     # 실행 디스패치/완료 수신용 operator 역할
+│       ├── common/          # operator 내부 공통 설정
+│       └── OperatorApplication.java
+├── executor/                # Job 실행 제어 모듈
+│   ├── build.gradle
+│   └── src/main/java/com/study/playground/executor/
+│       ├── execution/       # 실행 도메인/애플리케이션/인프라
+│       ├── config/          # Kafka, scheduler, properties
+│       └── ExecutorApplication.java
 ├── frontend/                # React 프론트엔드
 ├── infra/                   # 인프라 (Docker, K8s, ArgoCD, 문서)
 │   ├── docker/local/        # 로컬 Docker Compose 파일
@@ -536,17 +520,19 @@ redpanda-playground/
 ### 모듈 의존성
 
 ```
-common ← common-kafka ← pipeline ← app
+common ← common-kafka
+                     ├── operator
+                     └── executor
 ```
 
 | 모듈 | 포함 | 이유 |
 |------|------|------|
 | **common** | 공통 DTO, 예외, MyBatis 타입 핸들러 | 전 모듈 공유 |
 | **common-kafka** | 토픽 상수, Kafka 설정, AvroSerializer, Outbox, Avro 스키마 | Kafka 인프라 — DB 무의존 |
-| **pipeline** | 파이프라인 엔진, DAG, Job, SAGA, SSE, Jenkins 연동 | 파이프라인 도메인 독립 |
-| **app** | 티켓, 웹훅, 도구, 프리셋, 어댑터, Spring Boot 메인 | 나머지 비즈니스 로직 |
+| **operator** | project/purpose/supporttool/pipeline/operatorjob + Spring Boot 메인 | 기존 app/pipeline/operator-stub 통합 |
+| **executor** | 실행 큐, Jenkins 트리거, 상태 전이, 재시도/복구 | 실행 제어 전담 모듈 |
 
-`pipeline`은 `app`을 모르며, `ToolRegistryPort` 인터페이스로 역전된 의존성을 사용한다.
+`executor`는 `operator` 스키마를 cross-schema로 조회하지만 Gradle 모듈 의존성은 분리한다.
 
 ## E2E 테스트 흐름
 
@@ -563,7 +549,7 @@ kubectl get pods -n rp-jenkins
 # 3. 로컬에서 앱 실행 (GCP 프로필)
 make backend
 # 또는
-SPRING_PROFILES_ACTIVE=gcp ./gradlew :app:bootRun
+SPRING_PROFILES_ACTIVE=gcp ./gradlew :operator:bootRun
 
 # 4. 헬스체크
 curl http://localhost:8070/actuator/health

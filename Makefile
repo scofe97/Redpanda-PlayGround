@@ -1,7 +1,7 @@
 JAVA_HOME_21 := $(shell /usr/libexec/java_home -v 21 2>/dev/null || echo "")
 export JAVA_HOME := $(JAVA_HOME_21)
 
-.PHONY: help backend executor operator-stub \
+.PHONY: help backend executor operator \
        build test test-e2e clean frontend frontend-build app
 
 help: ## 사용 가능한 명령어 목록
@@ -10,13 +10,13 @@ help: ## 사용 가능한 명령어 목록
 # === Backend ===
 
 backend: ## Spring Boot 백엔드 실행 (GCP 프로필)
-	SPRING_PROFILES_ACTIVE=gcp ./gradlew :app:bootRun
+	SPRING_PROFILES_ACTIVE=gcp ./gradlew :operator:bootRun
 
 executor: ## Executor 서비스 실행 (GCP 프로필)
 	SPRING_PROFILES_ACTIVE=gcp ./gradlew :executor:bootRun
 
-operator-stub: ## Operator Stub 실행 (GCP 프로필)
-	SPRING_PROFILES_ACTIVE=gcp ./gradlew :operator-stub:bootRun
+operator: ## Operator 실행 (GCP 프로필)
+	SPRING_PROFILES_ACTIVE=gcp ./gradlew :operator:bootRun
 
 # === Build & Test ===
 

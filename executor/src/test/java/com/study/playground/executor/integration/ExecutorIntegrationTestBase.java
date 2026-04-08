@@ -17,7 +17,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -56,6 +58,7 @@ public abstract class ExecutorIntegrationTestBase {
     void cleanUp() {
         jdbcTemplate.execute("DELETE FROM executor.outbox_event");
         jdbcTemplate.execute("DELETE FROM executor.execution_job");
+        jdbcTemplate.update("DELETE FROM operator.job WHERE created_by = ?", "executor-test");
         cleanLogDirectory();
     }
 
@@ -223,22 +226,46 @@ public abstract class ExecutorIntegrationTestBase {
         return cnt != null ? cnt : 0;
     }
 
+    protected String createMissingJenkinsJobDefinition() {
+        String jobId = "jt" + UUID.randomUUID().toString().substring(0, 8);
+        jdbcTemplate.update("""
+                        INSERT INTO operator.job (
+                            job_id, project_id, preset_id, category, type, deleted, created_by, updated_by
+                        ) VALUES (?, '1', '3', 'CI_CD', 'TEST', false, 'executor-test', 'executor-test')
+                        """
+                , jobId);
+        return jobId;
+    }
+
     // ── Log file checks ──
 
     protected boolean logFileExists(String jobName, String jobExcnId) {
-        return Files.exists(logFilePath(jobName, jobExcnId));
+        return findLogFilePath(jobExcnId).isPresent();
     }
 
     protected String readLogFile(String jobName, String jobExcnId) {
         try {
-            return Files.readString(logFilePath(jobName, jobExcnId));
+            return Files.readString(findLogFilePath(jobExcnId)
+                    .orElseThrow(() -> new IllegalStateException("Log file not found: " + jobExcnId)));
         } catch (IOException e) {
             throw new RuntimeException("Failed to read log file", e);
         }
     }
 
-    private Path logFilePath(String jobName, String jobExcnId) {
-        return Path.of(LOG_BASE_PATH, jobName, jobExcnId + "_0");
+    private Optional<Path> findLogFilePath(String jobExcnId) {
+        var logDir = Path.of(LOG_BASE_PATH);
+        if (!Files.exists(logDir)) {
+            return Optional.empty();
+        }
+
+        try (var walk = Files.walk(logDir)) {
+            return walk
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().equals(jobExcnId + "_0"))
+                    .findFirst();
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to scan log directory", e);
+        }
     }
 
     // ── Helpers ──
@@ -252,7 +279,7 @@ public abstract class ExecutorIntegrationTestBase {
             var logDir = Path.of(LOG_BASE_PATH);
             if (Files.exists(logDir)) {
                 try (var walk = Files.walk(logDir)) {
-                    walk.sorted(java.util.Comparator.reverseOrder())
+                    walk.sorted(Comparator.reverseOrder())
                             .forEach(p -> {
                                 try { Files.deleteIfExists(p); } catch (IOException ignored) {}
                             });

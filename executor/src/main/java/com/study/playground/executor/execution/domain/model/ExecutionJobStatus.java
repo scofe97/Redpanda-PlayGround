@@ -10,6 +10,7 @@ import java.util.Set;
  * 터미널 상태: Jenkins 실제 상태와 1:1 매핑
  *
  * PENDING  → QUEUED  → SUBMITTED → RUNNING → SUCCESS / FAILURE / UNSTABLE / ABORTED / NOT_BUILT / NOT_EXECUTED
+ * PENDING  → FAILURE (정의 누락 등 디스패치 전 단계의 복구 불가 오류)
  * QUEUED   → PENDING (Jenkins 트리거 실패 → 재시도)
  * SUBMITTED → PENDING (스케줄러 방어 → 재시도)
  * SUBMITTED → 터미널 (시작 웹훅 유실 시 완료 웹훅 직접 수신 or 스케줄러 방어)
@@ -32,7 +33,7 @@ public enum ExecutionJobStatus {
     NOT_EXECUTED;
 
     private static final Map<ExecutionJobStatus, Set<ExecutionJobStatus>> ALLOWED_TRANSITIONS = Map.of(
-            PENDING, Set.of(QUEUED)
+            PENDING, Set.of(QUEUED, FAILURE)
             , QUEUED, Set.of(SUBMITTED, PENDING, FAILURE)
             , SUBMITTED, Set.of(RUNNING, PENDING, FAILURE
                     , SUCCESS, UNSTABLE, ABORTED, NOT_BUILT, NOT_EXECUTED)

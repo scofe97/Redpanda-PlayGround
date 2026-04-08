@@ -14,8 +14,9 @@ class ExecutionJobStatusTest {
     @Test
     @DisplayName("유효한 전이는 모두 성공해야 한다")
     void validTransitions_shouldSucceed() {
-        // PENDING → QUEUED
+        // PENDING → QUEUED, FAILURE
         assertThat(PENDING.canTransitionTo(QUEUED)).isTrue();
+        assertThat(PENDING.canTransitionTo(FAILURE)).isTrue();
 
         // QUEUED → SUBMITTED, PENDING, FAILURE
         assertThat(QUEUED.canTransitionTo(SUBMITTED)).isTrue();

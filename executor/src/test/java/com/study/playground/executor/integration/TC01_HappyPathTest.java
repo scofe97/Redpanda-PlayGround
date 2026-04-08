@@ -24,7 +24,7 @@ class TC01_HappyPathTest extends ExecutorIntegrationTestBase {
         publishDispatchCommand(jobExcnId, "1");
 
         // then — SUCCESS까지 대기 (Jenkins K8s pod 생성 포함, 최대 120초)
-        var result = waitForStatus(jobExcnId, "SUCCESS", 120);
+        var result = waitForStatus(jobExcnId, "SUCCESS", 180);
 
         // verify — API 응답
         assertThat(result.get("status")).isEqualTo("SUCCESS");

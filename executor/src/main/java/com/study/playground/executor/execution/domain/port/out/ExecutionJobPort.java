@@ -39,6 +39,9 @@ public interface ExecutionJobPort {
     /** 주어진 상태 목록에 해당하는 활성 Job 수. 슬롯 계산용. */
     int countByStatusIn(List<ExecutionJobStatus> statuses);
 
+    /** 특정 Jenkins 인스턴스에 연결된 활성 Job 수 카운팅. */
+    int countActiveJobsByJenkinsInstanceId(long jenkinsInstanceId, List<ExecutionJobStatus> statuses);
+
     /** 동일 jobId(정의)가 특정 상태에 있는지 확인한다. 중복 실행 방지용. */
     boolean existsByJobIdAndStatusIn(String jobId, List<ExecutionJobStatus> statuses);
 

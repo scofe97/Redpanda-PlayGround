@@ -25,10 +25,11 @@ public class JobExecuteConsumer {
             , backoff = @Backoff(delay = 1000, multiplier = 2, maxDelay = 10000)
             , topicSuffixingStrategy = TopicSuffixingStrategy.SUFFIX_WITH_INDEX_VALUE
             , autoCreateTopics = "true"
+            , kafkaTemplate = "avroRetryKafkaTemplate"
     )
     @KafkaListener(
             topics = Topics.EXECUTOR_CMD_JOB_EXECUTE
-            , groupId = "executor-group"
+            , groupId = "${spring.kafka.consumer.group-id:executor-group}"
             , containerFactory = "avroListenerFactory"
     )
     public void onJobExecute(@Payload ExecutorJobExecuteCommand cmd) {

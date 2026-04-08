@@ -20,7 +20,10 @@ public class OutboxPollScheduler {
 
     private final OutboxPollService outboxPollService;
 
-    @Scheduled(fixedDelayString = "${outbox.poll-interval-ms:500}")
+    @Scheduled(
+            fixedDelayString = "${outbox.poll-interval-ms:500}"
+            , initialDelayString = "${outbox.poll-initial-delay-ms:0}"
+    )
     public void scheduledPoll() {
         outboxPollService.poll();
     }

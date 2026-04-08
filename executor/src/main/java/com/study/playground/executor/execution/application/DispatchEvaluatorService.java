@@ -14,7 +14,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * EvaluateDispatchUseCase 구현.
@@ -56,43 +59,81 @@ public class DispatchEvaluatorService implements EvaluateDispatchUseCase {
             return;
         }
 
+        Map<Long, List<ExecutionJob>> jobsByInstance = new LinkedHashMap<>();
+
         for (ExecutionJob job : pendingJobs) {
             try {
-                dispatch(job);
+                var defInfo = jobDefinitionQueryPort.load(job.getJobId());
+                jobsByInstance.computeIfAbsent(defInfo.jenkinsInstanceId(), ignored -> new ArrayList<>())
+                        .add(job);
             } catch (Exception e) {
-                log.error("[Dispatch] Failed for job={}: {}"
-                        , job.getJobExcnId(), e.getMessage(), e);
+                log.error("[Dispatch] Job definition lookup failed: jobExcnId={}, jobId={}, error={}"
+                        , job.getJobExcnId(), job.getJobId(), e.getMessage(), e);
+                boolean retried = retryPendingJob(job);
+                jobPort.save(job);
+                if (retried) {
+                    log.warn("[Dispatch] Retry #{} after missing definition: jobExcnId={}"
+                            , job.getRetryCnt(), job.getJobExcnId());
+                } else {
+                    log.error("[Dispatch] Marked FAILURE after missing definition: jobExcnId={}"
+                            , job.getJobExcnId());
+                }
+            }
+        }
+
+        for (var entry : jobsByInstance.entrySet()) {
+            try {
+                dispatchForInstance(entry.getKey(), entry.getValue());
+            } catch (Exception e) {
+                log.error("[Dispatch] Failed for instanceId={}: {}"
+                        , entry.getKey(), e.getMessage(), e);
             }
         }
     }
 
-    private void dispatch(ExecutionJob job) {
-        // 1. 동일 jobId(정의)가 이미 QUEUED/RUNNING이면 중복 실행 방지
-        if (jobPort.existsByJobIdAndStatusIn(job.getJobId(), ACTIVE_STATUSES)) {
-            log.debug("[Dispatch] Duplicate skip: jobId={} already QUEUED/RUNNING"
-                    , job.getJobId());
+    private boolean retryPendingJob(ExecutionJob job) {
+        if (job.canRetry(properties.getJobMaxRetries())) {
+            job.incrementRetry();
+            return true;
+        }
+
+        job.transitionTo(ExecutionJobStatus.FAILURE);
+        return false;
+    }
+
+    private void dispatchForInstance(long instanceId, List<ExecutionJob> jobs) {
+        if (!jenkinsQueryPort.isReachable(instanceId)) {
+            log.warn("[Dispatch] Jenkins unreachable: instanceId={}", instanceId);
             return;
         }
 
-        // 2. JobDefinition에서 Jenkins 인스턴스 ID 조회
-        var defInfo = jobDefinitionQueryPort.load(job.getJobId());
-        long jenkinsInstanceId = defInfo.jenkinsInstanceId();
+        int activeCount = jobPort.countActiveJobsByJenkinsInstanceId(instanceId, ACTIVE_STATUSES);
+        int maxSlots = jenkinsQueryPort.getMaxExecutors(instanceId);
+        int remainingSlots = maxSlots - activeCount;
 
-        // 3. 해당 Jenkins에 슬롯이 있는지 확인
-        if (!jenkinsQueryPort.isImmediatelyExecutable(jenkinsInstanceId)) {
-            log.debug("[Dispatch] No slot: jobExcnId={}, jenkinsInstance={}"
-                    , job.getJobExcnId(), jenkinsInstanceId);
+        if (remainingSlots <= 0) {
+            log.debug("[Dispatch] No slots: instanceId={}, active={}, max={}"
+                    , instanceId, activeCount, maxSlots);
             return;
         }
 
-        // 4. QUEUED 전환 (buildNo는 SUBMITTED 전환 시 기록)
-        dispatchService.prepareForDispatch(job);
-        jobPort.save(job);
+        for (ExecutionJob job : jobs) {
+            if (remainingSlots <= 0) {
+                break;
+            }
 
-        // 5. 실행 토픽 발행
-        publishPort.publishExecuteCommand(job);
+            if (jobPort.existsByJobIdAndStatusIn(job.getJobId(), ACTIVE_STATUSES)) {
+                log.debug("[Dispatch] Duplicate skip: jobId={}", job.getJobId());
+                continue;
+            }
 
-        log.info("[Dispatch] Job queued: jobExcnId={}, jobId={}, priority={}"
-                , job.getJobExcnId(), job.getJobId(), job.getPriority());
+            dispatchService.prepareForDispatch(job);
+            jobPort.save(job);
+            publishPort.publishExecuteCommand(job);
+            remainingSlots--;
+
+            log.info("[Dispatch] Job queued: jobExcnId={}, jobId={}, instanceId={}, remainingSlots={}"
+                    , job.getJobExcnId(), job.getJobId(), instanceId, remainingSlots);
+        }
     }
 }

@@ -22,6 +22,7 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -117,16 +118,19 @@ class JobExecuteServiceTest {
     }
 
     @Test
-    @DisplayName("존재하지 않는 Job ID는 triggerBuild를 호출하지 않아야 한다")
-    void execute_unknownJob_shouldIgnore() {
+    @DisplayName("존재하지 않는 Job ID는 예외를 던져 Kafka 재시도를 유도해야 한다")
+    void execute_unknownJob_shouldThrow() {
         // given
         given(jobPort.findById("excn-999")).willReturn(Optional.empty());
 
         // when
-        service.execute("excn-999");
+        assertThatThrownBy(() -> service.execute("excn-999"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Unknown jobExcnId=excn-999");
 
         // then
         verify(jenkinsTriggerPort, never()).triggerBuild(any(Long.class), anyString(), anyString());
+        verify(jobPort, never()).save(any());
     }
 
     @Test

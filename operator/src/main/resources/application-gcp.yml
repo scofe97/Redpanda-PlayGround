@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://34.47.83.38:30275/playground?currentSchema=operator
+  kafka:
+    bootstrap-servers: 34.47.83.38:31092
+    properties:
+      schema.registry.url: http://34.47.83.38:31081
+
+app:
+  connect:
+    url: http://34.47.83.38:31195
+
+otel:
+  exporter:
+    otlp:
+      endpoint: http://34.47.83.38:30318

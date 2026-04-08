@@ -34,12 +34,8 @@ public class JobExecuteService implements ExecuteJobUseCase {
     @Override
     @Transactional
     public void execute(String jobExcnId) {
-        ExecutionJob job = jobPort.findById(jobExcnId).orElse(null);
-
-        if (job == null) {
-            log.warn("[JobExecute] Unknown jobExcnId={}", jobExcnId);
-            return;
-        }
+        ExecutionJob job = jobPort.findById(jobExcnId)
+                .orElseThrow(() -> new IllegalStateException("Unknown jobExcnId=" + jobExcnId));
 
         if (job.getStatus() != ExecutionJobStatus.QUEUED) {
             log.debug("[JobExecute] Not QUEUED: jobExcnId={}, status={}"

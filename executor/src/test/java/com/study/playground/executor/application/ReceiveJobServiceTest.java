@@ -8,9 +8,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.LocalDateTime;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
@@ -62,5 +64,20 @@ class ReceiveJobServiceTest {
 
         // then
         verify(jobPort, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("동시 insert로 PK 충돌이 나도 중복으로 간주하고 무시해야 한다")
+    void receive_concurrentDuplicateInsert_shouldIgnore() {
+        given(jobPort.existsById("excn-001")).willReturn(false);
+        given(jobPort.save(any())).willThrow(new DataIntegrityViolationException("duplicate"));
+
+        assertDoesNotThrow(() -> service.receive(
+                "excn-001"
+                , "pipe-001"
+                , "job-001"
+                , LocalDateTime.now()
+                , "user-01"
+        ));
     }
 }

@@ -5,6 +5,7 @@ import com.study.playground.executor.execution.domain.port.in.ReceiveJobUseCase;
 import com.study.playground.executor.execution.domain.port.out.ExecutionJobPort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,8 +43,12 @@ public class ReceiveJobService implements ReceiveJobUseCase {
                 , DEFAULT_PRIORITY, priorityDt, rgtrId
         );
 
-        jobPort.save(job);
-        log.info("[Receive] Job received: jobExcnId={}, jobId={}, priority={}, priorityDt={}"
-                , jobExcnId, jobId, DEFAULT_PRIORITY, priorityDt);
+        try {
+            jobPort.save(job);
+            log.info("[Receive] Job received: jobExcnId={}, jobId={}, priority={}, priorityDt={}"
+                    , jobExcnId, jobId, DEFAULT_PRIORITY, priorityDt);
+        } catch (DataIntegrityViolationException e) {
+            log.debug("[Receive] Duplicate job ignored after concurrent insert: jobExcnId={}", jobExcnId);
+        }
     }
 }

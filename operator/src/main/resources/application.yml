@@ -1,0 +1,105 @@
+server:
+  port: 8070
+
+spring:
+  servlet:
+    multipart:
+      max-file-size: 200MB
+      max-request-size: 200MB
+  application:
+    name: operator
+  datasource:
+    url: jdbc:postgresql://localhost:25432/playground?currentSchema=operator
+    username: ${DB_USERNAME:playground}
+    password: ${DB_PASSWORD:playground}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      data-source-properties:
+        reWriteBatchedInserts: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: operator
+        default_batch_fetch_size: 20
+        jdbc:
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
+        format_sql: true
+  flyway:
+    enabled: true
+    schemas: operator
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:19092}
+    properties:
+      schema.registry.url: ${SCHEMA_REGISTRY_URL:http://localhost:18081}
+    consumer:
+      group-id: operator-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+
+app:
+  connect:
+    url: ${CONNECT_URL:http://localhost:4195}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: method
+  api-docs:
+    path: /v3/api-docs
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+otel:
+  java:
+    global-autoconfigure:
+      enabled: true
+  service:
+    name: operator
+  exporter:
+    otlp:
+      endpoint: http://localhost:24318
+      protocol: http/protobuf
+  metrics:
+    exporter: none
+  logs:
+    exporter: none
+
+logging:
+  level:
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    com.study.playground.operator: DEBUG
+    org.apache.kafka: WARN
+
+pipeline:
+  max-concurrent-jobs: 3
+  webhook-timeout-minutes: 5
+  job-max-retries: 2
+  stale-execution-timeout-minutes: 30
+  executor-wait-timeout-minutes: 5
+
+outbox:
+  batch-size: 50
+  poll-interval-ms: 500
+  max-retries: 5
+  cleanup-retention-days: 7
+  cleanup-cron: "0 0 3 * * *"

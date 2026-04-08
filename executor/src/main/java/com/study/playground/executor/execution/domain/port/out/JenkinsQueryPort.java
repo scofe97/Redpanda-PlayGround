@@ -14,6 +14,12 @@ public interface JenkinsQueryPort {
      */
     boolean isImmediatelyExecutable(long jenkinsInstanceId);
 
+    /** Jenkins 인스턴스 연결 가능 여부 (헬스체크). */
+    boolean isReachable(long jenkinsInstanceId);
+
+    /** support_tool.max_executors 조회. */
+    int getMaxExecutors(long jenkinsInstanceId);
+
     /**
      * 해당 Jenkins Job의 다음 빌드번호를 조회한다.
      */

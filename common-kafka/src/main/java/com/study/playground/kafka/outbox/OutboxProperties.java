@@ -10,6 +10,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class OutboxProperties {
     private int batchSize = 50;
     private long pollIntervalMs = 500;
+    private long pollInitialDelayMs = 0;
     private int maxRetries = 5;
     private int cleanupRetentionDays = 7;
     private String cleanupCron = "0 0 3 * * *";

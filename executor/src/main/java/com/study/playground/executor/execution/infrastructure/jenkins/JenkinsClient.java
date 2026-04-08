@@ -11,6 +11,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -32,8 +34,10 @@ public class JenkinsClient implements JenkinsQueryPort, JenkinsTriggerPort {
     private final ObjectMapper objectMapper;
     private final JdbcTemplate jdbcTemplate;
 
-    private final Map<Long, JenkinsToolInfo> toolInfoCache = new ConcurrentHashMap<>();
-    private final Map<Long, Boolean> k8sModeCache = new ConcurrentHashMap<>();
+    private final Map<Long, CachedToolInfo> toolInfoCache = new ConcurrentHashMap<>();
+    private final Map<Long, CachedK8sMode> k8sModeCache = new ConcurrentHashMap<>();
+
+    private static final Duration CACHE_TTL = Duration.ofMinutes(5);
 
     // === JenkinsQueryPort 구현 ===
 
@@ -54,6 +58,25 @@ public class JenkinsClient implements JenkinsQueryPort, JenkinsTriggerPort {
                     , jenkinsInstanceId, e.getMessage());
             return false;
         }
+    }
+
+    @Override
+    public boolean isReachable(long jenkinsInstanceId) {
+        try {
+            var baseUri = resolveJenkinsUri(jenkinsInstanceId);
+            var auth = buildAuthHeader(jenkinsInstanceId);
+            feignClient.getComputerStatus(baseUri, auth);
+            return true;
+        } catch (Exception e) {
+            log.warn("[JenkinsClient] Unreachable: instanceId={}, error={}"
+                    , jenkinsInstanceId, e.getMessage());
+            return false;
+        }
+    }
+
+    @Override
+    public int getMaxExecutors(long jenkinsInstanceId) {
+        return getToolInfo(jenkinsInstanceId).maxExecutors();
     }
 
     @Override
@@ -144,29 +167,37 @@ public class JenkinsClient implements JenkinsQueryPort, JenkinsTriggerPort {
     // === K8S 감지 ===
 
     private boolean isK8sDynamic(long jenkinsInstanceId, URI baseUri, String auth) {
-        return k8sModeCache.computeIfAbsent(jenkinsInstanceId, id -> {
-            try {
-                var response = feignClient.getComputerClasses(baseUri, auth);
-                var node = objectMapper.readTree(response);
+        var cached = k8sModeCache.get(jenkinsInstanceId);
+        if (cached != null && Instant.now().isBefore(cached.cachedAt().plus(CACHE_TTL))) {
+            return cached.isK8s();
+        }
 
-                // K8s dynamic agent: master만 존재하고 totalExecutors=0이면 동적
-                int totalExecutors = node.path("totalExecutors").asInt(0);
-                if (totalExecutors == 0) {
-                    log.info("[JenkinsClient] K8S dynamic detected (totalExecutors=0): instanceId={}", id);
-                    return true;
-                }
+        boolean isK8s;
+        try {
+            var response = feignClient.getComputerClasses(baseUri, auth);
+            var node = objectMapper.readTree(response);
+
+            int totalExecutors = node.path("totalExecutors").asInt(0);
+            if (totalExecutors == 0) {
+                log.info("[JenkinsClient] K8S dynamic detected (totalExecutors=0): instanceId={}", jenkinsInstanceId);
+                isK8s = true;
+            } else {
+                isK8s = false;
                 for (var computer : node.path("computer")) {
                     if (computer.path("_class").asText("").toLowerCase().contains("kubernetes")) {
-                        log.info("[JenkinsClient] K8S dynamic detected: instanceId={}", id);
-                        return true;
+                        log.info("[JenkinsClient] K8S dynamic detected: instanceId={}", jenkinsInstanceId);
+                        isK8s = true;
+                        break;
                     }
                 }
-                return false;
-            } catch (Exception e) {
-                log.warn("[JenkinsClient] K8S detection failed: instanceId={}", id);
-                return false;
             }
-        });
+        } catch (Exception e) {
+            log.warn("[JenkinsClient] K8S detection failed: instanceId={}", jenkinsInstanceId);
+            isK8s = false;
+        }
+
+        k8sModeCache.put(jenkinsInstanceId, new CachedK8sMode(isK8s, Instant.now()));
+        return isK8s;
     }
 
     // === Internal ===
@@ -191,14 +222,20 @@ public class JenkinsClient implements JenkinsQueryPort, JenkinsTriggerPort {
 
     // === 인증 ===
     private JenkinsToolInfo getToolInfo(long jenkinsInstanceId) {
-        return toolInfoCache.computeIfAbsent(jenkinsInstanceId, id -> {
-            var sql = "SELECT url, username, credential FROM public.support_tool WHERE id = ?";
-            return jdbcTemplate.queryForObject(sql, (rs, rowNum) -> new JenkinsToolInfo(
-                    rs.getString("url")
-                    , rs.getString("username")
-                    , rs.getString("credential")
-            ), id);
-        });
+        var cached = toolInfoCache.get(jenkinsInstanceId);
+        if (cached != null && Instant.now().isBefore(cached.cachedAt().plus(CACHE_TTL))) {
+            return cached.info();
+        }
+
+        var sql = "SELECT url, username, credential, max_executors FROM operator.support_tool WHERE id = ?";
+        var info = jdbcTemplate.queryForObject(sql, (rs, rowNum) -> new JenkinsToolInfo(
+                rs.getString("url")
+                , rs.getString("username")
+                , rs.getString("credential")
+                , rs.getInt("max_executors")
+        ), jenkinsInstanceId);
+        toolInfoCache.put(jenkinsInstanceId, new CachedToolInfo(info, Instant.now()));
+        return info;
     }
 
     private URI resolveJenkinsUri(long jenkinsInstanceId) {
@@ -212,5 +249,9 @@ public class JenkinsClient implements JenkinsQueryPort, JenkinsTriggerPort {
         return "Basic " + encoded;
     }
 
-    record JenkinsToolInfo(String url, String username, String credential) {}
+    record CachedToolInfo(JenkinsToolInfo info, Instant cachedAt) {}
+
+    record CachedK8sMode(boolean isK8s, Instant cachedAt) {}
+
+    record JenkinsToolInfo(String url, String username, String credential, int maxExecutors) {}
 }

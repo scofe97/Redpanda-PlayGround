@@ -15,7 +15,7 @@ Executor의 동작을 직접 확인하고 이해한다.
 | 항목 | 확인 명령어 | 기대값 |
 |------|-----------|--------|
 | Executor | `curl -s http://localhost:8071/actuator/health` | `{"status":"UP"}` |
-| Operator-stub | `curl -s http://localhost:8072/actuator/health` | `{"status":"UP"}` |
+| Operator | `curl -s http://localhost:8070/actuator/health` | `{"status":"UP"}` |
 | Jenkins | `curl -s -u admin:admin http://34.47.74.0:31080/api/json \| python3 -c "import sys,json; print(json.load(sys.stdin)['mode'])"` | `NORMAL` |
 | PostgreSQL | `nc -z 34.47.83.38 30275 && echo OK` | `OK` |
 | Redpanda | `nc -z 34.47.83.38 31092 && echo OK` | `OK` |
@@ -26,7 +26,7 @@ Executor의 동작을 직접 확인하고 이해한다.
 ```bash
 cd ~/Library/CloudStorage/GoogleDrive-tscofet@gmail.com/내\ 드라이브/study/runners-high/project/redpanda-playground
 make executor > /tmp/executor.log 2>&1 &
-make operator-stub > /tmp/operator-stub.log 2>&1 &
+make operator > /tmp/operator.log 2>&1 &
 ```
 
 ### DB 초기화 (각 TC 시작 전)
@@ -34,7 +34,7 @@ make operator-stub > /tmp/operator-stub.log 2>&1 &
 ```bash
 gcloud compute ssh dev-server --zone=asia-northeast3-a --project=project-a99c4fa1-6c9e-4491-afd \
   --command="kubectl exec -n rp-oss postgresql-0 -- env PGPASSWORD=playground psql -U playground -d playground \
-  -c 'DELETE FROM executor.execution_job; DELETE FROM executor.outbox_event; DELETE FROM operator_stub.operator_job;'"
+  -c 'DELETE FROM executor.execution_job; DELETE FROM executor.outbox_event; DELETE FROM operator.operator_job;'"
 ```
 
 ### Jenkins executor-test Job
@@ -97,7 +97,7 @@ rm -rf /tmp/executor-logs/*
 
 ```mermaid
 sequenceDiagram
-    participant Op as Operator-stub
+    participant Op as Operator
     participant K as Kafka
     participant Ex as Executor
     participant J as Jenkins

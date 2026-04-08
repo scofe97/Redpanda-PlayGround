@@ -17,10 +17,10 @@ public class JobDefinitionQueryAdapter implements JobDefinitionQueryPort {
         var sql = """
                 SELECT j.job_id, j.project_id, j.preset_id
                      , st.id as jenkins_instance_id
-                FROM public.job j
-                JOIN public.purpose p ON p.id = CAST(j.preset_id AS BIGINT)
-                JOIN public.purpose_entry pe ON pe.purpose_id = p.id AND pe.category = 'CI_CD_TOOL'
-                JOIN public.support_tool st ON st.id = pe.tool_id
+                FROM operator.job j
+                JOIN operator.purpose p ON p.id = CAST(j.preset_id AS BIGINT)
+                JOIN operator.purpose_entry pe ON pe.purpose_id = p.id AND pe.category = 'CI_CD_TOOL'
+                JOIN operator.support_tool st ON st.id = pe.tool_id
                 WHERE j.job_id = ?
                 """;
         return jdbcTemplate.queryForObject(sql, (rs, rowNum) -> new JobDefinitionInfo(

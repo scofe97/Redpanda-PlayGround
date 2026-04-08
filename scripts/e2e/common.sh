@@ -92,11 +92,11 @@ check_infra() {
     echo ""
 }
 
-# DB 초기화 — executor/operator_stub 스키마의 테이블과 로컬 로그를 전부 삭제.
+# DB 초기화 — executor/operator 스키마의 테이블과 로컬 로그를 전부 삭제.
 # TC 간 데이터 간섭을 방지하기 위해 매 TC 시작 전 호출한다.
 clean_db() {
     info "Cleaning DB..."
-    $GCP_SSH "kubectl exec -n rp-oss postgresql-0 -- env PGPASSWORD=playground psql -U playground -d playground -c 'DELETE FROM executor.execution_job; DELETE FROM executor.outbox_event; DELETE FROM operator_stub.operator_job;'" > /dev/null 2>&1
+    $GCP_SSH "kubectl exec -n rp-oss postgresql-0 -- env PGPASSWORD=playground psql -U playground -d playground -c 'DELETE FROM executor.execution_job; DELETE FROM executor.outbox_event; DELETE FROM operator.operator_job;'" > /dev/null 2>&1
     rm -rf ${LOG_PATH}/*
     info "DB and logs cleaned"
 }

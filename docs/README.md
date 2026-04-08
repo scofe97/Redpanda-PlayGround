@@ -2,6 +2,12 @@
 
 이 문서는 프로젝트 전체를 하나의 흐름으로 이해하기 위한 종합 가이드다. 각 섹션에서 하위 문서를 교차 참조하되, 여기서는 전체 그림을 잡는 데 집중한다.
 
+## 최근 변경
+
+- [2026-04-09-operator-executor-implementation-notes.md](2026-04-09-operator-executor-implementation-notes.md)
+  `app`, `pipeline`, `operator-stub`를 `operator`로 통합하고 `executor` 디스패치/재시도 흐름을 안정화한 작업 요약이다.
+- 아래 `app`/`pipeline` 하위 review 문서는 현재 코드베이스의 live 구조라기보다 통합 이전 phase 문서에 가깝다.
+
 ---
 
 ## 문서 인덱스

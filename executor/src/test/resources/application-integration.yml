@@ -8,7 +8,7 @@ spring:
     properties:
       schema.registry.url: http://34.47.83.38:31081
     consumer:
-      group-id: executor-group
+      group-id: executor-it-${random.uuid}
       auto-offset-reset: latest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
@@ -38,6 +38,16 @@ executor:
   max-batch-size: 5
   job-timeout-minutes: 1
   log-path: /tmp/executor-test-logs
+  dispatch-initial-delay-ms: 3000
+  submitted-check-initial-delay-ms: 5000
+  timeout-check-initial-delay-ms: 10000
+  queued-stale-seconds: 60
+  queued-check-interval-ms: 15000
+  queued-check-initial-delay-ms: 5000
+  scheduler-pool-size: 4
+
+outbox:
+  poll-initial-delay-ms: 3000
 
 logging:
   level:

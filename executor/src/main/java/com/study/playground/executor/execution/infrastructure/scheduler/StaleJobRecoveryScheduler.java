@@ -17,13 +17,27 @@ public class StaleJobRecoveryScheduler {
 
     private final StaleJobRecoveryService recoveryService;
 
-    @Scheduled(fixedDelayString = "${executor.submitted-check-interval-ms:10000}")
+    @Scheduled(
+            fixedDelayString = "${executor.submitted-check-interval-ms:10000}"
+            , initialDelayString = "${executor.submitted-check-initial-delay-ms:0}"
+    )
     public void recoverStaleSubmitted() {
         recoveryService.recoverStaleSubmitted();
     }
 
-    @Scheduled(fixedDelayString = "${executor.timeout-check-interval-ms:60000}")
+    @Scheduled(
+            fixedDelayString = "${executor.timeout-check-interval-ms:60000}"
+            , initialDelayString = "${executor.timeout-check-initial-delay-ms:0}"
+    )
     public void recoverStaleRunning() {
         recoveryService.recoverStaleRunning();
+    }
+
+    @Scheduled(
+            fixedDelayString = "${executor.queued-check-interval-ms:15000}"
+            , initialDelayString = "${executor.queued-check-initial-delay-ms:0}"
+    )
+    public void recoverStaleQueued() {
+        recoveryService.recoverStaleQueued();
     }
 }
