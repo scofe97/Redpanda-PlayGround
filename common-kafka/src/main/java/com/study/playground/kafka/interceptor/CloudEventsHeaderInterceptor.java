@@ -24,7 +24,7 @@ import java.util.UUID;
  * - ce_time: 이벤트 발생 시각 (ISO-8601)
  * - trace-id: 분산 추적 ID (MDC에서 전파)
  *
- * ce_type은 OutboxPoller에서 이벤트별로 설정한다.
+ * ce_type은 OutboxKafkaPublisher에서 이벤트별로 설정한다.
  */
 @Slf4j
 @Component

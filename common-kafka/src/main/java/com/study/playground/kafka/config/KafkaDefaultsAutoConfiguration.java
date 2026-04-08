@@ -27,7 +27,8 @@ public class KafkaDefaultsAutoConfiguration {
     @ConditionalOnMissingBean(ProducerFactory.class)
     public ProducerFactory<String, byte[]> producerFactory(KafkaProperties properties) {
         var props = properties.buildProducerProperties(null);
-        props.putIfAbsent(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG
+        props.putIfAbsent(
+                ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG
                 , StringSerializer.class);
         props.putIfAbsent(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG
                 , ByteArraySerializer.class);
