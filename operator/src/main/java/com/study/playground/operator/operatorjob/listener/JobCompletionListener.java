@@ -29,7 +29,7 @@ public class JobCompletionListener {
 
     @KafkaListener(
             topics = Topics.EXECUTOR_NOTIFY_JOB_COMPLETED
-            , groupId = "operator-stub-group"
+            , groupId = "${operator.kafka.group-id:operator-stub-group}"
     )
     @Transactional
     public void onJobCompleted(ConsumerRecord<String, byte[]> record) {

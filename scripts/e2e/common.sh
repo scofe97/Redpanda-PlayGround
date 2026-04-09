@@ -18,12 +18,12 @@ RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC
 # ---------------------------------------------------------------------------
 # 서비스 엔드포인트
 #   - EXECUTOR_URL : executor 모듈 (Job 실행/상태 조회)
-#   - OPERATOR_URL : operator-stub 모듈 (Job/Pipeline 트리거)
+#   - OPERATOR_URL : operator 모듈 (Job/Pipeline 트리거)
 #   - GCP_SSH      : GCP dev-server에 SSH로 kubectl 명령을 원격 실행하는 프리픽스
 #   - LOG_PATH     : executor가 로컬에 남기는 빌드 로그 디렉토리
 # ---------------------------------------------------------------------------
 EXECUTOR_URL="http://localhost:8071"
-OPERATOR_URL="http://localhost:8072"
+OPERATOR_URL="http://localhost:8070"
 GCP_SSH="gcloud compute ssh dev-server --zone=asia-northeast3-a --project=project-a99c4fa1-6c9e-4491-afd --command"
 LOG_PATH="/tmp/executor-logs"
 
@@ -59,7 +59,7 @@ assert_contains() {
 # ---------------------------------------------------------------------------
 # 인프라 점검 — TC 실행 전 4가지 필수 의존성 확인
 #   1) Executor health    (localhost:8071)
-#   2) Operator-stub health (localhost:8072)
+#   2) Operator health    (localhost:8070)
 #   3) PostgreSQL 접근성  (GCP K8s NodePort 30275)
 #   4) Redpanda 접근성    (GCP K8s NodePort 31092)
 # 하나라도 실패하면 스크립트를 중단한다.
@@ -74,8 +74,8 @@ check_infra() {
         || { fail "Executor DOWN"; all_ok=false; }
 
     curl -sf "${OPERATOR_URL}/actuator/health" > /dev/null 2>&1 \
-        && pass "Operator-stub UP" \
-        || { fail "Operator-stub DOWN"; all_ok=false; }
+        && pass "Operator UP" \
+        || { fail "Operator DOWN"; all_ok=false; }
 
     nc -z 34.47.83.38 30275 2>/dev/null \
         && pass "PostgreSQL reachable" \

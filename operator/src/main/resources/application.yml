@@ -14,6 +14,7 @@ spring:
     password: ${DB_PASSWORD:playground}
     driver-class-name: org.postgresql.Driver
     hikari:
+      connection-init-sql: SET search_path TO operator,public
       data-source-properties:
         reWriteBatchedInserts: true
   jpa:
@@ -58,6 +59,18 @@ springdoc:
     operations-sorter: method
   api-docs:
     path: /v3/api-docs
+
+springwolf:
+  docket:
+    base-package: com.study.playground
+    servers:
+      redpanda:
+        protocol: kafka
+        host: localhost:19092
+    info:
+      title: Redpanda Playground AsyncAPI
+      version: v1
+      description: AsyncAPI documentation for the operator runtime.
 
 management:
   endpoints:

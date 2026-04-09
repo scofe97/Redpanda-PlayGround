@@ -27,7 +27,7 @@ public class JobStartedListener {
 
     @KafkaListener(
             topics = Topics.EXECUTOR_NOTIFY_JOB_STARTED
-            , groupId = "operator-stub-group"
+            , groupId = "${operator.kafka.group-id:operator-stub-group}"
     )
     @Transactional
     public void onJobStarted(ConsumerRecord<String, byte[]> record) {

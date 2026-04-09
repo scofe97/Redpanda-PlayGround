@@ -27,7 +27,7 @@ done
 
 main() {
     echo "=================================="
-    echo " Executor PoC E2E Test Suite"
+    echo " Operator + Executor E2E Test Suite"
     echo "=================================="
     echo ""
 
@@ -75,7 +75,7 @@ main() {
             echo "  tc02      Build Failure (requires Jenkins pipeline change)"
             echo "  tc03      Trigger Retry / Jenkins scale-down"
             echo "  tc05      Duplicate Prevention (requires Jenkins pipeline change)"
-            echo "  tc06      Idempotency (re-consume via offset reset)"
+            echo "  tc06      Idempotency (re-publish same dispatch payload)"
             echo "  tc07      Multi-Trigger (3 parallel jobs)"
             echo "  tc08      Mixed Pipeline (Multi-Jenkins)"
             echo "  tc09      Multi-Pipeline Parallel (2 pipelines)"

@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stale Job Recovery 시각화</title>
+<link rel="stylesheet" href="assets/use-case-visualization.css">
+</head>
+<body>
+  <div class="fixed-header">
+    <h1>Stale Job Recovery 시각화</h1>
+    <div class="subtitle"><code>StaleJobRecoveryScheduler</code>가 웹훅 유실과 메시지 유실을 방어하기 위해 <code>SUBMITTED</code>, <code>RUNNING</code>, <code>QUEUED</code> stale Job을 복구하는 흐름이다.</div>
+  </div>
+
+  <div class="scroll-content">
+    <div class="panel">
+      <div class="panel-title">Scenario</div>
+      <div id="scenarioSelector" class="scenario-selector"></div>
+    </div>
+    <div class="panel viz-panel">
+      <div class="panel-title">Pipeline</div>
+      <div id="startOverlay" class="start-overlay">
+        <button class="btn-start" onclick="startSimulation()">시뮬레이션 시작 ▶</button>
+        <div class="start-hint">submitted 보정, running 완료 보정, queued 재시도 복귀를 시각화한다</div>
+      </div>
+      <div id="pipeline" class="pipeline"></div>
+      <div id="controlBar" class="controls" style="display:none;">
+        <div class="controls-nav">
+          <button class="btn-ctrl" onclick="prevStep()">◀ 이전</button>
+          <button class="btn-ctrl btn-play" id="playBtn" onclick="togglePlay()">▶ 재생</button>
+          <button class="btn-ctrl" onclick="nextStep()">다음 ▶</button>
+        </div>
+        <div class="speed-group">
+          <button class="speed-btn" data-speed="0.5" onclick="setSpeed(0.5)">0.5x</button>
+          <button class="speed-btn active" data-speed="1" onclick="setSpeed(1)">1x</button>
+          <button class="speed-btn" data-speed="2" onclick="setSpeed(2)">2x</button>
+        </div>
+        <div id="stepCounter" class="step-counter">0 / 0</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Narration</div>
+      <div id="scenarioTitle" class="scenario-title"></div>
+      <div id="scenarioDesc" class="scenario-desc"></div>
+      <div id="stepTitle" class="narration-step-title"></div>
+      <div id="narrationBody" class="narration-body"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">DB State</div>
+      <div id="dbPanel" class="db-panel"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Used Code</div>
+      <div class="code-grid">
+        <div class="code-card">
+          <div class="code-card-title">Scheduler Entry</div>
+          <div class="code-card-subtitle">execution/infrastructure/scheduler/StaleJobRecoveryScheduler.java</div>
+          <pre>@Scheduled(fixedDelayString = "${executor.submitted-check-interval-ms:10000}")
+public void recoverStaleSubmitted() {
+    recoveryService.recoverStaleSubmitted();
+}
+
+@Scheduled(fixedDelayString = "${executor.queued-check-interval-ms:15000}")
+public void recoverStaleQueued() {
+    recoveryService.recoverStaleQueued();
+}</pre>
+        </div>
+        <div class="code-card">
+          <div class="code-card-title">Submitted Recovery</div>
+          <div class="code-card-subtitle">execution/application/StaleJobRecoveryService.java</div>
+          <pre>switch (buildStatus.phase()) {
+    case BUILDING -> {
+        dispatchService.markAsRunning(job, job.getBuildNo());
+        jobPort.save(job);
+        notifyStartedPort.notify(...);
+    }
+    case COMPLETED -> {
+        dispatchService.markAsCompleted(job, buildStatus.result());
+        jobPort.save(job);
+        notifyCompletedPort.notify(...);
+    }
+}</pre>
+        </div>
+        <div class="code-card">
+          <div class="code-card-title">Queued Recovery</div>
+          <div class="code-card-subtitle">execution/application/StaleJobRecoveryService.java</div>
+          <pre>var staleJobs = jobPort.findByStatusAndMdfcnDtBefore(
+        ExecutionJobStatus.QUEUED, cutoff);
+
+for (ExecutionJob job : staleJobs) {
+    dispatchService.retryOrFail(job, properties.getJobMaxRetries());
+    jobPort.save(job);
+}</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+window.VIS_DATA = {
+  scenarios: [
+    {
+      name: 'SUBMITTED stale -> RUNNING',
+      description: '시작 웹훅이 유실됐지만 Jenkins API를 조회해 이미 build가 돌아가고 있음을 확인한 뒤 <code>RUNNING</code>으로 보정하는 경로다.',
+      steps: [
+        {
+          label: 'Scan',
+          title: 'Step 1. stale SUBMITTED 탐지',
+          narration: '<code>recoverStaleSubmitted()</code>가 <code>submittedStaleSeconds</code> 기준 이전의 <code>SUBMITTED</code> row를 찾는다.',
+          dbSections: [
+            {
+              title: 'execution_job',
+              fields: [
+                { key: 'job_excn_id', value: 'JEX-5001' },
+                { key: 'excn_stts', value: 'SUBMITTED' },
+                { key: 'mdfcn_dt', value: 'older than cutoff', changed: true }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Query',
+          title: 'Step 2. Jenkins build status 조회',
+          narration: '<code>JenkinsClient.queryBuildStatus()</code>가 build 정보를 보고 <code>BUILDING</code>을 반환한다. executor는 시작 이벤트가 빠졌다고 판단한다.',
+          dbSections: [
+            {
+              title: 'jenkins view',
+              fields: [
+                { key: 'phase', value: 'BUILDING', changed: true },
+                { key: 'result', value: 'null' }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Repair',
+          title: 'Step 3. RUNNING 보정',
+          narration: '<code>dispatchService.markAsRunning(job, buildNo)</code>를 직접 호출해 상태를 <code>RUNNING</code>으로 보정한다.',
+          dbSections: [
+            {
+              title: 'execution_job',
+              fields: [
+                { key: 'excn_stts', value: 'RUNNING', changed: true },
+                { key: 'bgng_dt', value: 'recovered now', changed: true }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Notify',
+          title: 'Step 4. started notify 재발행',
+          narration: 'operator도 같은 이벤트를 놓쳤을 수 있으므로 <code>notifyStartedPort.notify()</code>를 다시 호출한다.',
+          dbSections: [
+            {
+              title: 'outbox_event',
+              fields: [
+                { key: 'event_type', value: 'JOB_STARTED_NOTIFY', changed: true },
+                { key: 'reason', value: 'webhook missed recovery', changed: true }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      name: 'RUNNING stale -> COMPLETED',
+      description: '완료 웹훅이 유실됐지만 Jenkins API에선 이미 종료된 경우, 터미널 상태와 completed notify를 보정하는 경로다.',
+      steps: [
+        {
+          label: 'Scan',
+          title: 'Step 1. stale RUNNING 탐지',
+          narration: '<code>recoverStaleRunning()</code>가 <code>runningStaleMinutes</code> 기준보다 오래된 <code>RUNNING</code> Job을 찾는다.',
+          dbSections: [
+            {
+              title: 'execution_job',
+              fields: [
+                { key: 'job_excn_id', value: 'JEX-5002' },
+                { key: 'excn_stts', value: 'RUNNING' },
+                { key: 'bgng_dt', value: 'older than cutoff', changed: true }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Query',
+          title: 'Step 2. Jenkins 결과 확인',
+          narration: '<code>queryBuildStatus()</code>가 <code>COMPLETED</code>와 실제 Jenkins result를 돌려주면 executor는 완료 웹훅이 빠졌다고 판단한다.',
+          dbSections: [
+            {
+              title: 'jenkins view',
+              fields: [
+                { key: 'phase', value: 'COMPLETED', changed: true },
+                { key: 'result', value: 'UNSTABLE', changed: true }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Complete',
+          title: 'Step 3. 터미널 상태 보정',
+          narration: '<code>dispatchService.markAsCompleted(job, result)</code>가 <code>UNSTABLE</code> 같은 터미널 상태로 바꾸고 <code>endDt</code>를 찍는다.',
+          dbSections: [
+            {
+              title: 'execution_job',
+              fields: [
+                { key: 'excn_stts', value: 'UNSTABLE', changed: true },
+                { key: 'end_dt', value: 'recovered now', changed: true }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Notify',
+          title: 'Step 4. completed notify 재발행',
+          narration: '<code>notifyCompletedPort.notify()</code>가 다시 호출된다. 이 경로에서는 로그 파일이 없으므로 <code>logFileYn = N</code>으로 들어간다.',
+          dbSections: [
+            {
+              title: 'outbox_event',
+              fields: [
+                { key: 'event_type', value: 'JOB_COMPLETED_NOTIFY', changed: true },
+                { key: 'result', value: 'UNSTABLE', changed: true },
+                { key: 'logFileYn', value: 'N', changed: true }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      name: 'QUEUED stale -> PENDING',
+      description: '내부 execute command가 유실됐다고 보고 Jenkins 조회 없이 재시도 복귀시키는 가장 단순한 stale 회복 경로다.',
+      steps: [
+        {
+          label: 'Scan',
+          title: 'Step 1. stale QUEUED 탐지',
+          narration: '<code>recoverStaleQueued()</code>는 <code>queuedStaleSeconds</code> 이상 머문 <code>QUEUED</code> Job을 찾는다.',
+          dbSections: [
+            {
+              title: 'execution_job',
+              fields: [
+                { key: 'job_excn_id', value: 'JEX-5003' },
+                { key: 'excn_stts', value: 'QUEUED' },
+                { key: 'mdfcn_dt', value: 'older than cutoff', changed: true }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Retry',
+          title: 'Step 2. Jenkins 조회 없이 retryOrFail',
+          narration: '이 경로는 "아직 Jenkins까지 못 갔다"는 가정이라 별도 Jenkins API 확인 없이 바로 <code>retryOrFail()</code>를 호출한다.',
+          dbSections: [
+            {
+              title: 'recovery decision',
+              fields: [
+                { key: 'canRetry', value: 'true', changed: true }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Pending',
+          title: 'Step 3. PENDING 복귀',
+          narration: '재시도 가능하면 <code>retryCnt</code>를 올리고 <code>PENDING</code>으로 되돌린다. 이후 다시 dispatch 후보가 된다.',
+          dbSections: [
+            {
+              title: 'execution_job',
+              fields: [
+                { key: 'retry_cnt', value: '1', changed: true },
+                { key: 'excn_stts', value: 'PENDING', changed: true }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'RetryLoop',
+          title: 'Step 4. dispatch 루프로 재편입',
+          narration: '이후는 정상 경로와 동일하다. <code>DispatchScheduler</code>가 다음 주기에 다시 슬롯을 평가한다. 한도를 넘긴 경우에는 여기서 <code>FAILURE</code>가 된다.',
+          dbSections: [
+            {
+              title: 'next action',
+              fields: [
+                { key: 'scheduler', value: 'DispatchScheduler', changed: true },
+                { key: 'terminal on max retry', value: 'FAILURE if exceeded', changed: true }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+};
+</script>
+<script src="assets/use-case-visualization.js"></script>
+</body>
+</html>

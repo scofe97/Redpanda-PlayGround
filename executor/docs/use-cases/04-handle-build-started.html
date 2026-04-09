@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Handle Build Started 시각화</title>
+<link rel="stylesheet" href="assets/use-case-visualization.css">
+</head>
+<body>
+  <div class="fixed-header">
+    <h1>Handle Build Started 시각화</h1>
+    <div class="subtitle">Jenkins 시작 콜백이 들어왔을 때 <code>BuildStartedService.handle()</code>가 실행 건을 <code>RUNNING</code>으로 바꾸고 operator notify를 발행하는 흐름이다.</div>
+  </div>
+
+  <div class="scroll-content">
+    <div class="panel">
+      <div class="panel-title">Scenario</div>
+      <div id="scenarioSelector" class="scenario-selector"></div>
+    </div>
+    <div class="panel viz-panel">
+      <div class="panel-title">Pipeline</div>
+      <div id="startOverlay" class="start-overlay">
+        <button class="btn-start" onclick="startSimulation()">시뮬레이션 시작 ▶</button>
+        <div class="start-hint">정상 시작, 중복 시작, 매칭 실패 시나리오를 단계별로 본다</div>
+      </div>
+      <div id="pipeline" class="pipeline"></div>
+      <div id="controlBar" class="controls" style="display:none;">
+        <div class="controls-nav">
+          <button class="btn-ctrl" onclick="prevStep()">◀ 이전</button>
+          <button class="btn-ctrl btn-play" id="playBtn" onclick="togglePlay()">▶ 재생</button>
+          <button class="btn-ctrl" onclick="nextStep()">다음 ▶</button>
+        </div>
+        <div class="speed-group">
+          <button class="speed-btn" data-speed="0.5" onclick="setSpeed(0.5)">0.5x</button>
+          <button class="speed-btn active" data-speed="1" onclick="setSpeed(1)">1x</button>
+          <button class="speed-btn" data-speed="2" onclick="setSpeed(2)">2x</button>
+        </div>
+        <div id="stepCounter" class="step-counter">0 / 0</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Narration</div>
+      <div id="scenarioTitle" class="scenario-title"></div>
+      <div id="scenarioDesc" class="scenario-desc"></div>
+      <div id="stepTitle" class="narration-step-title"></div>
+      <div id="narrationBody" class="narration-body"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">DB State</div>
+      <div id="dbPanel" class="db-panel"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Used Code</div>
+      <div class="code-grid">
+        <div class="code-card">
+          <div class="code-card-title">Start Event Parse</div>
+          <div class="code-card-subtitle">execution/infrastructure/messaging/JobStartedConsumer.java</div>
+          <pre>JsonNode json = objectMapper.readTree(record.value());
+var callback = BuildCallback.started(
+        json.get("jobId").asText(),
+        json.get("buildNumber").asInt()
+);
+handleStartedUseCase.handle(callback);</pre>
+        </div>
+        <div class="code-card">
+          <div class="code-card-title">RUNNING Transition</div>
+          <div class="code-card-subtitle">execution/application/BuildStartedService.java</div>
+          <pre>if (job.getStatus() == ExecutionJobStatus.RUNNING) {
+    return;
+}
+
+dispatchService.markAsRunning(job, callback.buildNumber());
+jobPort.save(job);</pre>
+        </div>
+        <div class="code-card">
+          <div class="code-card-title">Started Notify</div>
+          <div class="code-card-subtitle">execution/application/BuildStartedService.java</div>
+          <pre>notifyStartedPort.notify(
+        job.getJobExcnId(),
+        job.getPipelineExcnId(),
+        job.getJobId(),
+        callback.buildNumber()
+);</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+window.VIS_DATA = {
+  scenarios: [
+    {
+      name: '정상 시작',
+      description: 'Jenkins webhook listener가 시작 이벤트를 보냈고, executor가 대상 Job을 찾아 <code>RUNNING</code> 전환과 started notify 발행까지 마무리하는 경로다.',
+      steps: [
+        {
+          label: 'Event',
+          title: 'Step 1. 시작 이벤트 수신',
+          narration: '<code>JobStartedConsumer.onJobStarted()</code>가 JSON payload를 읽고 <code>BuildCallback.started(jobId, buildNumber)</code>를 만든다.',
+          dbSections: [
+            {
+              title: 'callback',
+              fields: [
+                { key: 'jobId', value: 'JOB-88' },
+                { key: 'buildNumber', value: '251' }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Find',
+          title: 'Step 2. buildNo 기반 실행 건 조회',
+          narration: '<code>jobPort.findByJobIdAndBuildNo(jobId, buildNumber)</code>가 이전 단계에서 기록해 둔 <code>build_no</code>와 매칭되는 <code>ExecutionJob</code>을 찾는다.',
+          dbSections: [
+            {
+              title: 'execution_job',
+              fields: [
+                { key: 'job_excn_id', value: 'JEX-4001' },
+                { key: 'build_no', value: '251' },
+                { key: 'excn_stts', value: 'SUBMITTED' }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Guard',
+          title: 'Step 3. 중복/터미널 여부 확인',
+          narration: '서비스는 터미널 상태인지, 이미 <code>RUNNING</code>인지 먼저 확인한다. 둘 다 아니면 정상 전이 경로로 들어간다.',
+          dbSections: [
+            {
+              title: 'guards',
+              fields: [
+                { key: 'isTerminal', value: 'false' },
+                { key: 'status == RUNNING', value: 'false' }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Run',
+          title: 'Step 4. RUNNING 전환',
+          narration: '<code>DispatchService.markAsRunning(job, buildNo)</code>가 상태를 <code>RUNNING</code>으로 바꾸고 <code>bgngDt</code>도 함께 기록한다.',
+          dbSections: [
+            {
+              title: 'execution_job',
+              fields: [
+                { key: 'excn_stts', value: 'RUNNING', changed: true },
+                { key: 'bgng_dt', value: '2026-04-09T10:58:11', changed: true },
+                { key: 'build_no', value: '251' }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Notify',
+          title: 'Step 5. operator started notify 발행',
+          narration: '<code>NotifyJobStartedPort.notify()</code>가 <code>EXECUTOR_NOTIFY_JOB_STARTED</code>를 outbox에 적재한다. operator가 이 이벤트를 받아 자기 스키마 상태를 갱신한다.',
+          dbSections: [
+            {
+              title: 'outbox_event',
+              fields: [
+                { key: 'event_type', value: 'JOB_STARTED_NOTIFY', changed: true },
+                { key: 'aggregate_id', value: 'JEX-4001' },
+                { key: 'buildNo', value: '251', changed: true }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      name: '중복 시작 이벤트',
+      description: '이미 <code>RUNNING</code>인 실행 건에 시작 이벤트가 다시 와도 상태를 흔들지 않고 무시하는 경로다.',
+      steps: [
+        {
+          label: 'Find',
+          title: 'Step 1. 이미 RUNNING인 row 조회',
+          narration: '같은 <code>jobId + buildNumber</code>로 다시 이벤트가 들어와도 조회 자체는 성공한다.',
+          dbSections: [
+            {
+              title: 'execution_job',
+              fields: [
+                { key: 'job_excn_id', value: 'JEX-4001' },
+                { key: 'excn_stts', value: 'RUNNING', changed: true }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Ignore',
+          title: 'Step 2. idempotent 무시',
+          narration: '<code>if (job.getStatus() == RUNNING)</code> 조건에 걸리면 debug 로그만 남기고 종료한다. started notify도 재발행하지 않는다.',
+          dbSections: [
+            {
+              title: 'execution_job',
+              fields: [
+                { key: 'rows changed', value: '0', changed: true },
+                { key: 'result', value: 'duplicate start ignored', changed: true }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      name: '매칭 실패',
+      description: '콜백의 <code>jobId + buildNumber</code>로 executor row를 찾지 못하면 경고만 남기고 끝낸다.',
+      steps: [
+        {
+          label: 'Lookup',
+          title: 'Step 1. buildNo 매칭 실패',
+          narration: 'Jenkins 측 스크립트가 잘못된 값을 보냈거나, 아직 DB 반영이 안 된 경우 <code>findByJobIdAndBuildNo()</code>가 비어 있을 수 있다.',
+          dbSections: [
+            {
+              title: 'execution_job',
+              fields: [
+                { key: 'jobId', value: 'JOB-404' },
+                { key: 'buildNo', value: '999' },
+                { key: 'match', value: 'not found', changed: true }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Warn',
+          title: 'Step 2. 상태 변경 없이 종료',
+          narration: '서비스는 예외를 던지지 않고 <code>[BuildStarted] No matching job</code> 경고를 남긴다. 실행 중인 다른 Job에는 영향이 없다.',
+          dbSections: [
+            {
+              title: 'execution_job',
+              fields: [
+                { key: 'rows changed', value: '0', changed: true },
+                { key: 'side effect', value: 'none', changed: true }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+};
+</script>
+<script src="assets/use-case-visualization.js"></script>
+</body>
+</html>

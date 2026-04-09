@@ -6,6 +6,13 @@ spring:
     properties:
       schema.registry.url: http://34.47.83.38:31081
 
+springwolf:
+  docket:
+    servers:
+      redpanda:
+        protocol: kafka
+        host: 34.47.83.38:31092
+
 app:
   connect:
     url: http://34.47.83.38:31195

@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Handle Build Completed 시각화</title>
+<link rel="stylesheet" href="assets/use-case-visualization.css">
+</head>
+<body>
+  <div class="fixed-header">
+    <h1>Handle Build Completed 시각화</h1>
+    <div class="subtitle">종료 이벤트 수신, 로그 저장 시도, 터미널 상태 반영, completed notify 발행까지 한 번에 처리하는 <code>BuildCompletedService</code>의 흐름이다.</div>
+  </div>
+
+  <div class="scroll-content">
+    <div class="panel">
+      <div class="panel-title">Scenario</div>
+      <div id="scenarioSelector" class="scenario-selector"></div>
+    </div>
+    <div class="panel viz-panel">
+      <div class="panel-title">Pipeline</div>
+      <div id="startOverlay" class="start-overlay">
+        <button class="btn-start" onclick="startSimulation()">시뮬레이션 시작 ▶</button>
+        <div class="start-hint">정상 성공, 로그 저장 실패 동반 완료, 중복 완료 무시를 비교한다</div>
+      </div>
+      <div id="pipeline" class="pipeline"></div>
+      <div id="controlBar" class="controls" style="display:none;">
+        <div class="controls-nav">
+          <button class="btn-ctrl" onclick="prevStep()">◀ 이전</button>
+          <button class="btn-ctrl btn-play" id="playBtn" onclick="togglePlay()">▶ 재생</button>
+          <button class="btn-ctrl" onclick="nextStep()">다음 ▶</button>
+        </div>
+        <div class="speed-group">
+          <button class="speed-btn" data-speed="0.5" onclick="setSpeed(0.5)">0.5x</button>
+          <button class="speed-btn active" data-speed="1" onclick="setSpeed(1)">1x</button>
+          <button class="speed-btn" data-speed="2" onclick="setSpeed(2)">2x</button>
+        </div>
+        <div id="stepCounter" class="step-counter">0 / 0</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Narration</div>
+      <div id="scenarioTitle" class="scenario-title"></div>
+      <div id="scenarioDesc" class="scenario-desc"></div>
+      <div id="stepTitle" class="narration-step-title"></div>
+      <div id="narrationBody" class="narration-body"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">DB State</div>
+      <div id="dbPanel" class="db-panel"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Used Code</div>
+      <div class="code-grid">
+        <div class="code-card">
+          <div class="code-card-title">Complete Event Parse</div>
+          <div class="code-card-subtitle">execution/infrastructure/messaging/JobCompletedConsumer.java</div>
+          <pre>var callback = BuildCallback.completed(
+        json.get("jobId").asText(),
+        json.get("buildNumber").asInt(),
+        json.has("result") ? json.get("result").asText() : null,
+        json.has("logContent") ? json.get("logContent").asText() : null
+);
+handleCompletedUseCase.handle(callback);</pre>
+        </div>
+        <div class="code-card">
+          <div class="code-card-title">Log Save And Completion</div>
+          <div class="code-card-subtitle">execution/application/BuildCompletedService.java</div>
+          <pre>logSaved = logPort.save(dirPath, job.getJobExcnId(), callback.logContent());
+dispatchService.markAsCompleted(job, callback.result());
+dispatchService.recordLogResult(job, logSaved);
+jobPort.save(job);</pre>
+        </div>
+        <div class="code-card">
+          <div class="code-card-title">Completed Notify</div>
+          <div class="code-card-subtitle">execution/application/BuildCompletedService.java</div>
+          <pre>notifyPort.notify(
+        job.getJobExcnId(),
+        job.getPipelineExcnId(),
+        success,
+        callback.result(),
+        logFilePath,
+        logSaved ? "Y" : "N",
+        success ? null : callback.result()
+);</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+window.VIS_DATA = {
+  scenarios: [
+    {
+      name: '정상 성공 완료',
+      description: 'Jenkins가 <code>SUCCESS</code>와 로그 내용을 함께 보내고, executor가 로그 저장과 상태 반영을 모두 성공시키는 정상 경로다.',
+      steps: [
+        {
+          label: 'Event',
+          title: 'Step 1. 완료 이벤트 수신',
+          narration: '<code>JobCompletedConsumer.onJobCompleted()</code>가 JSON payload를 <code>BuildCallback.completed()</code>로 변환한다.',
+          dbSections: [
+            {
+              title: 'callback',
+              fields: [
+                { key: 'jobId', value: 'JOB-88' },
+                { key: 'buildNumber', value: '251' },
+                { key: 'result', value: 'SUCCESS', changed: true }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Find',
+          title: 'Step 2. RUNNING row 매칭',
+          narration: '<code>findByJobIdAndBuildNo()</code>로 현재 실행 중인 row를 찾는다. 이미 터미널이면 여기서 바로 종료되지만, 이번 시나리오는 정상 진행이다.',
+          dbSections: [
+            {
+              title: 'execution_job',
+              fields: [
+                { key: 'job_excn_id', value: 'JEX-4001' },
+                { key: 'excn_stts', value: 'RUNNING' }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Log',
+          title: 'Step 3. 로그 파일 저장',
+          narration: '<code>jobDefinitionQueryPort.load()</code>로 Jenkins 경로를 구한 뒤 <code>SaveBuildLogPort.save()</code>가 로그 파일을 저장한다.',
+          dbSections: [
+            {
+              title: 'log writer',
+              fields: [
+                { key: 'dirPath', value: '1/4/JOB-88', changed: true },
+                { key: 'logFilePath', value: '1/4/JOB-88/JEX-4001_0', changed: true },
+                { key: 'save result', value: 'true', changed: true }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Done',
+          title: 'Step 4. 터미널 상태 반영',
+          narration: '<code>DispatchService.markAsCompleted(job, "SUCCESS")</code>가 <code>SUCCESS</code>로 전환하고, <code>recordLogResult()</code>가 <code>logFileYn=Y</code>를 기록한다.',
+          dbSections: [
+            {
+              title: 'execution_job',
+              fields: [
+                { key: 'excn_stts', value: 'SUCCESS', changed: true },
+                { key: 'end_dt', value: '2026-04-09T11:04:52', changed: true },
+                { key: 'log_file_yn', value: 'Y', changed: true }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Notify',
+          title: 'Step 5. operator completed notify 발행',
+          narration: '<code>NotifyJobCompletedPort.notify()</code>가 성공 여부, result, log path를 담아 <code>EXECUTOR_NOTIFY_JOB_COMPLETED</code>를 outbox에 적재한다.',
+          dbSections: [
+            {
+              title: 'outbox_event',
+              fields: [
+                { key: 'event_type', value: 'JOB_COMPLETED_NOTIFY', changed: true },
+                { key: 'success', value: 'true', changed: true },
+                { key: 'logFileYn', value: 'Y', changed: true }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      name: '로그 저장 실패 동반 완료',
+      description: '빌드 결과 자체는 종료됐지만 로그 파일 저장이 실패한 경우다. executor는 완료 상태 반영을 우선하고 로그 손실은 부가 정보로만 남긴다.',
+      steps: [
+        {
+          label: 'Log',
+          title: 'Step 1. 로그 저장 실패',
+          narration: '<code>SaveBuildLogPort.save()</code>가 false를 반환해도 서비스는 중단하지 않는다. 이것이 이 유스케이스의 핵심 설계 포인트다.',
+          dbSections: [
+            {
+              title: 'log writer',
+              fields: [
+                { key: 'save result', value: 'false', changed: true },
+                { key: 'logFilePath', value: 'null', changed: true }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Complete',
+          title: 'Step 2. FAILURE 결과 반영',
+          narration: '<code>markAsCompleted(job, "FAILURE")</code>는 그대로 수행된다. 즉, 로그 손실이 Job 종료 상태 반영을 막지 않는다.',
+          dbSections: [
+            {
+              title: 'execution_job',
+              fields: [
+                { key: 'excn_stts', value: 'FAILURE', changed: true },
+                { key: 'log_file_yn', value: 'N' }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Notify',
+          title: 'Step 3. logFileYn=N 으로 notify',
+          narration: 'completed notify에는 <code>logFileYn = N</code>, <code>errorMessage = FAILURE</code>가 함께 담긴다. operator는 이를 받아 화면이나 후속 처리에서 해석한다.',
+          dbSections: [
+            {
+              title: 'outbox_event',
+              fields: [
+                { key: 'success', value: 'false', changed: true },
+                { key: 'result', value: 'FAILURE', changed: true },
+                { key: 'logFileYn', value: 'N', changed: true },
+                { key: 'errorMessage', value: 'FAILURE', changed: true }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      name: '중복 완료 이벤트',
+      description: '이미 터미널 상태가 된 뒤 같은 완료 이벤트가 다시 들어오면 재저장이나 재notify 없이 무시한다.',
+      steps: [
+        {
+          label: 'Find',
+          title: 'Step 1. 이미 terminal row 조회',
+          narration: '<code>findByJobIdAndBuildNo()</code>는 성공하지만, row 상태가 이미 <code>SUCCESS</code> 또는 다른 터미널 상태다.',
+          dbSections: [
+            {
+              title: 'execution_job',
+              fields: [
+                { key: 'job_excn_id', value: 'JEX-4001' },
+                { key: 'excn_stts', value: 'SUCCESS', changed: true }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Ignore',
+          title: 'Step 2. 추가 side effect 없이 종료',
+          narration: '<code>if (job.getStatus().isTerminal())</code> 조건에서 바로 반환한다. 로그 파일 재저장도 없고 completed notify 재발행도 없다.',
+          dbSections: [
+            {
+              title: 'execution_job',
+              fields: [
+                { key: 'rows changed', value: '0', changed: true },
+                { key: 'notify published', value: '0', changed: true }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+};
+</script>
+<script src="assets/use-case-visualization.js"></script>
+</body>
+</html>

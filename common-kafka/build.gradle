@@ -22,12 +22,18 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok:1.18.42'
 }
 
+def generatedAvroMainDir = layout.buildDirectory.dir("generated/sources/avro/java/main")
+
 sourceSets {
     main {
         java {
-            srcDir layout.buildDirectory.dir("generated-main-avro-java")
+            srcDir generatedAvroMainDir
         }
     }
+}
+
+tasks.named('generateAvroJava', com.github.davidmc24.gradle.plugin.avro.GenerateAvroJavaTask) {
+    outputDir = generatedAvroMainDir.get().asFile
 }
 
 avro {

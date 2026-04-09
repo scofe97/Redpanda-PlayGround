@@ -13,7 +13,7 @@ service:
 spring:
   profiles: k8s
   datasource:
-    url: jdbc:postgresql://postgresql.rp-oss.svc.cluster.local:5432/playground
+    url: jdbc:postgresql://postgresql.rp-oss.svc.cluster.local:5432/playground?currentSchema=operator
     username: playground
     password: playground
   kafka:

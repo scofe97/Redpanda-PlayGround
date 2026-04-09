@@ -35,8 +35,18 @@ tc01_happy_path() {
     # Step 3: 검증 — Executor/Operator 양쪽 상태 일치 확인
     assert_eq "$final_status" "SUCCESS" "Executor job status"
 
-    local op_status
-    op_status=$(get_operator_status "$job_excn_id")
+    # 완료 이벤트 전파 지연을 고려해 Operator 상태를 짧게 폴링
+    local op_status=""
+    local op_elapsed=0
+    local op_timeout=30
+    while [ $op_elapsed -lt $op_timeout ]; do
+        op_status=$(get_operator_status "$job_excn_id")
+        if [ "$op_status" = "SUCCESS" ]; then
+            break
+        fi
+        sleep 2
+        op_elapsed=$((op_elapsed + 2))
+    done
     assert_eq "$op_status" "SUCCESS" "Operator job status"
 
     # Step 4: 빌드 로그 파일 존재 확인 (executor가 Jenkins 콘솔 로그를 저장)

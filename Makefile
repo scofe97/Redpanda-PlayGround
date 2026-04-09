@@ -2,7 +2,8 @@ JAVA_HOME_21 := $(shell /usr/libexec/java_home -v 21 2>/dev/null || echo "")
 export JAVA_HOME := $(JAVA_HOME_21)
 
 .PHONY: help backend executor operator \
-       build test test-e2e clean frontend frontend-build app
+       build test test-e2e clean frontend frontend-build app \
+       check tc01 tc02 tc03 tc05 tc06 tc07 tc08 tc09 tc10 auto pipeline all
 
 help: ## 사용 가능한 명령어 목록
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -28,6 +29,10 @@ test: ## 백엔드 테스트 실행
 
 test-e2e: ## E2E 테스트 (auto: tc01,tc06,tc07 / pipeline: tc08,tc09 / all: 전체 / tc01~tc10: 개별)
 	@bash scripts/e2e/run.sh $(filter-out $@,$(MAKECMDGOALS))
+
+# make test-e2e check 형태를 지원하기 위한 더미 타깃
+check tc01 tc02 tc03 tc05 tc06 tc07 tc08 tc09 tc10 auto pipeline all:
+	@:
 
 clean: ## 빌드 아티팩트 정리
 	./gradlew clean

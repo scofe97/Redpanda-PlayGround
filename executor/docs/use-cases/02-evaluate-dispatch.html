@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Evaluate Dispatch 시각화</title>
+<link rel="stylesheet" href="assets/use-case-visualization.css">
+</head>
+<body>
+  <div class="fixed-header">
+    <h1>Evaluate Dispatch 시각화</h1>
+    <div class="subtitle"><code>DispatchScheduler</code>가 <code>PENDING</code> Job을 읽고, Jenkins 인스턴스별 슬롯 계산을 통해 <code>QUEUED</code> 실행 대상을 선정하는 흐름이다.</div>
+  </div>
+
+  <div class="scroll-content">
+    <div class="panel">
+      <div class="panel-title">Scenario</div>
+      <div id="scenarioSelector" class="scenario-selector"></div>
+    </div>
+    <div class="panel viz-panel">
+      <div class="panel-title">Pipeline</div>
+      <div id="startOverlay" class="start-overlay">
+        <button class="btn-start" onclick="startSimulation()">시뮬레이션 시작 ▶</button>
+        <div class="start-hint">정상 배치, 슬롯 부족, job definition 누락을 비교한다</div>
+      </div>
+      <div id="pipeline" class="pipeline"></div>
+      <div id="controlBar" class="controls" style="display:none;">
+        <div class="controls-nav">
+          <button class="btn-ctrl" onclick="prevStep()">◀ 이전</button>
+          <button class="btn-ctrl btn-play" id="playBtn" onclick="togglePlay()">▶ 재생</button>
+          <button class="btn-ctrl" onclick="nextStep()">다음 ▶</button>
+        </div>
+        <div class="speed-group">
+          <button class="speed-btn" data-speed="0.5" onclick="setSpeed(0.5)">0.5x</button>
+          <button class="speed-btn active" data-speed="1" onclick="setSpeed(1)">1x</button>
+          <button class="speed-btn" data-speed="2" onclick="setSpeed(2)">2x</button>
+        </div>
+        <div id="stepCounter" class="step-counter">0 / 0</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Narration</div>
+      <div id="scenarioTitle" class="scenario-title"></div>
+      <div id="scenarioDesc" class="scenario-desc"></div>
+      <div id="stepTitle" class="narration-step-title"></div>
+      <div id="narrationBody" class="narration-body"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">DB State</div>
+      <div id="dbPanel" class="db-panel"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Used Code</div>
+      <div class="code-grid">
+        <div class="code-card">
+          <div class="code-card-title">Scheduler Entry</div>
+          <div class="code-card-subtitle">execution/infrastructure/scheduler/DispatchScheduler.java</div>
+          <pre>@Scheduled(
+        fixedDelayString = "${executor.dispatch-interval-ms:3000}",
+        initialDelayString = "${executor.dispatch-initial-delay-ms:0}"
+)
+public void scheduledDispatch() {
+    evaluateDispatchUseCase.tryDispatch();
+}</pre>
+        </div>
+        <div class="code-card">
+          <div class="code-card-title">Dispatch Core</div>
+          <div class="code-card-subtitle">execution/application/DispatchEvaluatorService.java</div>
+          <pre>List&lt;ExecutionJob&gt; pendingJobs = jobPort.findDispatchableJobs(
+        properties.getMaxBatchSize());
+
+int activeCount = jobPort.countActiveJobsByJenkinsInstanceId(instanceId, ACTIVE_STATUSES);
+int maxSlots = jenkinsQueryPort.getMaxExecutors(instanceId);
+int remainingSlots = maxSlots - activeCount;</pre>
+        </div>
+        <div class="code-card">
+          <div class="code-card-title">Queue Transition</div>
+          <div class="code-card-subtitle">execution/application/DispatchEvaluatorService.java</div>
+          <pre>if (jobPort.existsByJobIdAndStatusIn(job.getJobId(), ACTIVE_STATUSES)) {
+    continue;
+}
+
+dispatchService.prepareForDispatch(job);
+jobPort.save(job);
+publishPort.publishExecuteCommand(job);</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+window.VIS_DATA = {
+  scenarios: [
+    {
+      name: '정상 배치',
+      description: '<code>PENDING</code> Job을 읽은 뒤 슬롯이 남아 있어 <code>QUEUED</code> 전환과 execute command publish까지 이어지는 기본 경로다.',
+      steps: [
+        {
+          label: 'Poll',
+          title: 'Step 1. 스케줄러 진입',
+          narration: '<code>DispatchScheduler.scheduledDispatch()</code>가 <code>tryDispatch()</code>를 호출한다. 이 모듈의 현재 live 코드는 이벤트 기반 보조가 아니라 주기 스케줄러를 실제 진입점으로 사용한다.',
+          dbSections: [
+            {
+              title: 'execution_job',
+              fields: [
+                { key: 'JEX-3001', value: 'PENDING' },
+                { key: 'JEX-3002', value: 'PENDING' }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Lock',
+          title: 'Step 2. dispatchable job 조회',
+          narration: '<code>findDispatchableJobs(limit)</code>가 <code>FOR UPDATE SKIP LOCKED</code>로 대기 건을 집는다. 다른 executor 인스턴스가 같은 row를 동시에 가져가지 못한다.',
+          dbSections: [
+            {
+              title: 'execution_job',
+              fields: [
+                { key: 'selected', value: 'JEX-3001', changed: true },
+                { key: 'lock mode', value: 'FOR UPDATE SKIP LOCKED', changed: true }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Map',
+          title: 'Step 3. Jenkins 인스턴스 매핑',
+          narration: '<code>JobDefinitionQueryPort.load(jobId)</code>가 operator 스키마를 조회해 <code>jenkinsInstanceId</code>와 Jenkins job path를 가져온다.',
+          dbSections: [
+            {
+              title: 'operator cross-schema',
+              fields: [
+                { key: 'job_id', value: 'JOB-77' },
+                { key: 'jenkins_instance_id', value: '6', changed: true },
+                { key: 'jenkins_job_path', value: '1/4/JOB-77', changed: true }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Slots',
+          title: 'Step 4. 슬롯 계산',
+          narration: '서비스는 <code>countActiveJobsByJenkinsInstanceId()</code>와 <code>getMaxExecutors()</code>로 남은 슬롯을 계산한다. 현재 구현은 Jenkins queue length보다 executor DB 활성 건 수를 더 직접적으로 본다.',
+          dbSections: [
+            {
+              title: 'slot view',
+              fields: [
+                { key: 'activeCount', value: '1' },
+                { key: 'maxExecutors', value: '2' },
+                { key: 'remainingSlots', value: '1', changed: true }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Queue',
+          title: 'Step 5. QUEUED 전환',
+          narration: '<code>DispatchService.prepareForDispatch(job)</code>가 상태를 <code>QUEUED</code>로 바꾸고 저장한다.',
+          dbSections: [
+            {
+              title: 'execution_job',
+              fields: [
+                { key: 'job_excn_id', value: 'JEX-3001' },
+                { key: 'excn_stts', value: 'QUEUED', changed: true }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Publish',
+          title: 'Step 6. 실행 명령 발행',
+          narration: '<code>ExecuteCommandPublisher.publishExecuteCommand()</code>가 outbox에 <code>EXECUTOR_CMD_JOB_EXECUTE</code>를 적재한다. Jenkins API 호출은 아직 하지 않는다.',
+          dbSections: [
+            {
+              title: 'outbox_event',
+              fields: [
+                { key: 'event_type', value: 'JOB_EXECUTE', changed: true },
+                { key: 'topic', value: 'EXECUTOR_CMD_JOB_EXECUTE', changed: true },
+                { key: 'aggregate_id', value: 'JEX-3001' }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      name: '슬롯 부족',
+      description: '대기 건이 있어도 같은 Jenkins 인스턴스의 남은 슬롯이 0이면 이번 주기에는 아무 Job도 선정되지 않는다.',
+      steps: [
+        {
+          label: 'Poll',
+          title: 'Step 1. 대기 건 조회',
+          narration: '<code>PENDING</code> Job은 정상적으로 잡히지만, 이후 슬롯 계산 단계에서 멈춘다.',
+          dbSections: [
+            {
+              title: 'execution_job',
+              fields: [
+                { key: 'JEX-3101', value: 'PENDING' }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Slots',
+          title: 'Step 2. 남은 슬롯 0 계산',
+          narration: '<code>activeCount = maxExecutors</code>인 상황이면 <code>remainingSlots <= 0</code>가 되어 더 진행하지 않는다.',
+          dbSections: [
+            {
+              title: 'slot view',
+              fields: [
+                { key: 'activeCount', value: '2' },
+                { key: 'maxExecutors', value: '2' },
+                { key: 'remainingSlots', value: '0', changed: true }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Skip',
+          title: 'Step 3. 이번 주기 skip',
+          narration: '서비스는 경고 없이 debug 수준으로 skip 하고 종료한다. Job 상태는 그대로 <code>PENDING</code>이며, 다음 polling 주기에 다시 평가된다.',
+          dbSections: [
+            {
+              title: 'execution_job',
+              fields: [
+                { key: 'job_excn_id', value: 'JEX-3101' },
+                { key: 'excn_stts', value: 'PENDING' },
+                { key: 'result', value: 'no slots, wait next poll', changed: true }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      name: 'job definition 누락',
+      description: 'operator 스키마에서 job definition lookup이 실패하면 즉시 죽이지 않고 재시도 가능 여부를 먼저 본다.',
+      steps: [
+        {
+          label: 'Lookup',
+          title: 'Step 1. cross-schema 조회 실패',
+          narration: '<code>jobDefinitionQueryPort.load(jobId)</code>가 예외를 던지면 dispatch loop는 해당 Job만 분리해서 오류 처리한다.',
+          dbSections: [
+            {
+              title: 'operator cross-schema',
+              fields: [
+                { key: 'job_id', value: 'JOB-MISSING' },
+                { key: 'result', value: 'query failed', changed: true }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Retry',
+          title: 'Step 2. retryPendingJob 실행',
+          narration: '<code>retryPendingJob()</code>는 <code>job.canRetry(maxRetries)</code>를 본다. 재시도 가능하면 <code>retryCnt</code>만 올리고 상태는 <code>PENDING</code> 유지다.',
+          dbSections: [
+            {
+              title: 'execution_job',
+              fields: [
+                { key: 'retry_cnt', value: '1', changed: true },
+                { key: 'excn_stts', value: 'PENDING' }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Fail',
+          title: 'Step 3. 한도 초과 시 FAILURE',
+          narration: '이미 최대 재시도 횟수에 도달해 있으면 즉시 <code>FAILURE</code>로 전환한다. 이 경우 더 이상 dispatch 대상에 포함되지 않는다.',
+          dbSections: [
+            {
+              title: 'execution_job',
+              fields: [
+                { key: 'retry_cnt', value: '3' },
+                { key: 'excn_stts', value: 'FAILURE', changed: true }
+              ],
+              note: '같은 예외라도 일시 장애인지 복구 불가인지 구분하려는 설계다.'
+            }
+          ]
+        }
+      ]
+    }
+  ]
+};
+</script>
+<script src="assets/use-case-visualization.js"></script>
+</body>
+</html>
