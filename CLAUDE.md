@@ -75,6 +75,26 @@ common → common-kafka → operator / executor
 - Job은 독립 엔티티 -- 단독 실행 가능, DAG에서 비로소 순서 결정
 - 구현 전 해당 도메인 스펙의 **수용 기준**을 확인한다
 
+## Skill routing
+
+When the user's request matches an available skill, ALWAYS invoke it using the Skill
+tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
+The skill has specialized workflows that produce better results than ad-hoc answers.
+
+Key routing rules:
+- Product ideas, "is this worth building", brainstorming → invoke gstack-office-hours
+- Bugs, errors, "why is this broken", 500 errors → invoke gstack-investigate
+- Ship, deploy, push, create PR → invoke gstack-ship
+- QA, test the site, find bugs → invoke gstack-qa
+- Code review, check my diff → invoke gstack-review
+- Update docs after shipping → invoke gstack-document-release
+- Weekly retro → invoke gstack-retro
+- Design system, brand → invoke gstack-design-consultation
+- Visual audit, design polish → invoke gstack-design-review
+- Architecture review → invoke gstack-plan-eng-review
+- Save progress, checkpoint, resume → invoke gstack-checkpoint
+- Code quality, health check → invoke gstack-health
+
 ## 실수 개선 프로세스 (필수)
 
 1. **원인 분석**: 왜 실수가 발생했는지 분석
