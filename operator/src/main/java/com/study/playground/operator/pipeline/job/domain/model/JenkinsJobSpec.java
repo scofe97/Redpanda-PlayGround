@@ -45,10 +45,12 @@ public record JenkinsJobSpec(
     }
 
     public static String folderConfigXml() {
+        // Keep folder XML minimal. Serializing view metadata here can produce
+        // owner-less AllView configs that break Jenkins folder pages at runtime.
         return """
                 <?xml version='1.1' encoding='UTF-8'?>
                 <com.cloudbees.hudson.plugins.folder.Folder plugin="cloudbees-folder">
-                  <properties/>
+                  <description>Auto-created folder</description>
                 </com.cloudbees.hudson.plugins.folder.Folder>
                 """;
     }
