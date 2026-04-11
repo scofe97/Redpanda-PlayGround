@@ -29,8 +29,5 @@ RUN curl -sL https://github.com/redpanda-data/redpanda/releases/latest/download/
     && chmod +x /var/jenkins_home/rpk
 USER jenkins
 
-# CSRF 비활성화 (PoC - API 호출 시 crumb 불필요)
-COPY disable-csrf.groovy /usr/share/jenkins/ref/init.groovy.d/
-
 # 전역 설정 추가
 COPY webhook-listener.groovy /usr/share/jenkins/ref/init.groovy.d/

@@ -73,12 +73,6 @@ controller:
   # ---- Init Groovy Scripts ----
   # /usr/share/jenkins/ref/init.groovy.d/ 에 마운트됨
   initScripts:
-    disable-csrf: |
-      import jenkins.model.Jenkins
-      def instance = Jenkins.instance
-      instance.setCrumbIssuer(null)
-      instance.save()
-
     webhook-listener: |
       import hudson.model.Run
       import hudson.model.TaskListener
@@ -90,6 +84,11 @@ controller:
       def STARTED_TOPIC = System.getenv('STARTED_TOPIC') ?: 'playground.executor.events.job-started'
       def COMPLETED_TOPIC = System.getenv('COMPLETED_TOPIC') ?: 'playground.executor.events.job-completed'
       def MAX_RETRIES = 3
+
+      def deriveJobId(String fullName) {
+          def tokens = fullName?.tokenize('/') ?: []
+          return tokens ? tokens[tokens.size() - 1] : null
+      }
 
       def rpkProduce(String rpkPath, String brokers, String topic, String key, String payload, listener, int maxRetries) {
           int attempt = 0
@@ -124,8 +123,9 @@ controller:
               def executionJobId = paramsAction?.getParameter('EXECUTION_JOB_ID')?.value
               if (!executionJobId) return
 
-              def jobId   = paramsAction?.getParameter('JOB_ID')?.value ?: '0'
               def jobName = run.parent.fullName
+              def jobId   = deriveJobId(jobName)
+              if (!jobId) return
 
               def payload = """{"executionJobId":${executionJobId},"jobId":${jobId},"result":"STARTED","buildNumber":${run.number},"jobName":"${jobName}","duration":0,"url":""}"""
 
@@ -141,10 +141,11 @@ controller:
               def executionJobId = paramsAction?.getParameter('EXECUTION_JOB_ID')?.value
               if (!executionJobId) return
 
-              def jobId       = paramsAction?.getParameter('JOB_ID')?.value ?: '0'
+              def jobName     = run.parent.fullName
+              def jobId       = deriveJobId(jobName)
+              if (!jobId) return
               def result      = run.result?.toString() ?: 'UNKNOWN'
               def buildNumber = run.number
-              def jobName     = run.parent.fullName
               def duration    = run.duration
               def url         = run.absoluteUrl ?: ''
 
@@ -161,6 +162,10 @@ controller:
   JCasC:
     configScripts:
       system-config: |
+        jenkins:
+          crumbIssuer:
+            standard:
+              excludeClientIPFromCrumb: false
         security:
           globalJobDslSecurityConfiguration:
             useScriptSecurity: false

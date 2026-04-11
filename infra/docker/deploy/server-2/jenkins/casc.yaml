@@ -1,6 +1,9 @@
 jenkins:
   systemMessage: "Redpanda Playground - Jenkins CI/CD"
   numExecutors: 2
+  crumbIssuer:
+    standard:
+      excludeClientIPFromCrumb: false
   securityRealm:
     local:
       allowsSignup: false

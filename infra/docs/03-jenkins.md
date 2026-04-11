@@ -49,7 +49,7 @@ jenkins:
     - ./jenkins/Jenkinsfile-deploy:/var/jenkins_home/Jenkinsfile-deploy:ro
 ```
 
-**주의**: docker-compose의 `JAVA_OPTS`가 Dockerfile의 `ENV JAVA_OPTS`를 **덮어쓴다.** 따라서 UTF-8 설정과 `-Djenkins.install.runSetupWizard=false`는 양쪽 모두에 명시해야 한다. CSRF는 Dockerfile에서 `disable-csrf.groovy`를 `init.groovy.d/`에 복사하여 `setCrumbIssuer(null)`로 비활성화한다. CasC의 Job은 `sandbox(true)`로 실행되어 별도 스크립트 승인이 불필요하다.
+**주의**: docker-compose의 `JAVA_OPTS`가 Dockerfile의 `ENV JAVA_OPTS`를 **덮어쓴다.** 따라서 UTF-8 설정과 `-Djenkins.install.runSetupWizard=false`는 양쪽 모두에 명시해야 한다. Jenkins는 기본 CSRF 보호를 유지하며, 비밀번호 기반 POST 자동화는 crumb + session cookie를 함께 보내야 한다. CasC의 Job은 `sandbox(true)`로 실행되어 별도 스크립트 승인이 불필요하다.
 
 ### CasC (Configuration as Code)
 

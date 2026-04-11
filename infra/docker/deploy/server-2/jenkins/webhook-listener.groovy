@@ -6,7 +6,7 @@ import hudson.model.listeners.RunListener
 /**
  * 전역 빌드 리스너 -- 빌드 시작/완료 시 rpk로 Kafka 토픽에 JSON 직접 발행.
  *
- * JOB_ID 파라미터가 있는 빌드만 이벤트를 발송한다.
+ * Jenkins fullName의 마지막 세그먼트를 jobId로 사용한다.
  * Executor가 jobId + buildNumber로 ExecutionJob을 매칭한다.
  *
  * 토픽:
@@ -19,6 +19,11 @@ def BROKERS = System.getenv('RPK_BROKERS') ?: 'redpanda-0.redpanda.rp-oss.svc.cl
 def STARTED_TOPIC = System.getenv('STARTED_TOPIC') ?: 'playground.executor.events.job-started'
 def COMPLETED_TOPIC = System.getenv('COMPLETED_TOPIC') ?: 'playground.executor.events.job-completed'
 def MAX_RETRIES = 3
+
+def deriveJobId(String fullName) {
+    def tokens = fullName?.tokenize('/') ?: []
+    return tokens ? tokens[tokens.size() - 1] : null
+}
 
 def rpkProduce(String rpkPath, String brokers, String topic, String key, String payload, listener, int maxRetries) {
     int attempt = 0
@@ -49,11 +54,10 @@ RunListener.all().add(new RunListener<Run>() {
 
     @Override
     void onStarted(Run run, TaskListener listener) {
-        def paramsAction = run.getAction(ParametersAction)
-        def jobId = paramsAction?.getParameter('JOB_ID')?.value
+        def jobName = run.parent.fullName
+        def jobId = deriveJobId(jobName)
         if (!jobId) return
 
-        def jobName     = run.parent.fullName
         def buildNumber = run.number
 
         def payload = """{"jobId":"${jobId}","buildNumber":${buildNumber},"result":"STARTED","jobName":"${jobName}","duration":0,"url":""}"""
@@ -66,14 +70,13 @@ RunListener.all().add(new RunListener<Run>() {
 
     @Override
     void onFinalized(Run run) {
-        def paramsAction = run.getAction(ParametersAction)
-        def jobId = paramsAction?.getParameter('JOB_ID')?.value
+        def jobName = run.parent.fullName
+        def jobId = deriveJobId(jobName)
         if (!jobId) return
 
         def listener    = run.getListener()
         def result      = run.result?.toString() ?: 'UNKNOWN'
         def buildNumber = run.number
-        def jobName     = run.parent.fullName
         def duration    = run.duration
         def url         = run.absoluteUrl ?: ''
 

@@ -84,7 +84,6 @@ infra/docker/deploy/
 │   ├── jenkins/                    # Jenkins 빌드 컨텍스트
 │   │   ├── Dockerfile
 │   │   ├── casc.yaml
-│   │   ├── disable-csrf.groovy
 │   │   ├── webhook-listener.groovy
 │   │   ├── Jenkinsfile
 │   │   └── Jenkinsfile-deploy
