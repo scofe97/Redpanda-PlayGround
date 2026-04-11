@@ -378,12 +378,89 @@
   /* Two-column layout */
   .content-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1.2fr 1fr;
     gap: 16px;
   }
 
+  .code-panel .panel-title {
+    margin-bottom: 8px;
+  }
+
+  .code-meta {
+    color: rgb(138, 133, 128);
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    margin-bottom: 10px;
+  }
+
+  .code-panel-below {
+    margin-top: 16px;
+  }
+
+  .tx-split-panel {
+    margin-bottom: 16px;
+  }
+
+  .tx-flow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+
+  .tx-chip {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    padding: 6px 10px;
+    border: 1px solid rgb(42, 37, 32);
+    border-radius: 6px;
+    background: rgb(20, 20, 20);
+  }
+
+  .tx-chip strong {
+    color: rgb(212, 168, 83);
+    font-weight: 600;
+  }
+
+  .tx-arrow {
+    color: rgb(138, 133, 128);
+    font-size: 12px;
+  }
+
+  .tx-note {
+    color: rgb(138, 133, 128);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .code-block {
+    background: rgb(17, 17, 17);
+    border: 1px solid rgb(42, 37, 32);
+    border-radius: 8px;
+    padding: 14px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre;
+    color: #e8e4df;
+    min-height: 340px;
+  }
+
+  .kw { color: #c792ea; }
+  .type { color: #82aaff; }
+  .fn { color: #ffcb6b; }
+  .str { color: #c3e88d; }
+  .num { color: #f78c6c; }
+  .ann { color: #89ddff; }
+  .cmt { color: #7f848e; font-style: italic; }
+  .sql { color: #ffd580; }
+  .var { color: #f2a8ff; }
+
   @media (max-width: 900px) {
     .content-grid { grid-template-columns: 1fr; }
+    .code-block { min-height: 280px; }
   }
 </style>
 </head>
@@ -391,12 +468,15 @@
 
 <div class="fixed-header">
   <h1>Transactional Outbox 흐름도</h1>
-  <p class="subtitle">common-kafka 모듈 — EventPublisher → outbox_event → OutboxPoller → Kafka</p>
+  <p class="subtitle">common-kafka 모듈 — EventPublisher → outbox_event → OutboxPoller → Kafka (락 경합/중간 실패 정합성 포함)</p>
 
   <div class="scenario-selector">
     <button class="scenario-pill active" onclick="switchScenario(0)">케이스 1: 정상 발행</button>
     <button class="scenario-pill" onclick="switchScenario(1)">케이스 2: 재시도 후 복구</button>
     <button class="scenario-pill" onclick="switchScenario(2)">케이스 3: Dead Letter</button>
+    <button class="scenario-pill" onclick="switchScenario(3)">케이스 4: 멀티 인스턴스 락 경합</button>
+    <button class="scenario-pill" onclick="switchScenario(4)">케이스 5: 중간 실패 실제 동작</button>
+    <button class="scenario-pill" onclick="switchScenario(5)">케이스 6: FOR UPDATE 평가 흐름</button>
   </div>
 
   <div class="panel" style="margin-bottom: 0;">
@@ -425,6 +505,21 @@
 </div>
 
 <div class="scroll-content" id="scrollContent" style="display: none;">
+  <div class="panel tx-split-panel">
+    <div class="panel-title">왜 트랜잭션 분리인가</div>
+    <div class="tx-flow">
+      <span class="tx-chip"><strong>TX-1</strong> 조회/락: PENDING → PROCESSING</span>
+      <span class="tx-arrow">→</span>
+      <span class="tx-chip"><strong>NO-TX</strong> Kafka 발행 (네트워크 IO)</span>
+      <span class="tx-arrow">→</span>
+      <span class="tx-chip"><strong>TX-2</strong> 성공/실패 마킹 (SENT, RETRY, DEAD)</span>
+    </div>
+    <div class="tx-note">
+      Kafka send를 DB 트랜잭션 안에 두면 브로커 지연/타임아웃 동안 커넥션 점유가 길어져 풀 고갈 위험이 커진다.
+      그래서 조회/상태변경은 짧은 트랜잭션으로 끝내고, 발행은 트랜잭션 밖에서 실행한 뒤 결과만 다시 DB에 반영한다.
+    </div>
+  </div>
+
   <div class="content-grid">
     <div class="panel">
       <div class="panel-title">내레이션</div>
@@ -440,6 +535,11 @@
         <div class="db-row">sent_at=NULL, trace_parent=NULL</div>
       </div>
     </div>
+  </div>
+  <div class="panel code-panel code-panel-below">
+    <div class="panel-title">실제 코드 (common-kafka)</div>
+    <div class="code-meta" id="codeMeta">코드 경로가 여기에 표시된다</div>
+    <pre class="code-block"><code id="codeBlock">시뮬레이션 시작 후 현재 단계와 매칭되는 실제 코드가 표시된다.</code></pre>
   </div>
 </div>
 
@@ -471,13 +571,177 @@ function dbMulti(sections) {
   return sections.map(s => db(s.rows, s)).join('');
 }
 
+const codeSnippets = {
+  eventPublisher: {
+    path: 'common-kafka/src/main/java/com/study/playground/kafka/outbox/EventPublisher.java',
+    content: `<span class="ann">@Component</span>
+<span class="ann">@RequiredArgsConstructor</span>
+<span class="kw">public class</span> <span class="type">EventPublisher</span> {
+  <span class="kw">private final</span> <span class="type">OutboxEventRepository</span> outboxEventRepository;
+  <span class="kw">private final</span> <span class="type">AvroSerializer</span> avroSerializer;
+
+  <span class="kw">public void</span> <span class="fn">publish</span>(..., <span class="type">SpecificRecord</span> record, ...) {
+    <span class="fn">publish</span>(..., avroSerializer.<span class="fn">serialize</span>(record), ...);
+  }
+
+  <span class="kw">public void</span> <span class="fn">publish</span>(..., <span class="type">byte[]</span> payload, ...) {
+    <span class="type">OutboxEvent</span> event = <span class="type">OutboxEvent</span>.<span class="fn">of</span>(..., payload, ...);
+    event.<span class="fn">setTraceParent</span>(TraceContextUtil.<span class="fn">captureTraceParent</span>());
+    outboxEventRepository.<span class="fn">save</span>(event);
+  }
+}`
+  },
+  pollSelect: {
+    path: 'common-kafka/src/main/java/com/study/playground/kafka/outbox/OutboxEventRepository.java',
+    content: `<span class="ann">@Query</span>(value = <span class="str">"SELECT ... FOR UPDATE SKIP LOCKED"</span>, nativeQuery = <span class="kw">true</span>)
+<span class="type">List</span>&lt;<span class="type">Long</span>&gt; <span class="fn">findHeadPendingIdsForProcessing</span>(<span class="ann">@Param</span>(<span class="str">"limit"</span>) <span class="kw">int</span> limit);
+
+<span class="ann">@Modifying</span>
+<span class="type">int</span> <span class="fn">markAsProcessingByIds</span>(<span class="ann">@Param</span>(<span class="str">"ids"</span>) <span class="type">List</span>&lt;<span class="type">Long</span>&gt; ids);
+
+<span class="cmt">-- 핵심 SQL 요약</span>
+<span class="sql">SELECT oe.id
+FROM outbox_event oe
+WHERE oe.status = 'PENDING'
+  AND (oe.next_retry_at IS NULL OR oe.next_retry_at &lt;= NOW())
+  AND NOT EXISTS (
+    SELECT 1 FROM outbox_event inflight
+    WHERE inflight.aggregate_id = oe.aggregate_id
+      AND inflight.status = 'PROCESSING'
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM outbox_event prev
+    WHERE prev.aggregate_id = oe.aggregate_id
+      AND prev.status IN ('PENDING', 'PROCESSING')
+      AND (prev.created_at &lt; oe.created_at
+        OR (prev.created_at = oe.created_at AND prev.id &lt; oe.id))
+  )
+ORDER BY oe.created_at, oe.id
+LIMIT :limit
+FOR UPDATE SKIP LOCKED;
+
+UPDATE outbox_event
+SET status = 'PROCESSING'
+WHERE id IN (:ids)
+  AND status = 'PENDING';</span>`
+  },
+  pollLoop: {
+    path: 'common-kafka/src/main/java/com/study/playground/kafka/outbox/application/OutboxPollService.java',
+    content: `<span class="type">Set</span>&lt;<span class="type">String</span>&gt; failedAggregates = <span class="kw">new</span> <span class="type">HashSet</span>&lt;&gt;();
+<span class="type">List</span>&lt;<span class="type">Long</span>&gt; sentIds = <span class="kw">new</span> <span class="type">ArrayList</span>&lt;&gt;();
+<span class="type">List</span>&lt;<span class="type">Long</span>&gt; skippedIds = <span class="kw">new</span> <span class="type">ArrayList</span>&lt;&gt;();
+
+<span class="kw">for</span> (<span class="kw">var</span> event : events) {
+  <span class="kw">if</span> (failedAggregates.<span class="fn">contains</span>(event.getAggregateId())) {
+    skippedIds.<span class="fn">add</span>(event.getId());
+    <span class="kw">continue</span>;
+  }
+  <span class="kw">try</span> {
+    kafkaPublisher.<span class="fn">publish</span>(event);
+    sentIds.<span class="fn">add</span>(event.getId());
+  } <span class="kw">catch</span> (<span class="type">Exception</span> e) {
+    failedAggregates.<span class="fn">add</span>(event.getAggregateId());
+    txTemplate.<span class="fn">executeWithoutResult</span>(s -&gt; handleFailure(event));
+  }
+}
+
+<span class="kw">if</span> (!sentIds.<span class="fn">isEmpty</span>()) outboxEventRepository.<span class="fn">batchMarkAsSent</span>(sentIds);
+<span class="kw">if</span> (!skippedIds.<span class="fn">isEmpty</span>()) outboxEventRepository.<span class="fn">revertToPending</span>(skippedIds);`
+  },
+  kafkaPublisher: {
+    path: 'common-kafka/src/main/java/com/study/playground/kafka/outbox/infrastructure/publishing/OutboxKafkaPublisher.java',
+    content: `<span class="kw">public void</span> <span class="fn">publish</span>(<span class="type">OutboxEvent</span> event) <span class="kw">throws</span> <span class="type">Exception</span> {
+  <span class="type">ProducerRecord</span>&lt;<span class="type">String</span>, <span class="type">byte[]</span>&gt; record = <span class="kw">new</span> <span class="type">ProducerRecord</span>&lt;&gt;(
+      event.getTopic(), <span class="kw">null</span>, event.getAggregateId(), event.getPayload()
+  );
+  <span class="fn">addCloudEventsHeaders</span>(record, event);
+  <span class="fn">sendWithTraceContext</span>(record, event);
+}
+
+<span class="kw">private void</span> <span class="fn">addCloudEventsHeaders</span>(...) {
+  record.headers().<span class="fn">add</span>(<span class="str">"ce_specversion"</span>, <span class="str">"1.0"</span>.getBytes(...));
+  record.headers().<span class="fn">add</span>(<span class="str">"ce_id"</span>, String.valueOf(event.getId()).getBytes(...));
+  record.headers().<span class="fn">add</span>(<span class="str">"ce_source"</span>, (<span class="str">"/"</span> + applicationName).getBytes(...));
+  record.headers().<span class="fn">add</span>(<span class="str">"ce_type"</span>, event.getEventType().getBytes(...));
+}
+
+<span class="kw">private void</span> <span class="fn">sendWithTraceContext</span>(...) <span class="kw">throws</span> <span class="type">Exception</span> {
+  <span class="kw">if</span> (!TraceContextUtil.<span class="fn">isOtelAvailable</span>()) {
+    kafkaTemplate.<span class="fn">send</span>(record).<span class="fn">get</span>(<span class="num">5</span>, TimeUnit.SECONDS);
+    <span class="kw">return</span>;
+  }
+  TraceContextUtil.<span class="fn">publishWithTrace</span>(event.getTraceParent(), <span class="str">"OutboxKafkaPublisher.publish"</span>, ...);
+}`
+  },
+  handleFailure: {
+    path: 'common-kafka/src/main/java/com/study/playground/kafka/outbox/application/OutboxPollService.java',
+    content: `<span class="kw">private void</span> <span class="fn">handleFailure</span>(<span class="type">OutboxEvent</span> event) {
+  <span class="kw">if</span> (retryPolicy.<span class="fn">isMaxRetriesExceeded</span>(event.getRetryCount(), properties.getMaxRetries())) {
+    outboxEventRepository.<span class="fn">markAsDead</span>(event.getId());
+    metrics.<span class="fn">incrementDead</span>();
+    dlqPublisher.<span class="fn">publishToDlq</span>(event);
+    <span class="fn">notifyDeadToHandler</span>(event);
+  } <span class="kw">else</span> {
+    <span class="type">LocalDateTime</span> nextRetry = retryPolicy.<span class="fn">calculateNextRetryAt</span>(event.getRetryCount());
+    outboxEventRepository.<span class="fn">incrementRetryAndSetNextRetryAt</span>(event.getId(), nextRetry);
+  }
+}`
+  },
+  retryPolicy: {
+    path: 'common-kafka/src/main/java/com/study/playground/kafka/outbox/domain/OutboxRetryPolicy.java',
+    content: `<span class="kw">public boolean</span> <span class="fn">isMaxRetriesExceeded</span>(<span class="type">Integer</span> retryCount, <span class="kw">int</span> maxRetries) {
+  <span class="kw">int</span> count = retryCount != <span class="kw">null</span> ? retryCount : <span class="num">0</span>;
+  <span class="kw">return</span> count &gt;= maxRetries;
+}
+
+<span class="kw">public</span> <span class="type">LocalDateTime</span> <span class="fn">calculateNextRetryAt</span>(<span class="type">Integer</span> retryCount) {
+  <span class="kw">int</span> count = retryCount != <span class="kw">null</span> ? retryCount : <span class="num">0</span>;
+  <span class="kw">long</span> delaySeconds = (<span class="kw">long</span>) Math.<span class="fn">pow</span>(<span class="num">2</span>, count);
+  <span class="kw">return</span> LocalDateTime.<span class="fn">now</span>().<span class="fn">plusSeconds</span>(delaySeconds);
+}`
+  },
+  dlqPublisher: {
+    path: 'common-kafka/src/main/java/com/study/playground/kafka/outbox/infrastructure/publishing/OutboxDlqPublisher.java',
+    content: `<span class="kw">public void</span> <span class="fn">publishToDlq</span>(<span class="type">OutboxEvent</span> event) {
+  <span class="kw">try</span> {
+    <span class="kw">var</span> record = <span class="kw">new</span> <span class="type">ProducerRecord</span>&lt;<span class="type">String</span>, <span class="type">byte[]</span>&gt;(
+        Topics.DLQ, <span class="kw">null</span>, event.getAggregateId(), event.getPayload()
+    );
+    record.headers().<span class="fn">add</span>(<span class="str">"dlq.original.topic"</span>, event.getTopic().getBytes(...));
+    record.headers().<span class="fn">add</span>(<span class="str">"dlq.failure.reason"</span>, <span class="str">"max_retries_exceeded"</span>.getBytes(...));
+    record.headers().<span class="fn">add</span>(<span class="str">"dlq.retry.count"</span>, String.valueOf(event.getRetryCount()).getBytes(...));
+    kafkaTemplate.<span class="fn">send</span>(record).<span class="fn">get</span>(<span class="num">5</span>, TimeUnit.SECONDS);
+  } <span class="kw">catch</span> (<span class="type">Exception</span> e) {
+    <span class="cmt">// best-effort: DEAD 상태는 유지하고 로그만 남김</span>
+    log.<span class="fn">error</span>(<span class="str">"Failed to publish DEAD event to DLQ: id={}"</span>, event.getId(), e);
+  }
+}`
+  }
+};
+
+function resolveCode(node) {
+  if (node.codeKey && codeSnippets[node.codeKey]) {
+    return codeSnippets[node.codeKey];
+  }
+  const label = (node.label || '').toLowerCase();
+  if (label.includes('dlq')) return codeSnippets.dlqPublisher;
+  if (label.includes('dead')) return codeSnippets.handleFailure;
+  if (label.includes('wait')) return codeSnippets.retryPolicy;
+  if (label.includes('retry') || label.includes('fail')) return codeSnippets.handleFailure;
+  if (label.includes('batch') || label.includes('skip')) return codeSnippets.pollLoop;
+  if (label.includes('header') || label.includes('trace') || label.includes('publish')) return codeSnippets.kafkaPublisher;
+  if (label.includes('poll') || label.includes('query') || label.includes('instance') || label.includes('lock')) return codeSnippets.pollSelect;
+  return codeSnippets.eventPublisher;
+}
+
 const scenarios = {
   0: {
     title: '케이스 1: 정상 발행',
     nodes: [
       {
         label: 'Biz TX',
-        narration: '<span class="hl">@Transactional</span> 비즈니스 메서드가 실행된다. 도메인 로직(Job 생성 등)이 완료되고, 같은 트랜잭션 안에서 <span class="hl">EventPublisher.publish()</span>를 호출한다.',
+        codeKey: 'eventPublisher',
+        narration: '<span class="hl">@Transactional</span> 비즈니스 메서드에서 <span class="hl">EventPublisher.publish()</span>를 호출한다. 이 케이스는 이벤트 1건만 있는 단순 정상 경로 예시다.',
         db: () => db([
           ['id', '42'],
           ['aggregate_type', 'EXECUTION_JOB'],
@@ -492,6 +756,7 @@ const scenarios = {
       },
       {
         label: 'Serialize',
+        codeKey: 'eventPublisher',
         narration: '<span class="hl">AvroSerializer.serialize(topic, record)</span>가 SpecificRecord를 Confluent Wire Format(magic byte + schema ID + Avro binary)으로 직렬화한다. Schema Registry에 스키마가 자동 등록된다.',
         db: () => db([
           ['id', '42'],
@@ -506,6 +771,7 @@ const scenarios = {
       },
       {
         label: 'Save',
+        codeKey: 'eventPublisher',
         narration: '<span class="hl">OutboxEvent.of()</span> 팩토리 메서드로 이벤트를 생성하고, <span class="hl">TraceContextUtil.captureTraceParent()</span>로 현재 OTel Span의 W3C traceparent를 캡처한다. JPA <span class="hl">repository.save()</span>로 outbox_event 테이블에 INSERT한다. 비즈니스 TX와 동일 트랜잭션이므로 <span class="ok">원자성이 보장</span>된다.',
         db: () => db([
           ['id', '42'],
@@ -523,7 +789,8 @@ const scenarios = {
       },
       {
         label: 'Poll',
-        narration: '<span class="hl">OutboxPoller.pollAndPublish()</span>가 500ms 주기로 실행된다. <span class="hl">SELECT ... FOR UPDATE SKIP LOCKED</span> 쿼리로 PENDING 이벤트를 batch-size(기본 50)만큼 가져온다. SKIP LOCKED 덕분에 다른 Poller 인스턴스와 경쟁 없이 행을 잠근다.',
+        codeKey: 'pollSelect',
+        narration: '<span class="hl">OutboxPoller.pollAndPublish()</span>가 500ms 주기로 실행된다. 먼저 aggregate별 head 이벤트만 <span class="hl">SELECT ... FOR UPDATE SKIP LOCKED</span>로 잠근 뒤 PROCESSING으로 전환한다. 이 케이스는 단일 이벤트라 바로 PROCESSING이 된다.',
         db: () => db([
           ['id', '42'],
           ['aggregate_type', 'EXECUTION_JOB'],
@@ -537,6 +804,7 @@ const scenarios = {
       },
       {
         label: 'Headers',
+        codeKey: 'kafkaPublisher',
         narration: 'ProducerRecord에 CloudEvents 1.0 Binary Content Mode 헤더를 추가한다:<br>- <span class="hl">ce_specversion</span>: "1.0"<br>- <span class="hl">ce_id</span>: 42 (이벤트 ID)<br>- <span class="hl">ce_source</span>: "/executor"<br>- <span class="hl">ce_type</span>: JOB_EXECUTE<br>- <span class="hl">ce_correlationid</span>: 요청 추적 ID',
         db: () => dbMulti([
           { section: 'outbox_event', rows: [
@@ -554,6 +822,7 @@ const scenarios = {
       },
       {
         label: 'Trace',
+        codeKey: 'kafkaPublisher',
         narration: '<span class="hl">publishWithTraceContext()</span>가 저장된 traceparent를 복원하여 부모 Span으로 설정한다. 새 자식 Span "OutboxPoller.publish"를 생성하고, <span class="hl">outbox.event.id</span>, <span class="hl">outbox.event.type</span>, <span class="hl">outbox.aggregate.id</span> 속성을 기록한다. OTel이 없으면 이 단계를 건너뛴다.',
         db: () => dbMulti([
           { section: 'outbox_event', rows: [
@@ -570,6 +839,7 @@ const scenarios = {
       },
       {
         label: 'Publish',
+        codeKey: 'kafkaPublisher',
         narration: '<span class="hl">kafkaTemplate.send(record).get(5, SECONDS)</span>로 Kafka에 동기 발행한다. aggregateId를 ProducerRecord key로 사용하여 같은 Aggregate의 이벤트가 동일 파티션에 순서대로 도착하도록 보장한다. <span class="ok">발행 성공!</span>',
         db: () => db([
           ['id', '42'],
@@ -583,6 +853,7 @@ const scenarios = {
       },
       {
         label: 'Batch OK',
+        codeKey: 'pollLoop',
         narration: 'Poll 주기 내 처리한 모든 성공 이벤트를 <span class="hl">batchMarkAsSent(sentIds)</span>로 일괄 SENT 처리한다. 배치 업데이트이므로 DB 라운드트립을 최소화한다.',
         db: () => db([
           ['id', '42'],
@@ -599,7 +870,8 @@ const scenarios = {
     nodes: [
       {
         label: 'Save',
-        narration: '비즈니스 트랜잭션이 완료되고 outbox_event가 PENDING 상태로 저장되었다.',
+        codeKey: 'eventPublisher',
+        narration: '비즈니스 트랜잭션 완료 후 outbox_event 1건이 PENDING으로 저장된다. (단일 이벤트 재시도 예시)',
         db: () => db([
           ['id', '99'],
           ['aggregate_type', 'EXECUTION_JOB'],
@@ -612,6 +884,7 @@ const scenarios = {
       },
       {
         label: 'Poll #1',
+        codeKey: 'pollSelect',
         narration: '<span class="hl">OutboxPoller.pollAndPublish()</span>가 이벤트를 가져와 PROCESSING으로 전환한다.',
         db: () => db([
           ['id', '99'],
@@ -623,6 +896,7 @@ const scenarios = {
       },
       {
         label: 'Fail #1',
+        codeKey: 'handleFailure',
         narration: 'Kafka 브로커 연결 실패! <span class="fail">TimeoutException</span> 발생. <span class="hl">handleFailure()</span>가 호출되어 retryCount(0) < maxRetries(5)를 확인한다. 상태를 PENDING으로 되돌리고, 지수 백오프 <span class="warn">2^0 = 1초</span> 후 재시도를 스케줄한다.',
         db: () => db([
           ['id', '99'],
@@ -634,7 +908,8 @@ const scenarios = {
       },
       {
         label: 'Wait 1s',
-        narration: 'next_retry_at이 아직 도래하지 않았으므로, Poller의 <span class="hl">WHERE next_retry_at &lt;= NOW()</span> 조건에 걸리지 않아 건너뛴다. 1초 후 재시도 대상이 된다.',
+        codeKey: 'retryPolicy',
+        narration: 'next_retry_at이 아직 도래하지 않아 <span class="hl">WHERE next_retry_at &lt;= NOW()</span> 조건에서 제외된다. 이 케이스는 같은 aggregate의 다른 pending 이벤트가 없어서 순서 이슈가 없다.',
         db: () => db([
           ['id', '99'],
           ['status', 'PENDING'],
@@ -645,7 +920,8 @@ const scenarios = {
       },
       {
         label: 'Poll #2',
-        narration: '1초가 경과하여 next_retry_at 조건을 만족한다. 다시 SELECT ... FOR UPDATE SKIP LOCKED로 가져온다.',
+        codeKey: 'pollSelect',
+        narration: '1초가 경과하여 next_retry_at 조건을 만족한다. 같은 aggregate에서 선행 PENDING/PROCESSING이 없으므로 다시 head로 선택된다.',
         db: () => db([
           ['id', '99'],
           ['status', '<span class="changed">PROCESSING</span>'],
@@ -655,6 +931,7 @@ const scenarios = {
       },
       {
         label: 'Fail #2',
+        codeKey: 'handleFailure',
         narration: '브로커가 여전히 불안정하다. <span class="fail">두 번째 실패</span>. 지수 백오프 <span class="warn">2^1 = 2초</span> 후 재시도.',
         db: () => db([
           ['id', '99'],
@@ -666,6 +943,7 @@ const scenarios = {
       },
       {
         label: 'Poll #3',
+        codeKey: 'pollSelect',
         narration: '2초 후 세 번째 시도. 브로커가 복구되었다.',
         db: () => db([
           ['id', '99'],
@@ -676,6 +954,7 @@ const scenarios = {
       },
       {
         label: 'Publish',
+        codeKey: 'kafkaPublisher',
         narration: '<span class="ok">발행 성공!</span> 브로커가 복구되어 메시지가 정상 전달되었다. 지수 백오프 전략 덕분에 브로커에 과도한 부하 없이 복구 시점에 재시도가 성공했다.',
         db: () => db([
           ['id', '99'],
@@ -692,7 +971,8 @@ const scenarios = {
     nodes: [
       {
         label: 'Save',
-        narration: 'outbox_event가 PENDING으로 저장되었다.',
+        codeKey: 'eventPublisher',
+        narration: 'outbox_event 1건이 PENDING으로 저장된다. (최대 재시도 초과 경로 예시)',
         db: () => db([
           ['id', '77'],
           ['aggregate_type', 'EXECUTION_JOB'],
@@ -703,6 +983,7 @@ const scenarios = {
       },
       {
         label: 'Retry 1',
+        codeKey: 'handleFailure',
         narration: '첫 번째 시도 실패. <span class="fail">SerializationException</span> — Schema Registry 응답 에러. 백오프 <span class="warn">2^0 = 1초</span>.',
         db: () => db([
           ['id', '77'],
@@ -714,6 +995,7 @@ const scenarios = {
       },
       {
         label: 'Retry 2',
+        codeKey: 'handleFailure',
         narration: '두 번째 시도 실패. 백오프 <span class="warn">2^1 = 2초</span>.',
         db: () => db([
           ['id', '77'],
@@ -725,6 +1007,7 @@ const scenarios = {
       },
       {
         label: 'Retry 3',
+        codeKey: 'handleFailure',
         narration: '세 번째 시도 실패. 백오프 <span class="warn">2^2 = 4초</span>.',
         db: () => db([
           ['id', '77'],
@@ -736,6 +1019,7 @@ const scenarios = {
       },
       {
         label: 'Retry 4',
+        codeKey: 'handleFailure',
         narration: '네 번째 시도 실패. 백오프 <span class="warn">2^3 = 8초</span>.',
         db: () => db([
           ['id', '77'],
@@ -747,6 +1031,7 @@ const scenarios = {
       },
       {
         label: 'Retry 5',
+        codeKey: 'handleFailure',
         narration: '다섯 번째 시도도 실패. retryCount(5) >= maxRetries(5) 조건 충족.',
         db: () => db([
           ['id', '77'],
@@ -757,6 +1042,7 @@ const scenarios = {
       },
       {
         label: 'DEAD',
+        codeKey: 'handleFailure',
         narration: '<span class="hl">markAsDead(id)</span> 호출. 이벤트가 <span class="fail">DEAD</span> 상태로 전환된다. <span class="hl">outbox.events.dead</span> Micrometer 카운터가 증가한다. 운영자가 수동으로 원인을 파악하고 재처리해야 한다.',
         db: () => db([
           ['id', '77'],
@@ -768,6 +1054,7 @@ const scenarios = {
       },
       {
         label: 'DLQ',
+        codeKey: 'dlqPublisher',
         narration: 'DEAD 이벤트를 <span class="hl">playground.dlq</span> 토픽으로 발행한다. 헤더에 원본 정보를 포함한다:<br>- <span class="hl">dlq.original.topic</span>: cmd.job-execute<br>- <span class="hl">dlq.failure.reason</span>: max_retries_exceeded<br>- <span class="hl">dlq.retry.count</span>: 5<br><span class="hl">DlqConsumer</span>가 이를 수신하여 로깅한다.',
         db: () => dbMulti([
           { section: 'outbox_event', rows: [
@@ -781,6 +1068,296 @@ const scenarios = {
           ]}
         ]),
         stepClass: 'failed'
+      }
+    ]
+  },
+  3: {
+    title: '케이스 4: 멀티 인스턴스 락 경합',
+    nodes: [
+      {
+        label: 'Seed',
+        codeKey: 'eventPublisher',
+        narration: '적재 순서대로 PENDING이 쌓인다. 단, 쿼리는 단순 LIMIT 50이 아니라 <span class="hl">aggregate별 head만</span> 후보로 본다.',
+        db: () => dbMulti([
+          { section: 'outbox_event', rows: [
+            ['501', 'aggregate=A-17, PENDING, created_at=T0'],
+            ['502', 'aggregate=A-17, PENDING, created_at=T0+1ms'],
+            ['503~620', '대부분 서로 다른 aggregate, PENDING'],
+            ['batch-size', '50']
+          ]}
+        ]),
+        stepClass: 'active'
+      },
+      {
+        label: 'Poller-A Select',
+        codeKey: 'pollSelect',
+        narration: 'Poller-A가 먼저 조회하면 A-17에서는 head인 501만 후보가 된다(502는 선행 PENDING=501 때문에 제외). 즉 <span class="hl">같은 aggregate_id(A-17)의 501/502 중 501만 먼저 PROCESSING</span> 된다. 그리고 다른 aggregate head를 채워 총 50건을 잠그고 PROCESSING으로 마킹한다.',
+        db: () => dbMulti([
+          { section: 'Poller-A', rows: [
+            ['selected ids', '<span class="changed">[501, 503..551] (50건)</span>'],
+            ['A-17', '501만 head로 선택, 502는 제외'],
+            ['status change', '선택된 50건 → <span class="changed">PROCESSING</span>']
+          ]},
+          { section: 'outbox_event', rows: [
+            ['501', 'A-17, PROCESSING'],
+            ['502', 'A-17, PENDING (선행 501 대기)'],
+            ['503~551(head)', '..., PROCESSING'],
+            ['552', '..., PENDING']
+          ]}
+        ]),
+        stepClass: 'active'
+      },
+      {
+        label: 'Poller-B Concurrent',
+        codeKey: 'pollSelect',
+        narration: '동시에 Poller-B가 조회하면 Poller-A가 잠근 head는 <span class="hl">SKIP LOCKED</span>로 건너뛴다. A-17의 502도 여전히 선행 이벤트 때문에 제외되고, Poller-B는 다음 head 집합을 가져간다.',
+        db: () => dbMulti([
+          { section: 'Poller-B', rows: [
+            ['skipped', '<span class="fail">[501, 503..551] locked</span>'],
+            ['excluded', '502 (A-17 선행 PENDING/PROCESSING 존재)'],
+            ['selected', '<span class="changed">[552..601 중 head 50건]</span>']
+          ]},
+          { section: 'outbox_event', rows: [
+            ['552~601(head)', '..., PROCESSING'],
+            ['602', '..., PENDING']
+          ]}
+        ]),
+        stepClass: 'active'
+      },
+      {
+        label: 'Interleaved Send',
+        codeKey: 'kafkaPublisher',
+        narration: '전송 완료 시점은 인스턴스별로 다를 수 있어, 다른 aggregate(예: 561)가 501보다 먼저 SENT 되는 것은 가능하다. 하지만 <span class="hl">같은 aggregate(A-17) 내부</span>에서는 501이 끝나기 전 502가 선택되지 않는다.',
+        db: () => dbMulti([
+          { section: 'Observed Order', rows: [
+            ['561 (other aggregate)', '<span class="changed">SENT first</span>'],
+            ['501 (A-17)', 'still PROCESSING']
+          ]},
+          { section: 'Guarantee', rows: [
+            ['A-17 sequence', '501 완료 전 502는 선택 불가']
+          ]}
+        ]),
+        stepClass: 'active'
+      },
+      {
+        label: 'A-17 Follow-up Blocked',
+        codeKey: 'pollSelect',
+        narration: '같은 aggregate 신규 이벤트 621이 추가되어도, A-17 head가 정리되기 전에는 후속 이벤트(502, 621)가 조회에서 제외된다.',
+        db: () => dbMulti([
+          { section: 'Excluded', rows: [
+            ['502 (A-17)', '<span class="fail">BLOCKED (501 선행)</span>'],
+            ['621 (A-17)', '<span class="fail">BLOCKED (501/502 선행)</span>']
+          ]},
+          { section: 'Selected', rows: [
+            ['other aggregates', '<span class="changed">조건 통과한 50건</span>']
+          ]}
+        ]),
+        stepClass: 'failed'
+      },
+      {
+        label: 'Ordered Release',
+        codeKey: 'kafkaPublisher',
+        narration: '501이 SENT 되면 다음 poll에서 A-17 head는 502가 된다. 502가 SENT 된 뒤에야 621이 선택된다. 즉 A-17 내부 순서는 501 → 502 → 621로 유지된다.',
+        db: () => dbMulti([
+          { section: 'outbox_event', rows: [
+            ['501', '<span class="sent-val">SENT</span>'],
+            ['502', 'PENDING → <span class="changed">PROCESSING → SENT</span>'],
+            ['621', 'PENDING → <span class="changed">PROCESSING → SENT</span>']
+          ]},
+          { section: 'Summary', rows: [
+            ['SKIP LOCKED', '동시 인스턴스 충돌 회피'],
+            ['Head Guard', 'aggregate 선행 이벤트 완료 전 후속 조회 차단'],
+            ['LIMIT 50', 'head 후보 50건을 채움']
+          ]}
+        ], { note: '실제 쿼리 흐름: 동시 폴링 + aggregate head 선별 + 순서 보장' }),
+        stepClass: 'active'
+      }
+    ]
+  },
+  4: {
+    title: '케이스 5: 중간 실패 실제 동작',
+    nodes: [
+      {
+        label: 'Seed',
+        codeKey: 'eventPublisher',
+        narration: '동일 aggregate(C-31)의 연속 이벤트 801, 802가 PENDING 상태다. 실제 쿼리 동작을 기준으로 중간 실패 이후를 추적한다.',
+        db: () => db([
+          ['801', 'C-31, PENDING, retry=0'],
+          ['802', 'C-31, PENDING, retry=0']
+        ]),
+        stepClass: 'active'
+      },
+      {
+        label: 'Poll Batch',
+        codeKey: 'pollSelect',
+        narration: 'head 선별 쿼리로 같은 aggregate에서는 801만 선택된다. 802는 선행 이벤트가 있어 이번 배치에서 제외된다.',
+        db: () => db([
+          ['801', 'C-31, <span class="changed">PROCESSING</span>'],
+          ['802', 'C-31, PENDING (head 아님)']
+        ]),
+        stepClass: 'active'
+      },
+      {
+        label: 'Mid Fail 801',
+        codeKey: 'handleFailure',
+        narration: '첫 이벤트 801 발행이 중간에 실패한다. Poll 루프는 <span class="hl">failedAggregates.add("C-31")</span>를 기록해 후속 이벤트 순서 역전을 막는다.',
+        db: () => dbMulti([
+          { section: 'Runtime State', rows: [
+            ['failedAggregates', '<span class="changed">["C-31"]</span>'],
+            ['sentIds', '[]'],
+            ['skippedIds', '[]']
+          ]},
+          { section: 'outbox_event', rows: [
+            ['801', 'PROCESSING (실패 감지)'],
+            ['802', 'PENDING']
+          ]}
+        ]),
+        stepClass: 'failed'
+      },
+      {
+        label: 'Skip 802',
+        codeKey: 'pollLoop',
+        narration: '이번 배치에는 802가 애초에 들어오지 않았으므로 skippedIds는 비어 있다. 순서 보호는 쿼리의 head 선별 단계에서 먼저 수행된다.',
+        db: () => db([
+          ['failedAggregates', '["C-31"]'],
+          ['skippedIds', '[]'],
+          ['sentIds', '[]']
+        ]),
+        stepClass: 'failed'
+      },
+      {
+        label: 'Recover Marking',
+        codeKey: 'pollLoop',
+        narration: '마킹 단계에서 801은 <span class="hl">retryCount+1, next_retry_at 설정</span>으로 재시도 대기 상태가 된다. 802는 원래부터 PENDING이라 변경이 없다.',
+        db: () => db([
+          ['801', 'PENDING, retry=<span class="changed">1</span>, next_retry_at=<span class="changed">T+1s</span>'],
+          ['802', 'PENDING']
+        ]),
+        stepClass: 'active'
+      },
+      {
+        label: 'Next Poll',
+        codeKey: 'pollSelect',
+        narration: 'T+1s 이전에는 801이 retry window 때문에 head 자격이 없다. 802는 조건 자체는 맞아도 <span class="hl">선행 PENDING(801)</span>이 있어 조회에서 제외된다.',
+        db: () => dbMulti([
+          { section: 'Query Filter', rows: [
+            ['801', '<span class="fail">BLOCKED (next_retry_at not reached)</span>'],
+            ['802', '<span class="fail">BLOCKED (has earlier pending 801)</span>']
+          ]},
+          { section: 'outbox_event', rows: [
+            ['801', 'PENDING, next_retry_at=T+1s'],
+            ['802', 'PENDING']
+          ]}
+        ]),
+        stepClass: 'active'
+      },
+      {
+        label: 'Retry 801',
+        codeKey: 'pollSelect',
+        narration: 'T+1s 이후에는 801이 다시 head로 선택되어 PROCESSING → SENT 된다.',
+        db: () => db([
+          ['801', '<span class="sent-val">SENT</span>'],
+          ['802', 'PENDING']
+        ]),
+        stepClass: 'active'
+      },
+      {
+        label: 'Then 802',
+        codeKey: 'kafkaPublisher',
+        narration: '다음 poll에서 head가 802로 넘어가고 802가 SENT 된다. 최종 발행 순서는 801 → 802로 유지된다.',
+        db: () => db([
+          ['801', '<span class="sent-val">SENT</span>'],
+          ['802', '<span class="sent-val">SENT</span>']
+        ], { note: 'head 선별 쿼리 적용 후: 배치 간에도 aggregate strict ordering 유지' }),
+        stepClass: 'active'
+      }
+    ]
+  },
+  5: {
+    title: '케이스 6: FOR UPDATE + NOT EXISTS 평가 흐름',
+    nodes: [
+      {
+        label: 'Seed',
+        codeKey: 'eventPublisher',
+        narration: '동일 aggregate_id(A-17)에 501, 502가 모두 PENDING이다. 이 케이스는 "A가 501을 잠그는 순간 B가 502를 집을 수 있나?"를 검증한다.',
+        db: () => db([
+          ['501', 'A-17, PENDING, created_at=T0'],
+          ['502', 'A-17, PENDING, created_at=T0+1ms'],
+          ['601', 'B-21, PENDING']
+        ]),
+        stepClass: 'active'
+      },
+      {
+        label: 'Poller-A Lock',
+        codeKey: 'pollSelect',
+        narration: 'Poller-A TX가 501을 후보로 잡고 <span class="hl">FOR UPDATE</span> 잠금을 건다. (아직 같은 TX 안에서 진행 중)',
+        db: () => dbMulti([
+          { section: 'Poller-A TX', rows: [
+            ['candidate', '501 (A-17 head)'],
+            ['lock', '<span class="changed">X-lock on 501</span>']
+          ]},
+          { section: 'outbox_event', rows: [
+            ['501', 'A-17, PENDING (locked by A)'],
+            ['502', 'A-17, PENDING'],
+            ['601', 'B-21, PENDING']
+          ]}
+        ]),
+        stepClass: 'active'
+      },
+      {
+        label: 'Poller-B Concurrent',
+        codeKey: 'pollSelect',
+        narration: 'Poller-B는 501을 만나면 <span class="hl">SKIP LOCKED</span>로 건너뛴다. 하지만 502를 보더라도 <span class="hl">NOT EXISTS(prev)</span>에서 "더 이른 501 존재"가 걸려 탈락한다.',
+        db: () => dbMulti([
+          { section: 'Poller-B 판단', rows: [
+            ['501', '<span class="fail">SKIP (locked)</span>'],
+            ['502', '<span class="fail">REJECT (has earlier row 501)</span>'],
+            ['601', '<span class="changed">SELECT</span>']
+          ]},
+          { section: '핵심', rows: [
+            ['SKIP LOCKED', '잠긴 행 대기 대신 건너뜀'],
+            ['NOT EXISTS(prev)', '같은 aggregate 선행행 있으면 후행 차단']
+          ]}
+        ]),
+        stepClass: 'failed'
+      },
+      {
+        label: 'A Marks 501',
+        codeKey: 'pollSelect',
+        narration: 'Poller-A가 같은 TX에서 501을 PROCESSING으로 마킹하고 커밋한다.',
+        db: () => db([
+          ['501', 'A-17, <span class="changed">PROCESSING</span>'],
+          ['502', 'A-17, PENDING'],
+          ['601', 'B-21, PENDING or PROCESSING']
+        ]),
+        stepClass: 'active'
+      },
+      {
+        label: 'Next Poll',
+        codeKey: 'pollSelect',
+        narration: '501이 SENT/DEAD로 정리되기 전까지 502는 계속 차단된다. 501이 정리된 다음 poll에서만 502가 head로 선택된다.',
+        db: () => db([
+          ['501', 'A-17, PROCESSING or SENT'],
+          ['502', 'A-17, <span class="fail">BLOCKED until 501 done</span>'],
+          ['result', 'A-17 내부 순서 유지']
+        ]),
+        stepClass: 'active'
+      },
+      {
+        label: '정리',
+        codeKey: 'pollSelect',
+        narration: '<span class="hl">결론:</span> 이 설계는 "id별 1건씩 직렬 처리"가 목적이 아니다. <span class="hl">aggregate_id별 head 1건</span>만 보장한다. 그래서 서로 다른 aggregate는 병렬 처리되고, 같은 aggregate만 strict ordering이 유지된다.',
+        db: () => dbMulti([
+          { section: '보장 범위', rows: [
+            ['same aggregate_id', '<span class="changed">항상 선행 이벤트 우선</span>'],
+            ['different aggregate_id', '<span class="changed">병렬 처리 가능</span>']
+          ]},
+          { section: '핵심 오해 정리', rows: [
+            ['id별 1건 직렬화', '<span class="fail">아님</span>'],
+            ['aggregate별 head 직렬화', '<span class="changed">맞음</span>']
+          ]}
+        ]),
+        stepClass: 'active'
       }
     ]
   }
@@ -826,6 +1403,12 @@ function updateDb(node) {
   document.getElementById('dbState').innerHTML = typeof node.db === 'function' ? node.db() : node.db;
 }
 
+function updateCode(node) {
+  const code = resolveCode(node);
+  document.getElementById('codeMeta').textContent = code.path;
+  document.getElementById('codeBlock').innerHTML = code.content;
+}
+
 function goToStep(n) {
   const nodes = scenarios[currentScenario].nodes;
   if (n < 0 || n >= nodes.length) {
@@ -835,6 +1418,7 @@ function goToStep(n) {
   currentStep = n;
   updateNarration(nodes[n], n);
   updateDb(nodes[n]);
+  updateCode(nodes[n]);
   document.getElementById('stepCounter').textContent =
     (currentStep + 1) + ' / ' + nodes.length;
   renderPipeline();
@@ -905,6 +1489,8 @@ function switchScenario(index) {
   document.getElementById('narrationBody').textContent = '시뮬레이션 시작 버튼을 누르거나 "다음" 버튼을 클릭한다.';
   document.getElementById('dbState').innerHTML =
     '<div class="db-row" style="color:rgb(138,133,128)">단계를 선택하면 DB 상태가 표시된다</div>';
+  document.getElementById('codeMeta').textContent = '코드 경로가 여기에 표시된다';
+  document.getElementById('codeBlock').textContent = '단계를 선택하면 현재 단계와 매칭되는 실제 코드가 표시된다.';
 
   // If overlay is hidden, show controls directly
   if (document.getElementById('startOverlay').style.display === 'none') {

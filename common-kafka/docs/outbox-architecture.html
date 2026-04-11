@@ -338,6 +338,7 @@
   <a href="#components">구성 요소</a>
   <a href="#lifecycle">이벤트 라이프사이클</a>
   <a href="#backoff">지수 백오프</a>
+  <a href="#tx-split">트랜잭션 분리</a>
   <a href="#tracing">트레이싱</a>
   <a href="#cloudevents">CloudEvents</a>
   <a href="#schema">테이블 스키마</a>
@@ -403,12 +404,12 @@
   <div class="comp-card">
     <div class="comp-role">Application (오케스트레이션)</div>
     <div class="comp-name">OutboxPollService</div>
-    <div class="comp-desc">폴링 오케스트레이션 서비스. <code>OutboxPollScheduler</code>에서 500ms 주기로 호출된다. PENDING 이벤트를 <code>SELECT ... FOR UPDATE SKIP LOCKED</code>로 가져오고, 커스텀 핸들러 라우팅 → Kafka 발행 → 실패 처리(재시도/DEAD) 흐름을 관리한다. Aggregate 단위 순서를 보장한다.</div>
+    <div class="comp-desc">폴링 오케스트레이션 서비스. <code>OutboxPollScheduler</code>에서 500ms 주기로 호출된다. aggregate별 head 이벤트를 잠그고(<code>FOR UPDATE SKIP LOCKED</code>) PROCESSING으로 마킹한 뒤, 커스텀 핸들러 라우팅 → Kafka 발행 → 실패 처리(재시도/DEAD) 흐름을 관리한다. Aggregate 단위 strict ordering을 보장한다.</div>
   </div>
   <div class="comp-card">
     <div class="comp-role">Repository</div>
-    <div class="comp-name">OutboxRepository</div>
-    <div class="comp-desc"><code>SKIP LOCKED</code> 기반 CTE 쿼리로 동시 폴러 간 경쟁을 방지한다. <code>batchMarkAsSent()</code>, <code>incrementRetryAndSetNextRetryAt()</code>, <code>markAsDead()</code>, <code>deleteOlderThan()</code> 등 상태 전이를 위한 네이티브 SQL을 제공한다.</div>
+    <div class="comp-name">OutboxEventRepository</div>
+    <div class="comp-desc"><code>findHeadPendingIdsForProcessing()</code>로 aggregate head를 잠그고, <code>markAsProcessingByIds()</code>로 상태를 전환한다. 선행 PENDING/PROCESSING 존재 여부를 쿼리에서 검사해 같은 aggregate 후속 이벤트 선점을 차단한다. 또한 <code>batchMarkAsSent()</code>, <code>incrementRetryAndSetNextRetryAt()</code>, <code>markAsDead()</code>, <code>deleteOlderThan()</code>을 제공한다.</div>
   </div>
   <div class="comp-card">
     <div class="comp-role">직렬화</div>
@@ -472,8 +473,8 @@
 </div>
 
 <p>
-  PROCESSING → PENDING 복귀 시 <code>revertToRetryable()</code>가 호출된다.
-  이 메서드는 <code>WHERE status = 'PROCESSING'</code> 조건이 있어, 이미 다른 경로로 상태가 변경된 이벤트를 실수로 되돌리는 것을 방지한다.
+  PROCESSING → PENDING 복귀 시 <code>incrementRetryAndSetNextRetryAt()</code>가 호출된다.
+  이 업데이트는 상태를 PENDING으로 되돌리면서 retryCount를 증가시키고 next_retry_at을 함께 설정한다.
 </p>
 
 <h2 id="backoff">지수 백오프</h2>
@@ -519,13 +520,49 @@
     repository.<span class="hl">markAsDead</span>(event.getId());
     metrics.<span class="typ">incrementDead</span>();
 } <span class="kw">else</span> {
-    repository.<span class="typ">revertToRetryable</span>(event.getId());
     <span class="typ">LocalDateTime</span> nextRetry = LocalDateTime.<span class="typ">now</span>()
         .plusSeconds((<span class="kw">long</span>) Math.<span class="typ">pow</span>(<span class="str">2</span>, event.getRetryCount()));
     repository.<span class="hl">incrementRetryAndSetNextRetryAt</span>(event.getId(), nextRetry);
     metrics.<span class="typ">incrementFailed</span>();
 }
 </pre>
+
+<h2 id="tx-split">왜 트랜잭션을 분리하나</h2>
+
+<p>
+  OutboxPollService는 의도적으로 트랜잭션을 3단계로 분리한다.
+  핵심 목적은 <code>DB 락/커넥션 점유 시간 최소화</code>와 <code>장애 격리</code>다.
+</p>
+
+<div class="panel">
+  <div class="panel-title">트랜잭션 경계</div>
+<pre>
+1) 조회 TX
+   - findHeadPendingIdsForProcessing(limit)
+   - markAsProcessingByIds(ids)
+   - aggregate head만 PROCESSING 전환
+   - 짧게 끝내고 즉시 커밋
+
+2) 발행 구간 (트랜잭션 밖)
+   - kafkaTemplate.send(...).get(5s)
+   - 네트워크 지연/브로커 장애가 있어도 DB 커넥션을 오래 잡지 않음
+
+3) 마킹 TX
+   - 성공: batchMarkAsSent(sentIds)
+   - 실패: incrementRetryAndSetNextRetryAt / markAsDead
+   - 스킵: revertToPending(skippedIds)
+</pre>
+</div>
+
+<p>
+  만약 Kafka 발행을 DB 트랜잭션 안에서 수행하면, 브로커 타임아웃 동안 트랜잭션과 커넥션이 길게 점유된다.
+  폴링 주기가 짧은 환경(예: 500ms)에서는 이 현상이 누적되어 커넥션 풀 고갈과 전체 처리량 저하로 이어질 수 있다.
+</p>
+
+<p>
+  트랜잭션 분리의 대가로 "조회 후 발행" 구간에서 프로세스 장애가 날 수 있으므로,
+  이 모듈은 상태 전이(<code>PROCESSING</code>, <code>PENDING</code>, <code>SENT</code>, <code>DEAD</code>)와 재시도 정책으로 복구 가능성을 확보한다.
+</p>
 
 <h2 id="tracing">트레이싱</h2>
 

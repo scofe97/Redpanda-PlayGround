@@ -18,7 +18,7 @@ import java.util.*;
  *
  * <h3>처리 흐름</h3>
  * <ol>
- *   <li><b>조회 TX</b>: PENDING → PROCESSING 마킹 (FOR UPDATE SKIP LOCKED)</li>
+ *   <li><b>조회 TX</b>: aggregate head 조회/락 → PENDING → PROCESSING 마킹</li>
  *   <li><b>발행 루프</b>: aggregate별 stop-on-failure로 순서 보장 (트랜잭션 밖)</li>
  *   <li><b>마킹 TX</b>: 성공 → SENT, 스킵 → PENDING 복구, 실패 → 재시도/DEAD</li>
  * </ol>
@@ -26,8 +26,8 @@ import java.util.*;
  * <h3>순서 보장 메커니즘</h3>
  * <p>동일 aggregate의 이벤트 순서는 두 계층에서 보장된다:
  * <ul>
- *   <li><b>인스턴스 간</b>: {@code findAndMarkProcessing}의 NOT EXISTS 가드.
- *       PROCESSING 상태인 이벤트가 있는 aggregate는 다른 인스턴스가 조회하지 않는다.</li>
+ *   <li><b>인스턴스 간</b>: {@code findHeadPendingIdsForProcessing}의 head 선별 조건.
+ *       PROCESSING 상태 또는 선행 PENDING/PROCESSING이 남아 있으면 조회하지 않는다.</li>
  *   <li><b>배치 내</b>: {@code failedAggregates} Set.
  *       한 이벤트가 실패하면 동일 aggregate의 후속 이벤트를 skip하여 순서 역전을 방지한다.</li>
  * </ul>
@@ -77,9 +77,16 @@ public class OutboxPollService {
      */
     public void poll() {
         // 1. 조회 + PROCESSING 마킹을 하나의 TX에서 수행
-        //    FOR UPDATE SKIP LOCKED로 다른 인스턴스와 경합 없이 배타적 조회
-        var events = txTemplate.execute(status ->
-                outboxEventRepository.findAndMarkProcessing(properties.getBatchSize()));
+        //    aggregate별 head 이벤트만 잠그고 PROCESSING으로 전환한다.
+        var events = txTemplate.execute(status -> {
+            List<Long> lockedIds = outboxEventRepository
+                    .findHeadPendingIdsForProcessing(properties.getBatchSize());
+            if (lockedIds.isEmpty()) {
+                return Collections.<OutboxEvent>emptyList();
+            }
+            outboxEventRepository.markAsProcessingByIds(lockedIds);
+            return outboxEventRepository.findAllByIdInOrderByCreatedAtAscIdAsc(lockedIds);
+        });
         if (events == null || events.isEmpty()) {
             return;
         }
