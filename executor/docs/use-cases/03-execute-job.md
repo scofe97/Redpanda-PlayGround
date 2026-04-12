@@ -9,14 +9,15 @@
 ```mermaid
 graph TD
     A([EXECUTOR_CMD_JOB_EXECUTE]) --> B[JobExecuteService.execute]
-    B --> C{status\nQUEUED?}
-    C -->|NO| D[무시]
-    C -->|YES| E{Jenkins\nhealth OK?}
-    E -->|NO| F[retryOrFail]
-    E -->|YES| G[queryNextBuildNumber]
-    G --> H[triggerBuild]
-    H --> I[markAsSubmitted\nbuildNo 기록]
-    I --> J[(execution_job\nSUBMITTED)]
+    B --> C{1. 현재 상태가\nQUEUED인가?}
+    C -->|NO| D[2. 중복/지연 소비로 판단\n로그만 남기고 종료]
+    C -->|YES| E[3. job definition 조회\ninstanceId + jenkinsJobPath 확보]
+    E --> F{4. Jenkins\nhealth OK?}
+    F -->|NO| G[5. retryOrFail\nPENDING 또는 FAILURE]
+    F -->|YES| H[6. queryNextBuildNumber\nbuildNo 선확보]
+    H --> I[7. triggerBuild\nJOB_ID 파라미터 전달]
+    I --> J[8. markAsSubmitted\nbuildNo 기록]
+    J --> K[(execution_job\nSUBMITTED)]
 ```
 
 ## 진입점
@@ -51,9 +52,11 @@ graph TD
 // JobExecuteService.java
 @Transactional
 public void execute(String jobExcnId) {
+    // 1. Kafka command가 가리키는 execution_job을 조회한다.
     ExecutionJob job = jobPort.findById(jobExcnId)
             .orElseThrow(() -> new IllegalStateException("Unknown jobExcnId=" + jobExcnId));
 
+    // 2. 중복 소비/지연 소비 방지: 이미 다른 상태면 아무 일도 하지 않는다.
     if (job.getStatus() != ExecutionJobStatus.QUEUED) {
         log.debug("[JobExecute] Not QUEUED: jobExcnId={}, status={}"
                 , jobExcnId, job.getStatus());
@@ -61,26 +64,44 @@ public void execute(String jobExcnId) {
     }
 
     try {
-        var defInfo = jobDefinitionQueryPort.load(job.getJobId());
+        // 3. Jenkins 인스턴스와 job path를 찾는다.
+        var defInfo = jobDefinitionQueryPort.load(job.getJobId())
+                .orElseThrow(() -> new IllegalStateException(
+                        "Job definition not found: jobId=" + job.getJobId()));
         long jenkinsInstanceId = defInfo.jenkinsInstanceId();
         var jenkinsJobPath = defInfo.jenkinsJobPath();
 
+        // 4. live ping 대신 operator.support_tool의 최신 health 결과를 사용한다.
         if (!jenkinsQueryPort.isHealthy(jenkinsInstanceId)) {
+            log.warn("[JobExecute] Jenkins unhealthy, retrying later: instanceId={}, jobExcnId={}"
+                    , jenkinsInstanceId, jobExcnId);
             dispatchService.retryOrFail(job, properties.getJobMaxRetries());
             jobPort.save(job);
             return;
         }
 
+        // 5. Jenkins trigger 전에 buildNo를 먼저 확보한다.
         int nextBuildNo = jenkinsQueryPort.queryNextBuildNumber(jenkinsInstanceId, jenkinsJobPath);
+
+        // 6. 실제 Jenkins build를 실행한다.
         jenkinsTriggerPort.triggerBuild(jenkinsInstanceId, jenkinsJobPath, job.getJobId());
 
-        // nextBuildNumber를 먼저 읽어 둬야 started/completed webhook과 동일 buildNo로 매칭할 수 있다.
+        // 7. 선조회한 buildNo를 기록하고 SUBMITTED로 전환한다.
         dispatchService.markAsSubmitted(job, nextBuildNo);
         jobPort.save(job);
+
+        log.info("[JobExecute] Build triggered: jobExcnId={}, buildNo={}, path={}"
+                , jobExcnId, nextBuildNo, jenkinsJobPath);
     } catch (Exception e) {
-        log.error("[JobExecute] Failed: jobExcnId={}, error={}", jobExcnId, e.getMessage());
+        // 8. definition 조회, buildNo 조회, trigger 중 하나라도 실패하면 retryOrFail로 복구한다.
+        log.error("[JobExecute] Failed: jobExcnId={}, error={}"
+                , jobExcnId, e.getMessage());
         boolean retried = dispatchService.retryOrFail(job, properties.getJobMaxRetries());
         jobPort.save(job);
+        if (retried) {
+            log.warn("[JobExecute] Retry #{} for jobExcnId={}"
+                    , job.getRetryCnt(), jobExcnId);
+        }
     }
 }
 ```
@@ -88,6 +109,8 @@ public void execute(String jobExcnId) {
 ### 코드 설명
 
 **QUEUED 가드**: 상태가 `QUEUED`가 아니면 중복 소비나 지연 소비로 판단하고 무시한다. stale recovery가 먼저 `PENDING`으로 되돌린 경우 뒤늦게 도착한 execute command는 여기서 걸러진다.
+
+**job definition 조회**: `jobDefinitionQueryPort.load(jobId)`는 `Optional`을 반환한다. 03 단계에서는 이 값이 비어 있으면 즉시 예외를 발생시키고, catch 블록에서 `retryOrFail`을 수행한다. 즉, 02처럼 즉시 `FAILURE` 고정이 아니라 03에서는 실행 실패의 한 종류로 취급한다.
 
 **health gate**: operator가 주기적으로 갱신한 health 결과(`operator.support_tool.health_status`, `health_checked_at`)를 사용한다. Jenkins live ping을 하지 않는다. unhealthy면 `retryOrFail`로 되돌린다.
 
@@ -127,6 +150,22 @@ operator가 주기적으로 갱신한 `health_status = HEALTHY`와 `health_check
 runtime Jenkins 호출은 전부 API token 기반 Basic Auth다. 조회 소스는 `operator.support_tool.api_token`이며, `crumbIssuer` 호출은 하지 않는다. crumb은 operator의 `JenkinsTokenService`가 API token을 발급할 때만 일시적으로 사용한다.
 
 ## 상태 변화
+
+### 상태전이도
+
+```mermaid
+stateDiagram-v2
+    [*] --> QUEUED: 02-evaluate-dispatch 완료
+
+    QUEUED --> SUBMITTED: nextBuildNumber 조회 + triggerBuild 성공
+    QUEUED --> PENDING: unhealthy 또는 예외 발생\nretryCnt < maxRetries
+    QUEUED --> FAILURE: unhealthy 또는 예외 발생\nretryCnt >= maxRetries
+
+    note right of QUEUED
+      status != QUEUED 인 command는
+      무시되고 상태는 유지된다.
+    end note
+```
 
 - 입력 상태: `QUEUED`
 - 성공: `SUBMITTED`

@@ -8,8 +8,8 @@ import com.study.playground.executor.execution.domain.model.BuildStatusResult;
  */
 public interface JenkinsQueryPort {
 
-    /** queue/executor 상태를 함께 봐서 즉시 실행 가능한 슬롯 수를 반환한다. */
-    int isImmediatelyExecutable(long jenkinsInstanceId);
+    /** Jenkins의 최대 실행 개수를 조회하되, 동적 Pod 환경이면 앱 설정값으로 보정한다. */
+    int getMaxExecutors(long jenkinsInstanceId, int activeCount);
     
     /** 기존 포트 호환용 메서드로, 현재 구현에서는 health gate와 동일 의미를 가진다. */
     boolean isReachable(long jenkinsInstanceId);

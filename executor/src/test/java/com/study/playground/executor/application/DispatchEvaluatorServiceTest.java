@@ -89,7 +89,7 @@ class DispatchEvaluatorServiceTest {
         given(jenkinsQueryPort.isHealthy(1L)).willReturn(true);
         given(jobPort.countActiveJobsByJenkinsInstanceId(1L, List.of(
                 ExecutionJobStatus.QUEUED, ExecutionJobStatus.SUBMITTED, ExecutionJobStatus.RUNNING))).willReturn(0);
-        given(jenkinsQueryPort.isImmediatelyExecutable(1L)).willReturn(2);
+        given(jenkinsQueryPort.getMaxExecutors(1L, 0)).willReturn(2);
         given(jobPort.existsByJobIdAndStatusIn(eq("job-001"), any())).willReturn(false);
 
         service.tryDispatch();
@@ -114,7 +114,7 @@ class DispatchEvaluatorServiceTest {
     }
 
     @Test
-    @DisplayName("동일 jobId가 이미 QUEUED/RUNNING이면 publish를 호출하지 않아야 한다")
+    @DisplayName("동일 jobId가 이미 active면 publish하지 않고 현재 후보는 PENDING 유지해야 한다")
     void tryDispatch_duplicateJobId_shouldSkip() {
         ExecutionJob job = pendingJob("excn-001", "job-001");
         given(jobPort.findDispatchableJobs(5)).willReturn(List.of(job));
@@ -122,12 +122,14 @@ class DispatchEvaluatorServiceTest {
         given(jenkinsQueryPort.isHealthy(1L)).willReturn(true);
         given(jobPort.countActiveJobsByJenkinsInstanceId(1L, List.of(
                 ExecutionJobStatus.QUEUED, ExecutionJobStatus.SUBMITTED, ExecutionJobStatus.RUNNING))).willReturn(0);
-        given(jenkinsQueryPort.isImmediatelyExecutable(1L)).willReturn(1);
+        given(jenkinsQueryPort.getMaxExecutors(1L, 0)).willReturn(1);
         given(jobPort.existsByJobIdAndStatusIn(eq("job-001"), any())).willReturn(true);
 
         service.tryDispatch();
 
         verify(publishPort, never()).publishExecuteCommand(any());
+        verify(jobPort, never()).save(any());
+        assertThat(job.getStatus()).isEqualTo(ExecutionJobStatus.PENDING);
     }
 
     @Test
@@ -156,7 +158,7 @@ class DispatchEvaluatorServiceTest {
         given(jenkinsQueryPort.isHealthy(2L)).willReturn(true);
         given(jobPort.countActiveJobsByJenkinsInstanceId(2L, List.of(
                 ExecutionJobStatus.QUEUED, ExecutionJobStatus.SUBMITTED, ExecutionJobStatus.RUNNING))).willReturn(0);
-        given(jenkinsQueryPort.isImmediatelyExecutable(2L)).willReturn(1);
+        given(jenkinsQueryPort.getMaxExecutors(2L, 0)).willReturn(1);
         given(jobPort.existsByJobIdAndStatusIn(eq("job-002"), any())).willReturn(false);
 
         service.tryDispatch();
@@ -175,7 +177,7 @@ class DispatchEvaluatorServiceTest {
         given(jenkinsQueryPort.isHealthy(2L)).willReturn(true);
         given(jobPort.countActiveJobsByJenkinsInstanceId(2L, List.of(
                 ExecutionJobStatus.QUEUED, ExecutionJobStatus.SUBMITTED, ExecutionJobStatus.RUNNING))).willReturn(0);
-        given(jenkinsQueryPort.isImmediatelyExecutable(2L)).willReturn(1);
+        given(jenkinsQueryPort.getMaxExecutors(2L, 0)).willReturn(1);
         given(jobPort.existsByJobIdAndStatusIn(eq("job-002"), any())).willReturn(false);
 
         service.tryDispatch();

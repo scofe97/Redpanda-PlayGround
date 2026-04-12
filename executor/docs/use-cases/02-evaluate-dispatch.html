@@ -21,7 +21,7 @@
       <div class="panel-title">Pipeline</div>
       <div id="startOverlay" class="start-overlay">
         <button class="btn-start" onclick="startSimulation()">시뮬레이션 시작 ▶</button>
-        <div class="start-hint">정상 배치, 슬롯 부족, job definition 누락 즉시 실패를 비교한다</div>
+        <div class="start-hint">정상 배치, 슬롯 부족, 이미 실행 중인 job skip, job definition 누락 실패를 비교한다</div>
       </div>
       <div id="pipeline" class="pipeline"></div>
       <div id="controlBar" class="controls" style="display:none;">
@@ -78,8 +78,8 @@ if (defInfoOpt.isEmpty()) {
 }
 
 int activeCount = jobPort.countActiveJobsByJenkinsInstanceId(instanceId, ACTIVE_STATUSES);
-int dispatchCapacity = jenkinsQueryPort.isImmediatelyExecutable(instanceId);
-int remainingSlots = dispatchCapacity - activeCount;</pre>
+int maxExecutors = jenkinsQueryPort.getMaxExecutors(instanceId, activeCount);
+int remainingSlots = maxExecutors - activeCount;</pre>
         </div>
         <div class="code-card">
           <div class="code-card-title">Infra Split</div>
@@ -88,9 +88,10 @@ int remainingSlots = dispatchCapacity - activeCount;</pre>
 JenkinsToolInfoReader.get(instanceId)
 
 // Jenkins API 조회
-JenkinsRemoteApiClient.queryDispatchCapacity(
+JenkinsRemoteApiClient.queryMaxExecutors(
         instanceId, baseUri, auth,
-        properties.getDynamicK8sDispatchCapacity()
+        properties.getDynamicK8sDispatchCapacity(),
+        activeCount
 );</pre>
         </div>
         <div class="code-card">
@@ -161,13 +162,13 @@ window.VIS_DATA = {
         {
           label: 'Slots',
           title: 'Step 4. 슬롯 계산',
-          narration: '서비스는 <code>countActiveJobsByJenkinsInstanceId()</code>와 <code>isImmediatelyExecutable()</code>로 남은 슬롯을 계산한다. 정적 Jenkins는 실제 <code>totalExecutors</code>를, 동적 Pod Jenkins는 애플리케이션 설정값을 사용한다.',
+          narration: '서비스는 <code>countActiveJobsByJenkinsInstanceId()</code>와 <code>getMaxExecutors()</code>로 남은 슬롯을 계산한다. 기본값은 Jenkins의 <code>totalExecutors</code>이며, 0 또는 activeCount와 같을 때만 K8S 여부를 추가 확인한다.',
           dbSections: [
             {
               title: 'slot view',
               fields: [
                 { key: 'activeCount', value: '1' },
-                { key: 'dispatchCapacity', value: '2' },
+                { key: 'maxExecutors', value: '2' },
                 { key: 'remainingSlots', value: '1', changed: true }
               ]
             }
@@ -224,13 +225,13 @@ window.VIS_DATA = {
         {
           label: 'Slots',
           title: 'Step 2. 남은 슬롯 0 계산',
-          narration: '<code>activeCount = dispatchCapacity</code>인 상황이면 <code>remainingSlots <= 0</code>가 되어 더 진행하지 않는다.',
+          narration: '<code>activeCount = maxExecutors</code>인 상황이면 먼저 K8S label을 확인한다. K8S가 아니면 <code>remainingSlots <= 0</code>가 되어 더 진행하지 않는다.',
           dbSections: [
             {
               title: 'slot view',
               fields: [
                 { key: 'activeCount', value: '2' },
-                { key: 'dispatchCapacity', value: '2' },
+                { key: 'maxExecutors', value: '2' },
                 { key: 'remainingSlots', value: '0', changed: true }
               ]
             }
@@ -247,6 +248,56 @@ window.VIS_DATA = {
                 { key: 'job_excn_id', value: 'JEX-3101' },
                 { key: 'excn_stts', value: 'PENDING' },
                 { key: 'result', value: 'no slots, wait next poll', changed: true }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      name: '이미 실행중인 job',
+      description: '같은 <code>jobId</code>가 이미 active 상태면 중복 실행 방지를 위해 이번 후보는 올리지 않는다. 상태는 그대로 <code>PENDING</code> 유지다.',
+      steps: [
+        {
+          label: 'Poll',
+          title: 'Step 1. 후보 조회',
+          narration: '현재 polling에서 <code>PENDING</code> Job이 조회됐지만, 이 Job과 같은 <code>jobId</code>가 이미 다른 row에서 실행 중일 수 있다.',
+          dbSections: [
+            {
+              title: 'execution_job',
+              fields: [
+                { key: 'candidate', value: 'JEX-3201 / PENDING' },
+                { key: 'existing active', value: 'JOB-77 / RUNNING', changed: true }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Check',
+          title: 'Step 2. duplicate active 확인',
+          narration: '<code>existsByJobIdAndStatusIn(jobId, ACTIVE_STATUSES)</code>가 <code>true</code>를 반환하면 중복 실행으로 판단한다.',
+          dbSections: [
+            {
+              title: 'duplicate guard',
+              fields: [
+                { key: 'jobId', value: 'JOB-77' },
+                { key: 'active statuses', value: 'QUEUED/SUBMITTED/RUNNING', changed: true },
+                { key: 'exists', value: 'true', changed: true }
+              ]
+            }
+          ]
+        },
+        {
+          label: 'Skip',
+          title: 'Step 3. 상태 변경 없이 skip',
+          narration: '이 분기에서는 <code>save()</code>도 <code>publishExecuteCommand()</code>도 호출하지 않는다. 따라서 현재 후보 row는 그대로 <code>PENDING</code> 유지이며, active Job이 끝난 뒤 다음 polling에서 다시 평가된다.',
+          dbSections: [
+            {
+              title: 'execution_job',
+              fields: [
+                { key: 'job_excn_id', value: 'JEX-3201' },
+                { key: 'excn_stts', value: 'PENDING' },
+                { key: 'result', value: 'duplicate active, wait next poll', changed: true }
               ]
             }
           ]

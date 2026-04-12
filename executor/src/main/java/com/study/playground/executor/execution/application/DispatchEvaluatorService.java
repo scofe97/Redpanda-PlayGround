@@ -83,14 +83,14 @@ public class DispatchEvaluatorService implements EvaluateDispatchUseCase {
             return;
         }
 
-        // 슬롯 계산은 executor DB의 활성 작업 수와 Jenkins 실시간 executor 정보를 함께 본다.
+        // 슬롯 계산은 executor DB의 활성 작업 수와 Jenkins 최대 executor 정보를 함께 본다.
         int activeCount = jobPort.countActiveJobsByJenkinsInstanceId(instanceId, ACTIVE_STATUSES);
-        int dispatchCapacity = jenkinsQueryPort.isImmediatelyExecutable(instanceId);
-        int remainingSlots = dispatchCapacity - activeCount;
+        int maxExecutors = jenkinsQueryPort.getMaxExecutors(instanceId, activeCount);
+        int remainingSlots = maxExecutors - activeCount;
 
         if (remainingSlots <= 0) {
-            log.debug("[Dispatch] No slots: instanceId={}, active={}, capacity={}"
-                    , instanceId, activeCount, dispatchCapacity);
+            log.debug("[Dispatch] No slots: instanceId={}, active={}, maxExecutors={}"
+                    , instanceId, activeCount, maxExecutors);
             return;
         }
 

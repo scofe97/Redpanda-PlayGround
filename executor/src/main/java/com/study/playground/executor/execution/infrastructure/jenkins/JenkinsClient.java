@@ -21,17 +21,18 @@ public class JenkinsClient implements JenkinsQueryPort, JenkinsTriggerPort {
     private final JenkinsRemoteApiClient remoteApiClient;
 
     @Override
-    public int isImmediatelyExecutable(long jenkinsInstanceId) {
+    public int getMaxExecutors(long jenkinsInstanceId, int activeCount) {
         if (!isHealthy(jenkinsInstanceId)) {
             return 0;
         }
 
         var info = toolInfoReader.get(jenkinsInstanceId);
-        return remoteApiClient.queryDispatchCapacity(
+        return remoteApiClient.queryMaxExecutors(
                 jenkinsInstanceId,
                 URI.create(info.url()),
                 buildAuthHeader(info),
-                properties.getDynamicK8sDispatchCapacity()
+                properties.getDynamicK8sDispatchCapacity(),
+                activeCount
         );
     }
 

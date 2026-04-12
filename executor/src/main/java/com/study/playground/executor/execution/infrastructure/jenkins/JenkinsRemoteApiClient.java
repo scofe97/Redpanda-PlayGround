@@ -25,14 +25,19 @@ public class JenkinsRemoteApiClient {
 
     private static final Duration K8S_CACHE_TTL = Duration.ofMinutes(5);
 
-    public int queryDispatchCapacity(long jenkinsInstanceId,
-                                     URI baseUri,
-                                     String auth,
-                                     int dynamicK8sDispatchCapacity) {
-        if (isK8sDynamic(jenkinsInstanceId, baseUri, auth)) {
+    public int queryMaxExecutors(long jenkinsInstanceId,
+                                 URI baseUri,
+                                 String auth,
+                                 int dynamicK8sDispatchCapacity,
+                                 int activeCount) {
+        int totalExecutors = getComputerSnapshot(baseUri, auth).totalExecutors();
+
+        if ((totalExecutors == 0 || totalExecutors == activeCount)
+                && isK8sDynamic(jenkinsInstanceId, baseUri, auth)) {
             return dynamicK8sDispatchCapacity;
         }
-        return getComputerSnapshot(baseUri, auth).totalExecutors();
+
+        return totalExecutors;
     }
 
     public int queryNextBuildNumber(URI baseUri, String jobPath, String auth) {

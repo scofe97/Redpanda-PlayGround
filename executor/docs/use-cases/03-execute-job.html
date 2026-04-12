@@ -51,14 +51,24 @@
     </div>
 
     <div class="panel">
+      <div class="panel-title">State Transition</div>
+      <pre>QUEUED -- trigger 성공 --> SUBMITTED
+QUEUED -- unhealthy/예외 + retry 가능 --> PENDING
+QUEUED -- unhealthy/예외 + retry 불가 --> FAILURE
+status != QUEUED command --> no-op (현재 상태 유지)</pre>
+    </div>
+
+    <div class="panel">
       <div class="panel-title">Used Code</div>
       <div class="code-grid">
         <div class="code-card">
-          <div class="code-card-title">State Guard</div>
+          <div class="code-card-title">Annotated Flow</div>
           <div class="code-card-subtitle">execution/application/JobExecuteService.java</div>
-          <pre>ExecutionJob job = jobPort.findById(jobExcnId)
+          <pre>// 1. execution_job 조회
+ExecutionJob job = jobPort.findById(jobExcnId)
         .orElseThrow(...);
 
+// 2. QUEUED 가드
 if (job.getStatus() != ExecutionJobStatus.QUEUED) {
     log.debug("[JobExecute] Not QUEUED: jobExcnId={}, status={}",
             jobExcnId, job.getStatus());
@@ -68,22 +78,26 @@ if (job.getStatus() != ExecutionJobStatus.QUEUED) {
         <div class="code-card">
           <div class="code-card-title">Trigger Flow</div>
           <div class="code-card-subtitle">execution/application/JobExecuteService.java</div>
-          <pre>int nextBuildNo = jenkinsQueryPort.queryNextBuildNumber(
+          <pre>// 3. definition 조회 + health gate 통과 후
+int nextBuildNo = jenkinsQueryPort.queryNextBuildNumber(
         jenkinsInstanceId, jenkinsJobPath);
+
+// 4. 실제 Jenkins trigger
 jenkinsTriggerPort.triggerBuild(
         jenkinsInstanceId, jenkinsJobPath, job.getJobId());
 
+// 5. buildNo 기록 + SUBMITTED 전환
 dispatchService.markAsSubmitted(job, nextBuildNo);
 jobPort.save(job);</pre>
         </div>
         <div class="code-card">
           <div class="code-card-title">Jenkins Trigger</div>
           <div class="code-card-subtitle">execution/infrastructure/jenkins/JenkinsClient.java</div>
-          <pre>var crumbSession = fetchCrumbWithCookie(baseUri, auth);
-var triggerUrl = baseUri + "/job/" + jenkinsJobPath.replace("/", "/job/")
-        + "/buildWithParameters";
-var request = new HttpEntity&lt;&gt;("JOB_ID=" + jobId, headers);
-restTemplate.exchange(triggerUrl, HttpMethod.POST, request, String.class);</pre>
+          <pre>var info = toolInfoReader.get(jenkinsInstanceId);
+var triggerUri = URI.create(info.url()
+        + "/job/" + jenkinsJobPath.replace("/", "/job/")
+        + "/buildWithParameters");
+remoteApiClient.triggerBuild(triggerUri, buildAuthHeader(info), jobId);</pre>
         </div>
       </div>
     </div>
@@ -113,7 +127,7 @@ window.VIS_DATA = {
         {
           label: 'Check',
           title: 'Step 2. 상태 검증',
-          narration: '서비스는 <code>job.getStatus() == QUEUED</code>인지 확인한다. 이 조건을 통과해야만 실제 Jenkins 호출로 간다.',
+          narration: '서비스는 <code>job.getStatus() == QUEUED</code>인지 확인한다. 이 단계는 중복 소비나 지연 소비를 차단하는 가드다.',
           dbSections: [
             {
               title: 'execution_job',
@@ -124,8 +138,23 @@ window.VIS_DATA = {
           ]
         },
         {
+          label: 'Def',
+          title: 'Step 3. definition 조회 + health 확인',
+          narration: '<code>jobDefinitionQueryPort.load()</code>로 Jenkins instanceId와 job path를 찾고, 이어서 <code>jenkinsQueryPort.isHealthy()</code>로 health gate를 통과하는지 확인한다.',
+          dbSections: [
+            {
+              title: 'operator metadata',
+              fields: [
+                { key: 'jenkinsInstanceId', value: '1', changed: true },
+                { key: 'jenkinsJobPath', value: '1/4/JOB-88', changed: true },
+                { key: 'health', value: 'HEALTHY', changed: true }
+              ]
+            }
+          ]
+        },
+        {
           label: 'Query',
-          title: 'Step 3. nextBuildNumber 선조회',
+          title: 'Step 4. nextBuildNumber 선조회',
           narration: '<code>JenkinsClient.queryNextBuildNumber()</code>가 Jenkins job api를 호출해 다음 build number를 읽는다. 콜백 매칭에 쓸 번호를 먼저 확보하는 단계다.',
           dbSections: [
             {
@@ -139,13 +168,12 @@ window.VIS_DATA = {
         },
         {
           label: 'Trigger',
-          title: 'Step 4. Jenkins buildWithParameters 호출',
-          narration: '<code>JenkinsClient.triggerBuild()</code>가 crumb issuer 호출과 <code>buildWithParameters</code> POST를 수행한다. 이 시점부터 Jenkins 큐에 실제 빌드가 올라간다.',
+          title: 'Step 5. Jenkins buildWithParameters 호출',
+          narration: '<code>JenkinsClient.triggerBuild()</code>가 <code>buildWithParameters</code> POST를 수행한다. 이 시점부터 Jenkins 큐에 실제 빌드가 올라간다.',
           dbSections: [
             {
               title: 'jenkins request',
               fields: [
-                { key: 'crumb', value: 'fetched' },
                 { key: 'POST', value: 'buildWithParameters(JOB_ID=JOB-88)', changed: true }
               ]
             }
@@ -153,7 +181,7 @@ window.VIS_DATA = {
         },
         {
           label: 'Submit',
-          title: 'Step 5. SUBMITTED 전환',
+          title: 'Step 6. SUBMITTED 전환',
           narration: '<code>DispatchService.markAsSubmitted(job, 251)</code>가 <code>buildNo=251</code>를 기록하고 상태를 <code>SUBMITTED</code>로 바꾼다.',
           dbSections: [
             {
