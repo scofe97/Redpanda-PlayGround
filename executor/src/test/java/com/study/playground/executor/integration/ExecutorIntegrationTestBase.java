@@ -11,15 +11,26 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.listener.MessageListenerContainer;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URLEncoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.Base64;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -38,6 +49,13 @@ import java.util.concurrent.TimeoutException;
 public abstract class ExecutorIntegrationTestBase {
 
     private static final String LOG_BASE_PATH = "/tmp/executor-test-logs";
+    private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
+    private static final Set<String> REQUIRED_LISTENER_TOPICS = Set.of(
+            Topics.EXECUTOR_CMD_JOB_DISPATCH
+            , Topics.EXECUTOR_CMD_JOB_EXECUTE
+            , Topics.EXECUTOR_EVT_JOB_STARTED
+            , Topics.EXECUTOR_EVT_JOB_COMPLETED
+    );
 
     @Autowired
     protected TestRestTemplate restTemplate;
@@ -54,12 +72,179 @@ public abstract class ExecutorIntegrationTestBase {
     @Autowired
     protected ObjectMapper objectMapper;
 
+    @Autowired
+    protected KafkaListenerEndpointRegistry kafkaListenerEndpointRegistry;
+
     @BeforeEach
     void cleanUp() {
+        waitForListenerAssignments();
+        ensureOperatorSupportToolColumns();
+        ensureJenkinsRuntimeAccess();
         jdbcTemplate.execute("DELETE FROM executor.outbox_event");
         jdbcTemplate.execute("DELETE FROM executor.execution_job");
         jdbcTemplate.update("DELETE FROM operator.job WHERE created_by = ?", "executor-test");
         cleanLogDirectory();
+    }
+
+    private void waitForListenerAssignments() {
+        long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(30);
+
+        while (System.currentTimeMillis() < deadline) {
+            var requiredContainers = kafkaListenerEndpointRegistry.getListenerContainers().stream()
+                    .filter(this::isRequiredListenerContainer)
+                    .toList();
+
+            if (!requiredContainers.isEmpty() && requiredContainers.stream().allMatch(this::hasAssignedPartition)) {
+                return;
+            }
+
+            sleep(500);
+        }
+
+        var states = kafkaListenerEndpointRegistry.getListenerContainers().stream()
+                .filter(this::isRequiredListenerContainer)
+                .map(container -> "topics=" + Arrays.toString(container.getContainerProperties().getTopics())
+                        + ", running=" + container.isRunning()
+                        + ", assigned=" + container.getAssignedPartitions())
+                .toList();
+
+        throw new IllegalStateException("Kafka listener assignment timeout: " + states);
+    }
+
+    private boolean isRequiredListenerContainer(MessageListenerContainer container) {
+        var topics = container.getContainerProperties().getTopics();
+        if (topics == null || topics.length == 0) {
+            return false;
+        }
+        return Arrays.stream(topics).anyMatch(REQUIRED_LISTENER_TOPICS::contains);
+    }
+
+    private boolean hasAssignedPartition(MessageListenerContainer container) {
+        var assigned = container.getAssignedPartitions();
+        return container.isRunning() && assigned != null && !assigned.isEmpty();
+    }
+
+    private void ensureOperatorSupportToolColumns() {
+        jdbcTemplate.execute("""
+                ALTER TABLE operator.support_tool
+                ADD COLUMN IF NOT EXISTS health_status VARCHAR(10) NOT NULL DEFAULT 'UNKNOWN'
+                """);
+        jdbcTemplate.execute("""
+                ALTER TABLE operator.support_tool
+                ADD COLUMN IF NOT EXISTS health_checked_at TIMESTAMP
+                """);
+        jdbcTemplate.execute("""
+                ALTER TABLE operator.support_tool
+                ADD COLUMN IF NOT EXISTS api_token VARCHAR(500)
+                """);
+    }
+
+    private void ensureJenkinsRuntimeAccess() {
+        var tools = jdbcTemplate.query("""
+                        SELECT id, url, username, credential, api_token
+                        FROM operator.support_tool
+                        WHERE implementation = 'JENKINS'
+                          AND active = true
+                        """
+                , (rs, rowNum) -> new JenkinsRuntimeSeed(
+                        rs.getLong("id")
+                        , rs.getString("url")
+                        , rs.getString("username")
+                        , rs.getString("credential")
+                        , rs.getString("api_token")
+                ));
+
+        for (var tool : tools) {
+            try {
+                var token = ensureApiToken(tool);
+                jdbcTemplate.update("""
+                                UPDATE operator.support_tool
+                                   SET api_token = ?
+                                     , health_status = 'HEALTHY'
+                                     , health_checked_at = NOW()
+                                 WHERE id = ?
+                                """
+                        , token, tool.id());
+            } catch (RuntimeException e) {
+                jdbcTemplate.update("""
+                                UPDATE operator.support_tool
+                                   SET health_status = 'UNHEALTHY'
+                                     , health_checked_at = NOW()
+                                 WHERE id = ?
+                                """
+                        , tool.id());
+            }
+        }
+    }
+
+    private String ensureApiToken(JenkinsRuntimeSeed tool) {
+        if (tool.apiToken() != null && !tool.apiToken().isBlank() && isApiTokenUsable(tool, tool.apiToken())) {
+            return tool.apiToken();
+        }
+        return issueApiToken(tool);
+    }
+
+    private boolean isApiTokenUsable(JenkinsRuntimeSeed tool, String apiToken) {
+        try {
+            var request = HttpRequest.newBuilder(URI.create(tool.url() + "/api/json"))
+                    .header("Authorization", basicAuth(tool.username(), apiToken))
+                    .GET()
+                    .build();
+            var response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+            return response.statusCode() == 200;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private String issueApiToken(JenkinsRuntimeSeed tool) {
+        try {
+            var crumbRequest = HttpRequest.newBuilder(URI.create(tool.url() + "/crumbIssuer/api/json"))
+                    .header("Authorization", basicAuth(tool.username(), tool.credential()))
+                    .GET()
+                    .build();
+            var crumbResponse = HTTP_CLIENT.send(crumbRequest, HttpResponse.BodyHandlers.ofString());
+            if (crumbResponse.statusCode() != 200) {
+                throw new IllegalStateException("Failed to fetch Jenkins crumb: status=" + crumbResponse.statusCode());
+            }
+
+            var crumb = objectMapper.readTree(crumbResponse.body()).path("crumb").asText(null);
+            if (crumb == null || crumb.isBlank()) {
+                throw new IllegalStateException("Jenkins crumb missing in response");
+            }
+            var cookie = crumbResponse.headers().firstValue("Set-Cookie")
+                    .map(value -> value.split(";", 2)[0])
+                    .orElseThrow(() -> new IllegalStateException("Jenkins crumb session cookie missing"));
+
+            var tokenName = "executor-it-" + UUID.randomUUID();
+            var formBody = "newTokenName=" + URLEncoder.encode(tokenName, StandardCharsets.UTF_8);
+            var tokenRequest = HttpRequest.newBuilder(URI.create(
+                            tool.url() + "/user/" + tool.username()
+                                    + "/descriptorByName/jenkins.security.ApiTokenProperty/generateNewToken"))
+                    .header("Authorization", basicAuth(tool.username(), tool.credential()))
+                    .header("Jenkins-Crumb", crumb)
+                    .header("Cookie", cookie)
+                    .header("Content-Type", "application/x-www-form-urlencoded")
+                    .POST(HttpRequest.BodyPublishers.ofString(formBody))
+                    .build();
+            var tokenResponse = HTTP_CLIENT.send(tokenRequest, HttpResponse.BodyHandlers.ofString());
+            if (tokenResponse.statusCode() != 200) {
+                throw new IllegalStateException("Failed to issue Jenkins API token: status=" + tokenResponse.statusCode());
+            }
+
+            var token = objectMapper.readTree(tokenResponse.body()).path("data").path("tokenValue").asText(null);
+            if (token == null || token.isBlank()) {
+                throw new IllegalStateException("Jenkins API token missing in response");
+            }
+            return token;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to prepare Jenkins runtime access for integration test", e);
+        }
+    }
+
+    private String basicAuth(String username, String secret) {
+        return "Basic " + Base64.getEncoder()
+                .encodeToString((username + ":" + secret).getBytes(StandardCharsets.UTF_8));
     }
 
     // ── Kafka publishing ──
@@ -294,5 +479,12 @@ public abstract class ExecutorIntegrationTestBase {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    private record JenkinsRuntimeSeed(long id,
+                                      String url,
+                                      String username,
+                                      String credential,
+                                      String apiToken) {
     }
 }

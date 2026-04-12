@@ -3,33 +3,26 @@ package com.study.playground.executor.execution.domain.port.out;
 import com.study.playground.executor.execution.domain.model.BuildStatusResult;
 
 /**
- * Jenkins 조회 out-port (슬롯 확인).
- * runner.infrastructure의 JenkinsClient가 구현한다.
+ * Jenkins 런타임 상태를 조회하는 out-port.
+ * 구현체는 operator.support_tool의 health/api token 정보를 기반으로 Jenkins를 읽는다.
  */
 public interface JenkinsQueryPort {
 
-    /**
-     * 해당 Jenkins 인스턴스에서 즉시 빌드 실행이 가능한지 판단한다.
-     * Jenkins 모드 자동 감지 (K8S Dynamic vs VM/정적).
-     */
+    /** queue/executor 상태를 함께 봐서 즉시 실행 가능한지 판단한다. */
     boolean isImmediatelyExecutable(long jenkinsInstanceId);
 
-    /** Jenkins 인스턴스 연결 가능 여부 (헬스체크). */
+    /** 기존 포트 호환용 메서드로, 현재 구현에서는 health gate와 동일 의미를 가진다. */
     boolean isReachable(long jenkinsInstanceId);
 
-    /** support_tool.max_executors 조회. */
+    /** operator가 마지막으로 기록한 health 상태와 freshness를 함께 확인한다. */
+    boolean isHealthy(long jenkinsInstanceId);
+
+    /** operator.support_tool.max_executors 값을 조회한다. */
     int getMaxExecutors(long jenkinsInstanceId);
 
-    /**
-     * 해당 Jenkins Job의 다음 빌드번호를 조회한다.
-     */
+    /** build trigger 전에 Jenkins job의 nextBuildNumber를 읽는다. */
     int queryNextBuildNumber(long jenkinsInstanceId, String jenkinsJobPath);
 
-    /**
-     * 특정 빌드의 현재 상태를 조회한다.
-     * Jenkins API /job/{path}/{buildNo}/api/json?tree=building,result 를 호출한다.
-     *
-     * @return NOT_FOUND(404), BUILDING(building=true), COMPLETED(building=false, result)
-     */
+    /** stale recovery 용으로 특정 build의 실행/완료 상태를 조회한다. */
     BuildStatusResult queryBuildStatus(long jenkinsInstanceId, String jenkinsJobPath, int buildNo);
 }

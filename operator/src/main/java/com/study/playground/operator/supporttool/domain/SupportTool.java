@@ -34,6 +34,16 @@ public class SupportTool {
 
     private String credential;
 
+    @Column(name = "api_token")
+    private String apiToken;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "health_status")
+    private JenkinsHealthStatus healthStatus;
+
+    @Column(name = "health_checked_at")
+    private LocalDateTime healthCheckedAt;
+
     private boolean active;
 
     @Column(name = "created_at")
@@ -42,11 +52,20 @@ public class SupportTool {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    public void updateHealth(JenkinsHealthStatus healthStatus, LocalDateTime healthCheckedAt, String apiToken) {
+        this.healthStatus = healthStatus;
+        this.healthCheckedAt = healthCheckedAt;
+        if (apiToken != null) {
+            this.apiToken = apiToken;
+        }
+    }
+
     @PrePersist
     void prePersist() {
         var now = LocalDateTime.now();
         if (createdAt == null) createdAt = now;
         if (updatedAt == null) updatedAt = now;
+        if (healthStatus == null) healthStatus = JenkinsHealthStatus.UNKNOWN;
     }
 
     @PreUpdate

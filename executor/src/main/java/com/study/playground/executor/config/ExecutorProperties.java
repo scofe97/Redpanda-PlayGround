@@ -11,48 +11,36 @@ import org.springframework.stereotype.Component;
 @Setter
 public class ExecutorProperties {
 
-    /** 디스패치 배치 크기 상한 */
+    /** 디스패치 1회에서 평가할 최대 PENDING 건수. */
     private int maxBatchSize = 5;
-
-    /** Job 최대 재시도 횟수 */
+    /** Jenkins 호출 실패나 stale recovery 시 허용할 최대 재시도 횟수. */
     private int jobMaxRetries = 2;
-
-    /** Job 타임아웃 (분) — 타임아웃 스케줄러가 RUNNING 판단에 사용 */
+    /** RUNNING 상태가 이 시간 이상 지속되면 timeout 방어 대상으로 본다. */
     private int jobTimeoutMinutes = 30;
-
-    /** 타임아웃 체크 주기 (ms) */
+    /** RUNNING timeout 스케줄러의 실행 주기. */
     private long timeoutCheckIntervalMs = 60000;
-
-    /** 디스패치 스케줄러 주기 (ms) */
+    /** PENDING -> QUEUED 평가 스케줄러의 실행 주기. */
     private long dispatchIntervalMs = 3000;
-
-    /** 디스패치 스케줄러 초기 지연 (ms) */
+    /** 디스패치 스케줄러의 초기 지연 시간. */
     private long dispatchInitialDelayMs = 0;
-
-    /** SUBMITTED 상태 체류 허용 시간 (초) — 이 시간 초과 시 스케줄러가 방어 */
+    /** SUBMITTED 상태를 정상으로 볼 최대 체류 시간. */
     private int submittedStaleSeconds = 30;
-
-    /** SUBMITTED 방어 스케줄러 주기 (ms) */
+    /** SUBMITTED stale recovery 스케줄러의 실행 주기. */
     private long submittedCheckIntervalMs = 10000;
-
-    /** SUBMITTED 방어 스케줄러 초기 지연 (ms) */
+    /** SUBMITTED stale recovery 스케줄러의 초기 지연 시간. */
     private long submittedCheckInitialDelayMs = 0;
-
-    /** RUNNING 상태 체류 허용 시간 (분) — 이 시간 초과 시 빌드 상태 확인 */
+    /** RUNNING 상태를 Jenkins 재조회 대상으로 판단할 기준 시간. */
     private int runningStaleMinutes = 10;
-
-    /** RUNNING 방어 스케줄러 초기 지연 (ms) */
+    /** RUNNING timeout 스케줄러의 초기 지연 시간. */
     private long timeoutCheckInitialDelayMs = 0;
-
-    /** QUEUED 상태 체류 허용 시간 (초) — 이 시간 초과 시 스케줄러가 방어 */
+    /** QUEUED 상태를 execute 유실 후보로 판단할 기준 시간. */
     private int queuedStaleSeconds = 60;
-
-    /** QUEUED 방어 스케줄러 주기 (ms) */
+    /** QUEUED stale recovery 스케줄러의 실행 주기. */
     private long queuedCheckIntervalMs = 15000;
-
-    /** QUEUED 방어 스케줄러 초기 지연 (ms) */
+    /** QUEUED stale recovery 스케줄러의 초기 지연 시간. */
     private long queuedCheckInitialDelayMs = 0;
-
-    /** 공용 scheduler thread pool 크기 */
+    /** executor 내부 스케줄러들이 공유하는 thread pool 크기. */
     private int schedulerPoolSize = 4;
+    /** operator가 기록한 Jenkins health 정보를 신뢰할 최대 시간. */
+    private int jenkinsHealthStalenessMinutes = 3;
 }

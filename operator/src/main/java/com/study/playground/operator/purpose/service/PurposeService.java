@@ -9,7 +9,9 @@ import com.study.playground.operator.purpose.dto.PurposeResponse;
 import com.study.playground.operator.purpose.repository.PurposeRepository;
 import com.study.playground.operator.supporttool.domain.SupportTool;
 import com.study.playground.operator.supporttool.domain.ToolCategory;
+import com.study.playground.operator.supporttool.domain.ToolImplementation;
 import com.study.playground.operator.supporttool.repository.SupportToolRepository;
+import com.study.playground.operator.supporttool.service.JenkinsTokenService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,7 +28,9 @@ public class PurposeService {
 
     private final PurposeRepository purposeRepository;
     private final SupportToolRepository supportToolRepository;
+    private final JenkinsTokenService jenkinsTokenService;
 
+    /** purpose 목록 응답에 도구 이름/URL을 함께 싣기 위해 전용 read model을 조립한다. */
     @Transactional(readOnly = true)
     public List<PurposeResponse> findAll() {
         var purposes = purposeRepository.findAllByOrderByName();
@@ -43,10 +47,6 @@ public class PurposeService {
         return PurposeResponse.from(purpose, toolInfoMap);
     }
 
-    /**
-     * 목적을 생성한다.
-     * 각 엔트리의 category와 toolId 유효성을 검증한 뒤, 목적 → 엔트리 순서로 저장한다.
-     */
     @Transactional
     public PurposeResponse create(PurposeRequest request) {
         var purpose = new Purpose();
@@ -57,14 +57,11 @@ public class PurposeService {
         addEntries(purpose, request.getEntries());
 
         purposeRepository.save(purpose);
+        refreshLinkedJenkinsTokens(purpose);
 
         return findById(purpose.getId());
     }
 
-    /**
-     * 목적을 수정한다. 엔트리는 orphanRemoval로 자동 삭제 후 재추가한다.
-     * UC-5의 핵심: 목적의 도구를 교체하면 다음 파이프라인 실행부터 새 도구를 사용한다.
-     */
     @Transactional
     public PurposeResponse update(Long id, PurposeRequest request) {
         var purpose = getPurposeOrThrow(id);
@@ -76,6 +73,8 @@ public class PurposeService {
         addEntries(purpose, request.getEntries());
 
         purposeRepository.save(purpose);
+        // CI/CD Jenkins 도구가 바뀌면 이후 job 생성/실행이 새 token을 바로 쓰도록 갱신한다.
+        refreshLinkedJenkinsTokens(purpose);
 
         return findById(id);
     }
@@ -83,14 +82,9 @@ public class PurposeService {
     @Transactional
     public void delete(Long id) {
         getPurposeOrThrow(id);
-        // purpose_entry는 CascadeType.ALL + orphanRemoval로 자동 삭제
         purposeRepository.deleteById(id);
     }
 
-    /**
-     * 목적에서 지정된 카테고리의 도구를 해석한다.
-     * 파이프라인 실행 시 이 메서드를 호출하여 어떤 도구를 사용할지 결정한다.
-     */
     @Transactional(readOnly = true)
     public SupportTool resolveToolByCategory(Long purposeId, ToolCategory category) {
         var purpose = getPurposeOrThrow(purposeId);
@@ -104,9 +98,6 @@ public class PurposeService {
                 "목적에 매핑된 도구를 찾을 수 없습니다: toolId=" + entry.getToolId());
     }
 
-    /**
-     * 목적의 도구 매핑을 카테고리 → SupportTool Map으로 반환한다.
-     */
     @Transactional(readOnly = true)
     public Map<ToolCategory, SupportTool> resolveAllTools(Long purposeId) {
         var purpose = getPurposeOrThrow(purposeId);
@@ -117,8 +108,6 @@ public class PurposeService {
                                 "도구를 찾을 수 없습니다: toolId=" + entry.getToolId())
                 ));
     }
-
-    // ── private helpers ──────────────────────────────────────────────
 
     private Purpose getPurposeOrThrow(Long id) {
         return purposeRepository.findWithEntriesById(id)
@@ -150,10 +139,17 @@ public class PurposeService {
         }
     }
 
-    /**
-     * 목적 목록에서 참조하는 모든 toolId를 수집하여 한번에 조회한 뒤,
-     * purpose 패키지 전용 ToolInfo로 변환한다.
-     */
+    private void refreshLinkedJenkinsTokens(Purpose purpose) {
+        purpose.getEntries().stream()
+                .filter(entry -> entry.getCategory() == ToolCategory.CI_CD_TOOL)
+                .map(entry -> getToolOrThrow(entry.getToolId(), "도구를 찾을 수 없습니다: toolId=" + entry.getToolId()))
+                .filter(tool -> tool.getImplementation() == ToolImplementation.JENKINS)
+                .map(SupportTool::getId)
+                .distinct()
+                .map(id -> getToolOrThrow(id, "도구를 찾을 수 없습니다: toolId=" + id))
+                .forEach(jenkinsTokenService::issueAndSave);
+    }
+
     private Map<Long, PurposeResponse.ToolInfo> buildToolInfoMap(List<Purpose> purposes) {
         var toolIds = purposes.stream()
                 .flatMap(p -> p.getEntries().stream())

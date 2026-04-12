@@ -1,48 +1,50 @@
 package com.study.playground.executor.execution.infrastructure.jenkins;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.study.playground.executor.config.ExecutorProperties;
 import com.study.playground.executor.execution.domain.model.BuildStatusResult;
 import com.study.playground.executor.execution.domain.port.out.JenkinsQueryPort;
 import com.study.playground.executor.execution.domain.port.out.JenkinsTriggerPort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestTemplate;
 
-import java.time.Duration;
-import java.time.Instant;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Jenkins REST API 클라이언트.
- * JenkinsQueryPort + JenkinsTriggerPort 구현.
- * Jenkins 인스턴스 정보는 cross-schema 쿼리로 SupportTool에서 동적 조회.
- */
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class JenkinsClient implements JenkinsQueryPort, JenkinsTriggerPort {
 
     private final JenkinsFeignClient feignClient;
-    private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
     private final JdbcTemplate jdbcTemplate;
+    private final ExecutorProperties properties;
 
     private final Map<Long, CachedToolInfo> toolInfoCache = new ConcurrentHashMap<>();
     private final Map<Long, CachedK8sMode> k8sModeCache = new ConcurrentHashMap<>();
 
-    private static final Duration CACHE_TTL = Duration.ofMinutes(5);
+    private static final Duration TOOL_CACHE_TTL = Duration.ofSeconds(30);
+    private static final Duration K8S_CACHE_TTL = Duration.ofMinutes(5);
 
-    // === JenkinsQueryPort 구현 ===
-
+    /**
+     * health gate를 통과한 Jenkins에 대해 queue/executor 상태를 조회한다.
+     * Kubernetes 동적 agent Jenkins는 슬롯 계산 없이 즉시 실행 가능으로 본다.
+     */
     @Override
     public boolean isImmediatelyExecutable(long jenkinsInstanceId) {
+        if (!isHealthy(jenkinsInstanceId)) {
+            return false;
+        }
+
         try {
             var baseUri = resolveJenkinsUri(jenkinsInstanceId);
             var auth = buildAuthHeader(jenkinsInstanceId);
@@ -62,16 +64,20 @@ public class JenkinsClient implements JenkinsQueryPort, JenkinsTriggerPort {
 
     @Override
     public boolean isReachable(long jenkinsInstanceId) {
-        try {
-            var baseUri = resolveJenkinsUri(jenkinsInstanceId);
-            var auth = buildAuthHeader(jenkinsInstanceId);
-            feignClient.getComputerStatus(baseUri, auth);
-            return true;
-        } catch (Exception e) {
-            log.warn("[JenkinsClient] Unreachable: instanceId={}, error={}"
-                    , jenkinsInstanceId, e.getMessage());
+        return isHealthy(jenkinsInstanceId);
+    }
+
+    @Override
+    public boolean isHealthy(long jenkinsInstanceId) {
+        var info = getToolInfo(jenkinsInstanceId);
+        if (!"HEALTHY".equals(info.healthStatus())) {
             return false;
         }
+        if (info.healthCheckedAt() == null) {
+            return false;
+        }
+        var cutoff = LocalDateTime.now().minusMinutes(properties.getJenkinsHealthStalenessMinutes());
+        return !info.healthCheckedAt().isBefore(cutoff);
     }
 
     @Override
@@ -109,6 +115,17 @@ public class JenkinsClient implements JenkinsQueryPort, JenkinsTriggerPort {
         }
     }
 
+    @Override
+    public void triggerBuild(long jenkinsInstanceId, String jenkinsJobPath, String jobId) {
+        var triggerUri = URI.create(resolveJenkinsUri(jenkinsInstanceId)
+                + "/job/" + jenkinsJobPath.replace("/", "/job/")
+                + "/buildWithParameters");
+        var auth = buildAuthHeader(jenkinsInstanceId);
+        // executor 런타임에서는 crumb을 재조회하지 않고 operator가 발급한 API token만 사용한다.
+        feignClient.triggerBuild(triggerUri, auth, "JOB_ID=" + jobId);
+        log.info("[JenkinsClient] Build triggered: path={}", jenkinsJobPath);
+    }
+
     private int getNextBuildNumber(URI baseUri, String jobPath, String auth) {
         try {
             var encodedPath = jobPath.replace("/", "/job/");
@@ -119,56 +136,9 @@ public class JenkinsClient implements JenkinsQueryPort, JenkinsTriggerPort {
         }
     }
 
-    // === 빌드 트리거 ===
-
-    public void triggerBuild(long jenkinsInstanceId, String jenkinsJobPath, String jobId) {
-        var baseUri = resolveJenkinsUri(jenkinsInstanceId);
-        var auth = buildAuthHeader(jenkinsInstanceId);
-
-        // crumb + 세션 쿠키를 함께 전송해야 하므로 RestTemplate 사용
-        var crumbSession = fetchCrumbWithCookie(baseUri, auth);
-
-        var triggerUrl = baseUri + "/job/" + jenkinsJobPath.replace("/", "/job/")
-                + "/buildWithParameters";
-        var headers = new HttpHeaders();
-        headers.set("Authorization", auth);
-        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-        if (crumbSession != null) {
-            headers.set("Jenkins-Crumb", crumbSession.crumb());
-            if (crumbSession.cookie() != null) {
-                headers.set("Cookie", crumbSession.cookie());
-            }
-        }
-
-        var request = new HttpEntity<>("JOB_ID=" + jobId, headers);
-        restTemplate.exchange(triggerUrl, HttpMethod.POST, request, String.class);
-
-        log.info("[JenkinsClient] Build triggered: path={}", jenkinsJobPath);
-    }
-
-    private CrumbSession fetchCrumbWithCookie(URI baseUri, String auth) {
-        try {
-            var url = baseUri + "/crumbIssuer/api/json";
-            var headers = new HttpHeaders();
-            headers.set("Authorization", auth);
-            var response = restTemplate.exchange(url, HttpMethod.GET
-                    , new HttpEntity<>(headers), String.class);
-            var node = objectMapper.readTree(response.getBody());
-            var cookie = response.getHeaders().getFirst("Set-Cookie");
-            return new CrumbSession(node.path("crumb").asText(), cookie);
-        } catch (Exception e) {
-            log.warn("[JenkinsClient] Crumb fetch failed: {}", e.getMessage());
-            return null;
-        }
-    }
-
-    record CrumbSession(String crumb, String cookie) {}
-
-    // === K8S 감지 ===
-
     private boolean isK8sDynamic(long jenkinsInstanceId, URI baseUri, String auth) {
         var cached = k8sModeCache.get(jenkinsInstanceId);
-        if (cached != null && Instant.now().isBefore(cached.cachedAt().plus(CACHE_TTL))) {
+        if (cached != null && Instant.now().isBefore(cached.cachedAt().plus(K8S_CACHE_TTL))) {
             return cached.isK8s();
         }
 
@@ -200,7 +170,6 @@ public class JenkinsClient implements JenkinsQueryPort, JenkinsTriggerPort {
         return isK8s;
     }
 
-    // === Internal ===
     private boolean isQueueEmpty(URI baseUri, String auth) {
         try {
             var response = feignClient.getQueueStatus(baseUri, auth);
@@ -220,19 +189,24 @@ public class JenkinsClient implements JenkinsQueryPort, JenkinsTriggerPort {
         }
     }
 
-    // === 인증 ===
     private JenkinsToolInfo getToolInfo(long jenkinsInstanceId) {
         var cached = toolInfoCache.get(jenkinsInstanceId);
-        if (cached != null && Instant.now().isBefore(cached.cachedAt().plus(CACHE_TTL))) {
+        if (cached != null && Instant.now().isBefore(cached.cachedAt().plus(TOOL_CACHE_TTL))) {
             return cached.info();
         }
 
-        var sql = "SELECT url, username, credential, max_executors FROM operator.support_tool WHERE id = ?";
+        // executor는 cross-schema read model 성격으로 operator.support_tool의 인증/health 컬럼만 읽는다.
+        var sql = "SELECT url, username, api_token, max_executors, health_status, health_checked_at "
+                + "FROM operator.support_tool WHERE id = ?";
         var info = jdbcTemplate.queryForObject(sql, (rs, rowNum) -> new JenkinsToolInfo(
                 rs.getString("url")
                 , rs.getString("username")
-                , rs.getString("credential")
+                , rs.getString("api_token")
                 , rs.getInt("max_executors")
+                , rs.getString("health_status")
+                , rs.getTimestamp("health_checked_at") != null
+                        ? rs.getTimestamp("health_checked_at").toLocalDateTime()
+                        : null
         ), jenkinsInstanceId);
         toolInfoCache.put(jenkinsInstanceId, new CachedToolInfo(info, Instant.now()));
         return info;
@@ -244,8 +218,11 @@ public class JenkinsClient implements JenkinsQueryPort, JenkinsTriggerPort {
 
     private String buildAuthHeader(long jenkinsInstanceId) {
         var info = getToolInfo(jenkinsInstanceId);
+        if (info.apiToken() == null || info.apiToken().isBlank()) {
+            throw new IllegalStateException("Missing Jenkins API token: instanceId=" + jenkinsInstanceId);
+        }
         var encoded = Base64.getEncoder().encodeToString(
-                (info.username() + ":" + info.credential()).getBytes(StandardCharsets.UTF_8));
+                (info.username() + ":" + info.apiToken()).getBytes(StandardCharsets.UTF_8));
         return "Basic " + encoded;
     }
 
@@ -253,5 +230,10 @@ public class JenkinsClient implements JenkinsQueryPort, JenkinsTriggerPort {
 
     record CachedK8sMode(boolean isK8s, Instant cachedAt) {}
 
-    record JenkinsToolInfo(String url, String username, String credential, int maxExecutors) {}
+    record JenkinsToolInfo(String url,
+                           String username,
+                           String apiToken,
+                           int maxExecutors,
+                           String healthStatus,
+                           LocalDateTime healthCheckedAt) {}
 }

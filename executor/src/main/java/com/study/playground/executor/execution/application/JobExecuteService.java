@@ -14,11 +14,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * CMD_JOB_EXECUTE 수신 처리.
- * Jenkins API로 빌드를 트리거하고 SUBMITTED 상태로 전환한다.
- * triggerBuild 성공 후 nextBuildNumber를 조회하여 DB에 기록한다.
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -31,6 +26,10 @@ public class JobExecuteService implements ExecuteJobUseCase {
     private final DispatchService dispatchService;
     private final ExecutorProperties properties;
 
+    /**
+     * QUEUED 작업을 Jenkins에 실제로 제출한다.
+     * health gate를 통과한 경우에만 nextBuildNumber 조회와 build trigger를 수행한다.
+     */
     @Override
     @Transactional
     public void execute(String jobExcnId) {
@@ -48,9 +47,18 @@ public class JobExecuteService implements ExecuteJobUseCase {
             long jenkinsInstanceId = defInfo.jenkinsInstanceId();
             var jenkinsJobPath = defInfo.jenkinsJobPath();
 
+            if (!jenkinsQueryPort.isHealthy(jenkinsInstanceId)) {
+                log.warn("[JobExecute] Jenkins unhealthy, retrying later: instanceId={}, jobExcnId={}"
+                        , jenkinsInstanceId, jobExcnId);
+                dispatchService.retryOrFail(job, properties.getJobMaxRetries());
+                jobPort.save(job);
+                return;
+            }
+
             int nextBuildNo = jenkinsQueryPort.queryNextBuildNumber(jenkinsInstanceId, jenkinsJobPath);
             jenkinsTriggerPort.triggerBuild(jenkinsInstanceId, jenkinsJobPath, job.getJobId());
 
+            // nextBuildNumber를 먼저 읽어 둬야 started/completed webhook과 동일 buildNo로 매칭할 수 있다.
             dispatchService.markAsSubmitted(job, nextBuildNo);
             jobPort.save(job);
 

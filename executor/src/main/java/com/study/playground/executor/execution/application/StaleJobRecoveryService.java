@@ -1,7 +1,6 @@
 package com.study.playground.executor.execution.application;
 
 import com.study.playground.executor.config.ExecutorProperties;
-import com.study.playground.executor.execution.domain.model.BuildStatusResult;
 import com.study.playground.executor.execution.domain.model.ExecutionJob;
 import com.study.playground.executor.execution.domain.model.ExecutionJobStatus;
 import com.study.playground.executor.execution.domain.port.out.ExecutionJobPort;
@@ -30,10 +29,7 @@ public class StaleJobRecoveryService {
     private final NotifyJobStartedPort notifyStartedPort;
     private final ExecutorProperties properties;
 
-    /**
-     * SUBMITTED 상태에서 submittedStaleSeconds 이상 체류한 Job을 방어한다.
-     * Jenkins API로 빌드 상태를 직접 확인하여 적절한 상태로 전이한다.
-     */
+    /** 시작 webhook이 유실된 SUBMITTED 작업을 Jenkins 상태 재조회로 복구한다. */
     @Transactional
     public void recoverStaleSubmitted() {
         var cutoff = LocalDateTime.now().minusSeconds(properties.getSubmittedStaleSeconds());
@@ -49,10 +45,7 @@ public class StaleJobRecoveryService {
         }
     }
 
-    /**
-     * RUNNING 상태에서 runningStaleMinutes 이상 체류한 Job을 방어한다.
-     * Jenkins API로 빌드가 여전히 실행 중인지 확인한다.
-     */
+    /** 완료 webhook이 유실된 RUNNING 작업을 Jenkins 상태 재조회로 복구한다. */
     @Transactional
     public void recoverStaleRunning() {
         var cutoff = LocalDateTime.now().minusMinutes(properties.getRunningStaleMinutes());
@@ -68,10 +61,7 @@ public class StaleJobRecoveryService {
         }
     }
 
-    /**
-     * QUEUED 상태에서 queuedStaleSeconds 이상 체류한 Job을 방어한다.
-     * execute 메시지가 유실된 경우 PENDING으로 복귀시키거나 FAILURE로 전환한다.
-     */
+    /** execute command가 유실된 QUEUED 작업을 retryOrFail로 되돌린다. */
     @Transactional
     public void recoverStaleQueued() {
         var cutoff = LocalDateTime.now().minusSeconds(properties.getQueuedStaleSeconds());
@@ -87,13 +77,18 @@ public class StaleJobRecoveryService {
 
     private void recoverSubmitted(ExecutionJob job) {
         var defInfo = jobDefinitionQueryPort.load(job.getJobId());
+        if (!jenkinsQueryPort.isHealthy(defInfo.jenkinsInstanceId())) {
+            log.warn("[StaleRecovery] Skip SUBMITTED recovery for unhealthy Jenkins: instanceId={}, jobExcnId={}"
+                    , defInfo.jenkinsInstanceId(), job.getJobExcnId());
+            return;
+        }
+
         var buildStatus = jenkinsQueryPort.queryBuildStatus(
                 defInfo.jenkinsInstanceId(), defInfo.jenkinsJobPath(), job.getBuildNo());
 
         switch (buildStatus.phase()) {
             case NOT_FOUND -> {
-                // 아직 큐 대기 중이거나 빌드를 찾을 수 없음
-                // submittedStaleSeconds * 3 이상이면 retryOrFail
+                // Jenkins 큐 대기일 수 있으므로 submittedStaleSeconds * 3까지는 한 번 더 기다린다.
                 var longCutoff = LocalDateTime.now().minusSeconds(
                         (long) properties.getSubmittedStaleSeconds() * 3);
                 if (job.getMdfcnDt().isBefore(longCutoff)) {
@@ -107,7 +102,7 @@ public class StaleJobRecoveryService {
                 }
             }
             case BUILDING -> {
-                // 실행 중인데 시작 웹훅 유실 → RUNNING 전이
+                // started webhook만 빠진 경우라서 RUNNING 전이와 started notify를 다시 보낸다.
                 log.info("[StaleRecovery] SUBMITTED→RUNNING (webhook missed): jobExcnId={}"
                         , job.getJobExcnId());
                 dispatchService.markAsRunning(job, job.getBuildNo());
@@ -120,7 +115,7 @@ public class StaleJobRecoveryService {
                 );
             }
             case COMPLETED -> {
-                // 이미 완료 — 터미널 상태로 전이
+                // started/completed webhook이 모두 빠진 경우를 방어한다.
                 log.info("[StaleRecovery] SUBMITTED→{} (webhooks missed): jobExcnId={}"
                         , buildStatus.result(), job.getJobExcnId());
                 dispatchService.markAsCompleted(job, buildStatus.result());
@@ -142,16 +137,19 @@ public class StaleJobRecoveryService {
 
     private void recoverRunning(ExecutionJob job) {
         var defInfo = jobDefinitionQueryPort.load(job.getJobId());
+        if (!jenkinsQueryPort.isHealthy(defInfo.jenkinsInstanceId())) {
+            log.warn("[StaleRecovery] Skip RUNNING recovery for unhealthy Jenkins: instanceId={}, jobExcnId={}"
+                    , defInfo.jenkinsInstanceId(), job.getJobExcnId());
+            return;
+        }
+
         var buildStatus = jenkinsQueryPort.queryBuildStatus(
                 defInfo.jenkinsInstanceId(), defInfo.jenkinsJobPath(), job.getBuildNo());
 
         switch (buildStatus.phase()) {
-            case BUILDING -> {
-                // 여전히 실행 중 — 다음 주기까지 대기
-                log.info("[StaleRecovery] Still running: jobExcnId={}", job.getJobExcnId());
-            }
+            case BUILDING -> log.info("[StaleRecovery] Still running: jobExcnId={}", job.getJobExcnId());
             case COMPLETED -> {
-                // 완료되었으나 웹훅 유실
+                // completed webhook만 빠진 경우라서 terminal 상태와 completion notify를 복구한다.
                 log.info("[StaleRecovery] RUNNING→{} (webhook missed): jobExcnId={}"
                         , buildStatus.result(), job.getJobExcnId());
                 dispatchService.markAsCompleted(job, buildStatus.result());
@@ -169,7 +167,7 @@ public class StaleJobRecoveryService {
                 );
             }
             case NOT_FOUND -> {
-                // 빌드 정보 없음 — retryOrFail
+                // Jenkins에도 흔적이 없으면 실행 경로가 끊긴 것으로 보고 retryOrFail 한다.
                 log.warn("[StaleRecovery] RUNNING but build not found, retryOrFail: jobExcnId={}"
                         , job.getJobExcnId());
                 dispatchService.retryOrFail(job, properties.getJobMaxRetries());

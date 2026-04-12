@@ -57,6 +57,7 @@ executor:
   queued-check-interval-ms: 15000
   queued-check-initial-delay-ms: 5000
   scheduler-pool-size: 4
+  jenkins-health-staleness-minutes: 3
 
 outbox:
   poll-interval-ms: 500

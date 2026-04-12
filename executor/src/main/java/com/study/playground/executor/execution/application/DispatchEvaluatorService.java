@@ -19,17 +19,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * EvaluateDispatchUseCase 구현.
- *
- * tryDispatch() 흐름:
- *   1. PENDING Job 조회 (우선순위 순, FOR UPDATE SKIP LOCKED)
- *   2. 각 Job에 대해:
- *      a. 동일 jobId가 이미 QUEUED/RUNNING → skip (중복 실행 방지)
- *      b. job → Jenkins 인스턴스 매핑
- *      c. 해당 Jenkins에 슬롯 있는가? → 없으면 skip, 다음 job 검사
- *      d. 슬롯 있으면 → QUEUED → 실행 토픽 발행
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -49,6 +38,10 @@ public class DispatchEvaluatorService implements EvaluateDispatchUseCase {
     private final DispatchService dispatchService;
     private final ExecutorProperties properties;
 
+    /**
+     * PENDING 작업을 Jenkins 인스턴스별로 묶은 뒤, health/max slot 조건을 만족하는 건만
+     * QUEUED로 승격시키고 execute command를 발행한다.
+     */
     @Override
     @Transactional
     public void tryDispatch() {
@@ -102,11 +95,12 @@ public class DispatchEvaluatorService implements EvaluateDispatchUseCase {
     }
 
     private void dispatchForInstance(long instanceId, List<ExecutionJob> jobs) {
-        if (!jenkinsQueryPort.isReachable(instanceId)) {
-            log.warn("[Dispatch] Jenkins unreachable: instanceId={}", instanceId);
+        if (!jenkinsQueryPort.isHealthy(instanceId)) {
+            log.warn("[Dispatch] Jenkins unhealthy, skipping: instanceId={}", instanceId);
             return;
         }
 
+        // 슬롯 계산은 executor DB의 활성 작업 수와 operator가 관리하는 maxExecutors를 함께 본다.
         int activeCount = jobPort.countActiveJobsByJenkinsInstanceId(instanceId, ACTIVE_STATUSES);
         int maxSlots = jenkinsQueryPort.getMaxExecutors(instanceId);
         int remainingSlots = maxSlots - activeCount;
@@ -127,6 +121,7 @@ public class DispatchEvaluatorService implements EvaluateDispatchUseCase {
                 continue;
             }
 
+            // execute consumer가 실제 Jenkins 트리거를 담당하므로 여기서는 QUEUED + command 발행까지만 처리한다.
             dispatchService.prepareForDispatch(job);
             jobPort.save(job);
             publishPort.publishExecuteCommand(job);

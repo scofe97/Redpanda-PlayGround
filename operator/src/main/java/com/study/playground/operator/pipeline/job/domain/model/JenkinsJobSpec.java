@@ -1,8 +1,8 @@
 package com.study.playground.operator.pipeline.job.domain.model;
 
 /**
- * Jenkins 잡 생성에 필요한 스펙.
- * {projectId}/{presetId}/{jobId} 폴더 구조로 Jenkins에 파이프라인 잡을 생성한다.
+ * Jenkins folder/job 생성에 필요한 최소 스펙.
+ * 경로 규칙은 {projectId}/{presetId}/{jobId}를 사용한다.
  */
 public record JenkinsJobSpec(
         String projectId
@@ -10,14 +10,16 @@ public record JenkinsJobSpec(
         , String jobId
         , String jenkinsUrl
         , String username
-        , String credential
+        , String apiToken
         , String jenkinsScript
 ) {
 
+    /** domain path 표현. */
     public String toPath() {
         return projectId + "/" + presetId + "/" + jobId;
     }
 
+    /** Jenkins REST API 호출용 /job/... 경로 표현. */
     public String toApiPath() {
         return "/job/" + projectId + "/job/" + presetId + "/job/" + jobId;
     }
@@ -45,8 +47,7 @@ public record JenkinsJobSpec(
     }
 
     public static String folderConfigXml() {
-        // Keep folder XML minimal. Serializing view metadata here can produce
-        // owner-less AllView configs that break Jenkins folder pages at runtime.
+        // Folder XML은 최소 필드만 유지해야 Jenkins가 owner-less view 설정으로 깨지지 않는다.
         return """
                 <?xml version='1.1' encoding='UTF-8'?>
                 <com.cloudbees.hudson.plugins.folder.Folder plugin="cloudbees-folder">

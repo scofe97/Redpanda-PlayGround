@@ -10,12 +10,12 @@ public class JenkinsPathBuilder {
             , String jobId
             , String jenkinsUrl
             , String username
-            , String credential
+            , String apiToken
             , String jenkinsScript
     ) {
         return new JenkinsJobSpec(
                 projectId, presetId, jobId
-                , jenkinsUrl, username, credential, jenkinsScript
+                , jenkinsUrl, username, apiToken, jenkinsScript
         );
     }
 }

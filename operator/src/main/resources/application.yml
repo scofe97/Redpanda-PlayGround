@@ -110,6 +110,10 @@ pipeline:
   stale-execution-timeout-minutes: 30
   executor-wait-timeout-minutes: 5
 
+jenkins:
+  health-check-interval-ms: 60000
+  health-check-initial-delay-ms: 5000
+
 outbox:
   batch-size: 50
   poll-interval-ms: 500

@@ -82,20 +82,17 @@ class DispatchEvaluatorServiceTest {
     @Test
     @DisplayName("PENDING Job이 있으면 QUEUED로 전환하고 publishExecuteCommand를 호출해야 한다")
     void tryDispatch_withPendingJob_shouldQueueAndPublish() {
-        // given
         ExecutionJob job = pendingJob("excn-001", "job-001");
         given(jobPort.findDispatchableJobs(5)).willReturn(List.of(job));
         given(jobDefinitionQueryPort.load("job-001")).willReturn(defInfo("job-001"));
-        given(jenkinsQueryPort.isReachable(1L)).willReturn(true);
+        given(jenkinsQueryPort.isHealthy(1L)).willReturn(true);
         given(jobPort.countActiveJobsByJenkinsInstanceId(1L, List.of(
                 ExecutionJobStatus.QUEUED, ExecutionJobStatus.SUBMITTED, ExecutionJobStatus.RUNNING))).willReturn(0);
         given(jenkinsQueryPort.getMaxExecutors(1L)).willReturn(2);
         given(jobPort.existsByJobIdAndStatusIn(eq("job-001"), any())).willReturn(false);
 
-        // when
         service.tryDispatch();
 
-        // then
         ArgumentCaptor<ExecutionJob> captor = ArgumentCaptor.forClass(ExecutionJob.class);
         verify(jobPort).save(captor.capture());
         assertThat(captor.getValue().getStatus()).isEqualTo(ExecutionJobStatus.QUEUED);
@@ -107,13 +104,10 @@ class DispatchEvaluatorServiceTest {
     @Test
     @DisplayName("PENDING Job이 없으면 아무 작업도 하지 않아야 한다")
     void tryDispatch_noPendingJobs_shouldDoNothing() {
-        // given
         given(jobPort.findDispatchableJobs(5)).willReturn(List.of());
 
-        // when
         service.tryDispatch();
 
-        // then
         verify(jobPort, never()).save(any());
         verify(publishPort, never()).publishExecuteCommand(any());
     }
@@ -121,81 +115,70 @@ class DispatchEvaluatorServiceTest {
     @Test
     @DisplayName("동일 jobId가 이미 QUEUED/RUNNING이면 publish를 호출하지 않아야 한다")
     void tryDispatch_duplicateJobId_shouldSkip() {
-        // given
         ExecutionJob job = pendingJob("excn-001", "job-001");
         given(jobPort.findDispatchableJobs(5)).willReturn(List.of(job));
         given(jobDefinitionQueryPort.load("job-001")).willReturn(defInfo("job-001"));
-        given(jenkinsQueryPort.isReachable(1L)).willReturn(true);
+        given(jenkinsQueryPort.isHealthy(1L)).willReturn(true);
         given(jobPort.countActiveJobsByJenkinsInstanceId(1L, List.of(
                 ExecutionJobStatus.QUEUED, ExecutionJobStatus.SUBMITTED, ExecutionJobStatus.RUNNING))).willReturn(0);
         given(jenkinsQueryPort.getMaxExecutors(1L)).willReturn(1);
         given(jobPort.existsByJobIdAndStatusIn(eq("job-001"), any())).willReturn(true);
 
-        // when
         service.tryDispatch();
 
-        // then
         verify(publishPort, never()).publishExecuteCommand(any());
     }
 
     @Test
-    @DisplayName("Jenkins 인스턴스가 unreachable이면 publish를 호출하지 않아야 한다")
-    void tryDispatch_noSlot_shouldSkip() {
-        // given
+    @DisplayName("Jenkins 인스턴스가 unhealthy이면 publish를 호출하지 않아야 한다")
+    void tryDispatch_unhealthyJenkins_shouldSkip() {
         ExecutionJob job = pendingJob("excn-001", "job-001");
         given(jobPort.findDispatchableJobs(5)).willReturn(List.of(job));
         given(jobDefinitionQueryPort.load("job-001")).willReturn(defInfo("job-001"));
-        given(jenkinsQueryPort.isReachable(1L)).willReturn(false);
+        given(jenkinsQueryPort.isHealthy(1L)).willReturn(false);
 
-        // when
         service.tryDispatch();
 
-        // then
         verify(publishPort, never()).publishExecuteCommand(any());
+        verify(jobPort, never()).save(any());
     }
 
     @Test
     @DisplayName("첫 번째 Job 처리 실패 시 두 번째 Job은 계속 처리되어야 한다")
     void tryDispatch_oneFailsOthersContinue() {
-        // given
         ExecutionJob job1 = pendingJob("excn-001", "job-001");
         ExecutionJob job2 = pendingJob("excn-002", "job-002");
         given(jobPort.findDispatchableJobs(5)).willReturn(List.of(job1, job2));
         given(jobDefinitionQueryPort.load("job-001")).willReturn(defInfo("job-001"));
         given(jobDefinitionQueryPort.load("job-002")).willReturn(new JobDefinitionInfo("job-002", "10", "20", 2L));
-        given(jobPort.existsByJobIdAndStatusIn(eq("job-002"), any())).willReturn(false);
-        given(jenkinsQueryPort.isReachable(1L)).willThrow(new RuntimeException("down"));
-        given(jenkinsQueryPort.isReachable(2L)).willReturn(true);
+        given(jenkinsQueryPort.isHealthy(1L)).willThrow(new RuntimeException("down"));
+        given(jenkinsQueryPort.isHealthy(2L)).willReturn(true);
         given(jobPort.countActiveJobsByJenkinsInstanceId(2L, List.of(
                 ExecutionJobStatus.QUEUED, ExecutionJobStatus.SUBMITTED, ExecutionJobStatus.RUNNING))).willReturn(0);
         given(jenkinsQueryPort.getMaxExecutors(2L)).willReturn(1);
+        given(jobPort.existsByJobIdAndStatusIn(eq("job-002"), any())).willReturn(false);
 
-        // when
         service.tryDispatch();
 
-        // then — second instance job should still be published
         verify(publishPort, times(1)).publishExecuteCommand(any());
     }
 
     @Test
     @DisplayName("job definition 조회 실패 시 retryOrFail 처리하고 다른 Job은 계속 처리해야 한다")
     void tryDispatch_missingDefinition_shouldRetryAndContinue() {
-        // given
         ExecutionJob missingJob = pendingJob("excn-001", "job-001");
         ExecutionJob healthyJob = pendingJob("excn-002", "job-002");
         given(jobPort.findDispatchableJobs(5)).willReturn(List.of(missingJob, healthyJob));
         given(jobDefinitionQueryPort.load("job-001")).willThrow(new RuntimeException("missing"));
         given(jobDefinitionQueryPort.load("job-002")).willReturn(new JobDefinitionInfo("job-002", "10", "20", 2L));
-        given(jenkinsQueryPort.isReachable(2L)).willReturn(true);
+        given(jenkinsQueryPort.isHealthy(2L)).willReturn(true);
         given(jobPort.countActiveJobsByJenkinsInstanceId(2L, List.of(
                 ExecutionJobStatus.QUEUED, ExecutionJobStatus.SUBMITTED, ExecutionJobStatus.RUNNING))).willReturn(0);
         given(jenkinsQueryPort.getMaxExecutors(2L)).willReturn(1);
         given(jobPort.existsByJobIdAndStatusIn(eq("job-002"), any())).willReturn(false);
 
-        // when
         service.tryDispatch();
 
-        // then
         verify(jobPort, times(2)).save(any());
         assertThat(missingJob.getStatus()).isEqualTo(ExecutionJobStatus.PENDING);
         assertThat(missingJob.getRetryCnt()).isEqualTo(1);

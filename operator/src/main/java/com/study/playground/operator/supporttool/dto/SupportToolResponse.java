@@ -13,6 +13,9 @@ public record SupportToolResponse(
         String authType,
         String username,
         boolean hasCredential,
+        boolean hasApiToken,
+        String healthStatus,
+        LocalDateTime healthCheckedAt,
         boolean active,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
@@ -27,6 +30,9 @@ public record SupportToolResponse(
                 , tool.getAuthType() != null ? tool.getAuthType().name() : null
                 , tool.getUsername()
                 , tool.getCredential() != null && !tool.getCredential().isBlank()
+                , tool.getApiToken() != null && !tool.getApiToken().isBlank()
+                , tool.getHealthStatus() != null ? tool.getHealthStatus().name() : null
+                , tool.getHealthCheckedAt()
                 , tool.isActive()
                 , tool.getCreatedAt()
                 , tool.getUpdatedAt()

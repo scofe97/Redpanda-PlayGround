@@ -1,25 +1,26 @@
 package com.study.playground.operator.supporttool.service;
 
-import com.study.playground.operator.common.audit.AuditEventPublisher;
 import com.study.playground.common.dto.CommonErrorCode;
 import com.study.playground.common.exception.BusinessException;
+import com.study.playground.operator.common.audit.AuditEventPublisher;
 import com.study.playground.operator.supporttool.domain.*;
-import com.study.playground.operator.supporttool.event.SupportToolEvent;
 import com.study.playground.operator.supporttool.dto.SupportToolRequest;
 import com.study.playground.operator.supporttool.dto.SupportToolResponse;
+import com.study.playground.operator.supporttool.event.SupportToolEvent;
+import com.study.playground.operator.supporttool.infrastructure.JenkinsFeignClient;
+import com.study.playground.operator.supporttool.infrastructure.SupportToolProbeFeignClient;
 import com.study.playground.operator.supporttool.repository.SupportToolRepository;
+import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.HttpStatusCodeException;
-import org.springframework.web.client.ResourceAccessException;
-import org.springframework.web.client.RestTemplate;
 
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -30,7 +31,9 @@ public class SupportToolService {
 
     private final SupportToolRepository supportToolRepository;
     private final AuditEventPublisher auditEventPublisher;
-    private final RestTemplate restTemplate;
+    private final SupportToolProbeFeignClient supportToolProbeFeignClient;
+    private final JenkinsFeignClient jenkinsFeignClient;
+    private final JenkinsTokenService jenkinsTokenService;
     private final ApplicationEventPublisher eventPublisher;
 
     private static final Map<ToolImplementation, String> HEALTH_PATHS = Map.of(
@@ -63,6 +66,8 @@ public class SupportToolService {
         encodeCredential(tool, request.getCredential());
         supportToolRepository.save(tool);
 
+        refreshJenkinsTokenIfNeeded(tool);
+
         auditEventPublisher.publish("system", "CREATE", "SUPPORT_TOOL",
                 String.valueOf(tool.getId()), tool.getName());
 
@@ -84,6 +89,8 @@ public class SupportToolService {
         encodeCredential(tool, request.getCredential());
         supportToolRepository.save(tool);
 
+        refreshJenkinsTokenIfNeeded(tool);
+
         auditEventPublisher.publish("system", "UPDATE", "SUPPORT_TOOL",
                 String.valueOf(id), tool.getName());
 
@@ -104,30 +111,28 @@ public class SupportToolService {
 
     public boolean testConnection(Long id) {
         var tool = getToolOrThrow(id);
-        var healthPath = HEALTH_PATHS.getOrDefault(tool.getImplementation(), "/");
-        var targetUrl = tool.getUrl() + healthPath;
         try {
-            var headers = new HttpHeaders();
-            applyAuth(headers, tool);
-            restTemplate.exchange(targetUrl, HttpMethod.GET,
-                    new HttpEntity<>(headers), String.class);
+            if (tool.getImplementation() == ToolImplementation.JENKINS) {
+                var auth = resolveJenkinsAuth(tool);
+                if (auth == null) {
+                    return false;
+                }
+                jenkinsFeignClient.getStatus(URI.create(tool.getUrl()), auth);
+                return true;
+            }
+
+            var healthPath = HEALTH_PATHS.getOrDefault(tool.getImplementation(), "/");
+            var targetUrl = URI.create(tool.getUrl() + healthPath);
+            supportToolProbeFeignClient.get(targetUrl, buildHeaders(tool));
             return true;
-        } catch (HttpStatusCodeException e) {
-            log.info("Tool={} reachable but returned HTTP {}: {}",
-                    tool.getName(), e.getStatusCode().value(), targetUrl);
-            return true;
-        } catch (ResourceAccessException e) {
-            log.warn("Tool={} unreachable ({}): {}",
-                    tool.getName(), targetUrl, e.getMessage());
+        } catch (FeignException e) {
+            log.warn("Tool={} connection test failed with HTTP {}", tool.getName(), e.status());
             return false;
         } catch (Exception e) {
-            log.warn("Tool={} connection test failed ({}): {}",
-                    tool.getName(), targetUrl, e.getMessage());
+            log.warn("Tool={} connection test failed: {}", tool.getName(), e.getMessage());
             return false;
         }
     }
-
-    // ── private helpers ──────────────────────────────────────────────
 
     private SupportTool getToolOrThrow(Long id) {
         return supportToolRepository.findById(id)
@@ -183,25 +188,55 @@ public class SupportToolService {
         }
     }
 
-    private void applyAuth(HttpHeaders headers, SupportTool tool) {
-        var decoded = decodeCredential(tool);
-        if (decoded == null) return;
-
-        var authType = tool.getAuthType() != null ? tool.getAuthType() : AuthType.BASIC;
-        switch (authType) {
-            case PRIVATE_TOKEN -> headers.set("Private-Token", decoded);
-            case BEARER -> headers.setBearerAuth(decoded);
-            case BASIC -> {
-                if (tool.getUsername() != null) {
-                    headers.setBasicAuth(tool.getUsername(), decoded);
-                }
-            }
-            case NONE -> { /* no auth */ }
+    private void refreshJenkinsTokenIfNeeded(SupportTool tool) {
+        if (tool.getImplementation() == ToolImplementation.JENKINS) {
+            jenkinsTokenService.issueAndSave(tool);
         }
     }
 
-    private String decodeCredential(SupportTool tool) {
-        if (tool.getCredential() == null || tool.getCredential().isBlank()) return null;
-        return tool.getCredential();
+    private String resolveJenkinsAuth(SupportTool tool) {
+        if (tool.getUsername() == null || tool.getUsername().isBlank()) {
+            return null;
+        }
+        if (tool.getApiToken() != null && !tool.getApiToken().isBlank()) {
+            return buildBasicAuth(tool.getUsername(), tool.getApiToken());
+        }
+        if (tool.getCredential() != null && !tool.getCredential().isBlank()) {
+            return buildBasicAuth(tool.getUsername(), tool.getCredential());
+        }
+        return null;
+    }
+
+    private Map<String, String> buildHeaders(SupportTool tool) {
+        var headers = new LinkedHashMap<String, String>();
+        var authType = tool.getAuthType() != null ? tool.getAuthType() : AuthType.BASIC;
+        var credential = tool.getCredential();
+        switch (authType) {
+            case PRIVATE_TOKEN -> {
+                if (credential != null && !credential.isBlank()) {
+                    headers.put("Private-Token", credential);
+                }
+            }
+            case BEARER -> {
+                if (credential != null && !credential.isBlank()) {
+                    headers.put("Authorization", "Bearer " + credential);
+                }
+            }
+            case BASIC -> {
+                if (tool.getUsername() != null && !tool.getUsername().isBlank()
+                        && credential != null && !credential.isBlank()) {
+                    headers.put("Authorization", buildBasicAuth(tool.getUsername(), credential));
+                }
+            }
+            case NONE -> {
+            }
+        }
+        return headers;
+    }
+
+    private String buildBasicAuth(String username, String secret) {
+        var encoded = Base64.getEncoder().encodeToString(
+                (username + ":" + secret).getBytes(StandardCharsets.UTF_8));
+        return "Basic " + encoded;
     }
 }

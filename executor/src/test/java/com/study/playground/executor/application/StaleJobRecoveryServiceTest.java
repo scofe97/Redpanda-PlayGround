@@ -41,11 +41,9 @@ class StaleJobRecoveryServiceTest {
 
     DispatchService dispatchService = new DispatchService();
     ExecutorProperties properties = new ExecutorProperties();
-
     StaleJobRecoveryService service;
 
     private static final int BUILD_NO = 7;
-    // jenkinsJobPath() = projectId + "/" + presetId + "/" + jobId = "my-folder/my-job/job-001"
     private static final JobDefinitionInfo DEF_INFO =
             new JobDefinitionInfo("job-001", "my-folder", "my-job", 1L);
 
@@ -55,16 +53,16 @@ class StaleJobRecoveryServiceTest {
         properties.setRunningStaleMinutes(10);
         properties.setJobMaxRetries(2);
         service = new StaleJobRecoveryService(
-                jobPort, jenkinsQueryPort, jobDefinitionQueryPort
-                , dispatchService, notifyCompletedPort
-                , notifyStartedPort, properties
+                jobPort, jenkinsQueryPort, jobDefinitionQueryPort,
+                dispatchService, notifyCompletedPort,
+                notifyStartedPort, properties
         );
     }
 
     private ExecutionJob submittedJob(String jobExcnId) {
         ExecutionJob job = ExecutionJob.create(
-                jobExcnId, "pipe-001", "job-001"
-                , 1, LocalDateTime.now().minusMinutes(2), "user-01"
+                jobExcnId, "pipe-001", "job-001",
+                1, LocalDateTime.now().minusMinutes(2), "user-01"
         );
         job.transitionTo(ExecutionJobStatus.QUEUED);
         job.recordBuildNo(BUILD_NO);
@@ -85,18 +83,16 @@ class StaleJobRecoveryServiceTest {
         @Test
         @DisplayName("BUILDING 상태 → RUNNING 전이 + 시작 알림")
         void building_shouldTransitionToRunningAndNotify() {
-            // given
             ExecutionJob job = submittedJob("excn-001");
             given(jobPort.findByStatusAndMdfcnDtBefore(eq(ExecutionJobStatus.SUBMITTED), any()))
                     .willReturn(List.of(job));
             given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
+            given(jenkinsQueryPort.isHealthy(1L)).willReturn(true);
             given(jenkinsQueryPort.queryBuildStatus(1L, "my-folder/my-job/job-001", BUILD_NO))
                     .willReturn(BuildStatusResult.building());
 
-            // when
             service.recoverStaleSubmitted();
 
-            // then
             verify(jobPort).save(any());
             verify(notifyStartedPort).notify(
                     eq("excn-001"), eq("pipe-001"), eq("job-001"), eq(BUILD_NO));
@@ -105,53 +101,61 @@ class StaleJobRecoveryServiceTest {
         @Test
         @DisplayName("COMPLETED 상태 → 터미널 전이 + 완료 알림")
         void completed_shouldTransitionToTerminalAndNotify() {
-            // given
             ExecutionJob job = submittedJob("excn-001");
             given(jobPort.findByStatusAndMdfcnDtBefore(eq(ExecutionJobStatus.SUBMITTED), any()))
                     .willReturn(List.of(job));
             given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
+            given(jenkinsQueryPort.isHealthy(1L)).willReturn(true);
             given(jenkinsQueryPort.queryBuildStatus(1L, "my-folder/my-job/job-001", BUILD_NO))
                     .willReturn(BuildStatusResult.completed("SUCCESS"));
 
-            // when
             service.recoverStaleSubmitted();
 
-            // then
             verify(jobPort).save(any());
             verify(notifyCompletedPort).notify(
-                    eq("excn-001"), eq("pipe-001"), eq(true)
-                    , eq("SUCCESS"), isNull(), eq("N"), isNull());
+                    eq("excn-001"), eq("pipe-001"), eq(true),
+                    eq("SUCCESS"), isNull(), eq("N"), isNull());
         }
 
         @Test
         @DisplayName("NOT_FOUND + 체류 시간 짧음 → 스킵 (아직 큐 대기)")
         void notFound_shortDuration_shouldSkip() {
-            // given — mdfcnDt가 방금 전 (submittedStaleSeconds*3 미만)
             ExecutionJob job = submittedJob("excn-001");
             given(jobPort.findByStatusAndMdfcnDtBefore(eq(ExecutionJobStatus.SUBMITTED), any()))
                     .willReturn(List.of(job));
             given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
+            given(jenkinsQueryPort.isHealthy(1L)).willReturn(true);
             given(jenkinsQueryPort.queryBuildStatus(1L, "my-folder/my-job/job-001", BUILD_NO))
                     .willReturn(BuildStatusResult.notFound());
 
-            // when
             service.recoverStaleSubmitted();
 
-            // then — save 호출하지 않음
+            verify(jobPort, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Jenkins unhealthy면 복구를 스킵한다")
+        void unhealthy_shouldSkip() {
+            ExecutionJob job = submittedJob("excn-001");
+            given(jobPort.findByStatusAndMdfcnDtBefore(eq(ExecutionJobStatus.SUBMITTED), any()))
+                    .willReturn(List.of(job));
+            given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
+            given(jenkinsQueryPort.isHealthy(1L)).willReturn(false);
+
+            service.recoverStaleSubmitted();
+
+            verify(jenkinsQueryPort, never()).queryBuildStatus(anyLong(), anyString(), anyInt());
             verify(jobPort, never()).save(any());
         }
 
         @Test
         @DisplayName("stale Job이 없으면 아무 작업도 하지 않는다")
         void noStaleJobs_shouldDoNothing() {
-            // given
             given(jobPort.findByStatusAndMdfcnDtBefore(eq(ExecutionJobStatus.SUBMITTED), any()))
                     .willReturn(List.of());
 
-            // when
             service.recoverStaleSubmitted();
 
-            // then
             verify(jenkinsQueryPort, never()).queryBuildStatus(anyLong(), anyString(), anyInt());
         }
     }
@@ -164,8 +168,8 @@ class StaleJobRecoveryServiceTest {
         @DisplayName("QUEUED 상태 장기 체류 Job은 retryOrFail 처리한다")
         void queued_shouldRetryOrFail() {
             ExecutionJob job = ExecutionJob.create(
-                    "excn-001", "pipe-001", "job-001"
-                    , 1, LocalDateTime.now().minusMinutes(2), "user-01"
+                    "excn-001", "pipe-001", "job-001",
+                    1, LocalDateTime.now().minusMinutes(2), "user-01"
             );
             job.transitionTo(ExecutionJobStatus.QUEUED);
 
@@ -185,60 +189,69 @@ class StaleJobRecoveryServiceTest {
         @Test
         @DisplayName("BUILDING → 여전히 실행 중이면 스킵")
         void building_shouldSkip() {
-            // given
             ExecutionJob job = runningJob("excn-001");
             given(jobPort.findByStatusAndBgngDtBefore(eq(ExecutionJobStatus.RUNNING), any()))
                     .willReturn(List.of(job));
             given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
+            given(jenkinsQueryPort.isHealthy(1L)).willReturn(true);
             given(jenkinsQueryPort.queryBuildStatus(1L, "my-folder/my-job/job-001", BUILD_NO))
                     .willReturn(BuildStatusResult.building());
 
-            // when
             service.recoverStaleRunning();
 
-            // then
             verify(jobPort, never()).save(any());
-            verify(notifyCompletedPort, never()).notify(any(), any(), anyBoolean()
-                    , any(), any(), any(), any());
+            verify(notifyCompletedPort, never()).notify(any(), any(), anyBoolean(), any(), any(), any(), any());
         }
 
         @Test
         @DisplayName("COMPLETED → 터미널 전이 + 완료 알림")
         void completed_shouldTransitionAndNotify() {
-            // given
             ExecutionJob job = runningJob("excn-001");
             given(jobPort.findByStatusAndBgngDtBefore(eq(ExecutionJobStatus.RUNNING), any()))
                     .willReturn(List.of(job));
             given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
+            given(jenkinsQueryPort.isHealthy(1L)).willReturn(true);
             given(jenkinsQueryPort.queryBuildStatus(1L, "my-folder/my-job/job-001", BUILD_NO))
                     .willReturn(BuildStatusResult.completed("FAILURE"));
 
-            // when
             service.recoverStaleRunning();
 
-            // then
             verify(jobPort).save(any());
             verify(notifyCompletedPort).notify(
-                    eq("excn-001"), eq("pipe-001"), eq(false)
-                    , eq("FAILURE"), isNull(), eq("N"), eq("FAILURE"));
+                    eq("excn-001"), eq("pipe-001"), eq(false),
+                    eq("FAILURE"), isNull(), eq("N"), eq("FAILURE"));
         }
 
         @Test
         @DisplayName("NOT_FOUND → retryOrFail")
         void notFound_shouldRetryOrFail() {
-            // given
             ExecutionJob job = runningJob("excn-001");
             given(jobPort.findByStatusAndBgngDtBefore(eq(ExecutionJobStatus.RUNNING), any()))
                     .willReturn(List.of(job));
             given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
+            given(jenkinsQueryPort.isHealthy(1L)).willReturn(true);
             given(jenkinsQueryPort.queryBuildStatus(1L, "my-folder/my-job/job-001", BUILD_NO))
                     .willReturn(BuildStatusResult.notFound());
 
-            // when
             service.recoverStaleRunning();
 
-            // then — retryOrFail 호출되어 PENDING으로 전환 (retryCnt=0 < maxRetries=2)
             verify(jobPort).save(any());
+            assertThat(job.getStatus()).isEqualTo(ExecutionJobStatus.PENDING);
+        }
+
+        @Test
+        @DisplayName("Jenkins unhealthy면 복구를 스킵한다")
+        void unhealthy_shouldSkip() {
+            ExecutionJob job = runningJob("excn-001");
+            given(jobPort.findByStatusAndBgngDtBefore(eq(ExecutionJobStatus.RUNNING), any()))
+                    .willReturn(List.of(job));
+            given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
+            given(jenkinsQueryPort.isHealthy(1L)).willReturn(false);
+
+            service.recoverStaleRunning();
+
+            verify(jenkinsQueryPort, never()).queryBuildStatus(anyLong(), anyString(), anyInt());
+            verify(jobPort, never()).save(any());
         }
     }
 }

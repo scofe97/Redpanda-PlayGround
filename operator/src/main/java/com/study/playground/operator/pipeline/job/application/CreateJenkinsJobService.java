@@ -25,7 +25,7 @@ public class CreateJenkinsJobService implements CreateJenkinsJobUseCase {
 
         JenkinsJobSpec spec = pathBuilder.buildSpec(
                 deps.projectId(), deps.presetId(), deps.jobId()
-                , deps.jenkinsUrl(), deps.username(), deps.credential()
+                , deps.jenkinsUrl(), deps.username(), deps.apiToken()
                 , deps.jenkinsScript()
         );
 

@@ -1,5 +1,8 @@
 package com.study.playground.operator.pipeline.job.domain.port.out;
 
+/**
+ * Jenkins job 생성에 필요한 project/purpose/tool 정보를 한 번에 읽는 out-port.
+ */
 public interface LoadJobDependenciesPort {
 
     record JobDependencies(
@@ -8,12 +11,9 @@ public interface LoadJobDependenciesPort {
             , String jobId
             , String jenkinsUrl
             , String username
-            , String credential
+            , String apiToken
             , String jenkinsScript
     ) {}
 
-    /**
-     * Job ID와 Preset ID로 Jenkins 잡 생성에 필요한 정보를 조회한다.
-     */
     JobDependencies load(String jobId, String presetId);
 }

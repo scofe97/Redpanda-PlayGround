@@ -4,14 +4,21 @@
 
 이 디렉토리는 `spec.md`의 설계 의도보다 실제 live 코드가 어떻게 동작하는지 설명하는 데 초점을 둔다.
 
+현재 구현의 중요한 전제는 다음과 같다.
+
+- Jenkins health check와 API token 발급은 `operator`가 담당한다.
+- `executor`는 cross-schema로 `operator.support_tool`의 `health_status`, `health_checked_at`, `api_token`을 읽는다.
+- runtime Jenkins 호출은 API token 기반 Basic Auth만 사용한다.
+- `executor`는 `crumbIssuer`를 호출하지 않는다.
+
 ## 문서 목록
 
 - `01-receive-job.md`: operator가 보낸 dispatch command를 수신해 `execution_job`에 적재하는 흐름
-- `02-evaluate-dispatch.md`: 대기 Job을 Jenkins 인스턴스별로 평가하고 실행 대상을 QUEUED로 전환하는 흐름
-- `03-execute-job.md`: QUEUED Job을 Jenkins에 실제로 트리거하고 SUBMITTED로 전환하는 흐름
-- `04-handle-build-started.md`: Jenkins 시작 이벤트를 받아 RUNNING으로 전환하고 operator에 알리는 흐름
+- `02-evaluate-dispatch.md`: 대기 Job을 Jenkins 인스턴스별로 평가하고 health gate를 통과한 대상만 `QUEUED`로 전환하는 흐름
+- `03-execute-job.md`: `QUEUED` Job을 Jenkins에 실제로 트리거하고 `SUBMITTED`로 전환하는 흐름
+- `04-handle-build-started.md`: Jenkins 시작 이벤트를 받아 `RUNNING`으로 전환하고 operator에 알리는 흐름
 - `05-handle-build-completed.md`: Jenkins 종료 이벤트를 받아 터미널 상태 반영, 로그 저장, operator notify를 수행하는 흐름
-- `06-stale-job-recovery.md`: 웹훅 유실이나 메시지 유실에 대비해 SUBMITTED, RUNNING, QUEUED stale Job을 복구하는 흐름
+- `06-stale-job-recovery.md`: 웹훅 유실이나 메시지 유실에 대비해 stale Job을 복구하되 Jenkins unhealthy면 복구를 미루는 흐름
 
 각 문서에는 Mermaid 흐름도와 대응 HTML 시각화 링크가 포함돼 있다.
 
