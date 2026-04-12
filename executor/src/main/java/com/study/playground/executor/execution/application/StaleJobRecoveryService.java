@@ -76,7 +76,11 @@ public class StaleJobRecoveryService {
     }
 
     private void recoverSubmitted(ExecutionJob job) {
-        var defInfo = jobDefinitionQueryPort.load(job.getJobId());
+        var defInfo = jobDefinitionQueryPort.load(job.getJobId()).orElse(null);
+        if (defInfo == null) {
+            log.warn("[StaleRecovery] Job definition not found, skipping: jobExcnId={}", job.getJobExcnId());
+            return;
+        }
         if (!jenkinsQueryPort.isHealthy(defInfo.jenkinsInstanceId())) {
             log.warn("[StaleRecovery] Skip SUBMITTED recovery for unhealthy Jenkins: instanceId={}, jobExcnId={}"
                     , defInfo.jenkinsInstanceId(), job.getJobExcnId());
@@ -136,7 +140,11 @@ public class StaleJobRecoveryService {
     }
 
     private void recoverRunning(ExecutionJob job) {
-        var defInfo = jobDefinitionQueryPort.load(job.getJobId());
+        var defInfo = jobDefinitionQueryPort.load(job.getJobId()).orElse(null);
+        if (defInfo == null) {
+            log.warn("[StaleRecovery] Job definition not found, skipping: jobExcnId={}", job.getJobExcnId());
+            return;
+        }
         if (!jenkinsQueryPort.isHealthy(defInfo.jenkinsInstanceId())) {
             log.warn("[StaleRecovery] Skip RUNNING recovery for unhealthy Jenkins: instanceId={}, jobExcnId={}"
                     , defInfo.jenkinsInstanceId(), job.getJobExcnId());

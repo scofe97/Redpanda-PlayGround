@@ -58,6 +58,7 @@ executor:
   queued-check-initial-delay-ms: 5000
   scheduler-pool-size: 4
   jenkins-health-staleness-minutes: 3
+  dynamic-k8s-dispatch-capacity: 5
 
 outbox:
   poll-interval-ms: 500

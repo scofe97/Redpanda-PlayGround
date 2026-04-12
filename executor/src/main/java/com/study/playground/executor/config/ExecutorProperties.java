@@ -43,4 +43,6 @@ public class ExecutorProperties {
     private int schedulerPoolSize = 4;
     /** operator가 기록한 Jenkins health 정보를 신뢰할 최대 시간. */
     private int jenkinsHealthStalenessMinutes = 3;
+    /** 동적 Pod Jenkins(K8S)로 판단될 때 애플리케이션이 적용할 디스패치 슬롯 수. */
+    private int dynamicK8sDispatchCapacity = 5;
 }

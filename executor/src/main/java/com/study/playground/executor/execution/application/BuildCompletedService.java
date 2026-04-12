@@ -47,11 +47,15 @@ public class BuildCompletedService implements HandleBuildCompletedUseCase {
         String logFilePath = null;
         boolean logSaved = false;
         if (callback.logContent() != null && !callback.logContent().isBlank()) {
-            var defInfo = jobDefinitionQueryPort.load(job.getJobId());
-            var dirPath = defInfo.jenkinsJobPath();
-            logSaved = logPort.save(dirPath, job.getJobExcnId(), callback.logContent());
-            if (logSaved) {
-                logFilePath = dirPath + "/" + job.getJobExcnId() + "_0";
+            var defInfo = jobDefinitionQueryPort.load(job.getJobId()).orElse(null);
+            if (defInfo == null) {
+                log.warn("[BuildCompleted] Job definition not found, skipping log save: jobExcnId={}", job.getJobExcnId());
+            } else {
+                var dirPath = defInfo.jenkinsJobPath();
+                logSaved = logPort.save(dirPath, job.getJobExcnId(), callback.logContent());
+                if (logSaved) {
+                    logFilePath = dirPath + "/" + job.getJobExcnId() + "_0";
+                }
             }
         }
 

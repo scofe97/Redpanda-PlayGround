@@ -21,8 +21,8 @@ public interface JenkinsFeignClient {
     @GetMapping("/computer/api/json?tree=busyExecutors,totalExecutors")
     String getComputerStatus(URI baseUri, @RequestHeader("Authorization") String auth);
 
-    /** kubernetes plugin 기반 동적 agent 환경인지 판별할 때 사용한다. */
-    @GetMapping("/computer/api/json?tree=computer[_class]")
+    /** 동적 Pod Jenkins(K8S) 여부 판별에 필요한 메타데이터를 읽는다. */
+    @GetMapping("/computer/api/json?tree=totalExecutors,computer[_class,assignedLabels[name]]")
     String getComputerClasses(URI baseUri, @RequestHeader("Authorization") String auth);
 
     /** build trigger 직전에 nextBuildNumber를 읽는다. */

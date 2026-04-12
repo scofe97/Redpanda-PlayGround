@@ -6,6 +6,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
+import java.util.Optional;
+
 @Component
 @RequiredArgsConstructor
 public class JobDefinitionQueryAdapter implements JobDefinitionQueryPort {
@@ -13,7 +15,7 @@ public class JobDefinitionQueryAdapter implements JobDefinitionQueryPort {
     private final JdbcTemplate jdbcTemplate;
 
     @Override
-    public JobDefinitionInfo load(String jobId) {
+    public Optional<JobDefinitionInfo> load(String jobId) {
         var sql = """
                 SELECT j.job_id, j.project_id, j.preset_id
                      , st.id as jenkins_instance_id
@@ -23,11 +25,16 @@ public class JobDefinitionQueryAdapter implements JobDefinitionQueryPort {
                 JOIN operator.support_tool st ON st.id = pe.tool_id
                 WHERE j.job_id = ?
                 """;
-        return jdbcTemplate.queryForObject(sql, (rs, rowNum) -> new JobDefinitionInfo(
-                rs.getString("job_id")
-                , rs.getString("project_id")
-                , rs.getString("preset_id")
-                , rs.getLong("jenkins_instance_id")
-        ), jobId);
+        try {
+            var info = jdbcTemplate.queryForObject(sql, (rs, rowNum) -> new JobDefinitionInfo(
+                    rs.getString("job_id")
+                    , rs.getString("project_id")
+                    , rs.getString("preset_id")
+                    , rs.getLong("jenkins_instance_id")
+            ), jobId);
+            return Optional.ofNullable(info);
+        } catch (org.springframework.dao.EmptyResultDataAccessException e) {
+            return Optional.empty();
+        }
     }
 }

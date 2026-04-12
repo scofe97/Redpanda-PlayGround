@@ -39,7 +39,7 @@ public class DispatchEvaluatorService implements EvaluateDispatchUseCase {
     private final ExecutorProperties properties;
 
     /**
-     * PENDING 작업을 Jenkins 인스턴스별로 묶은 뒤, health/max slot 조건을 만족하는 건만
+     * PENDING 작업을 Jenkins 인스턴스별로 묶은 뒤, health/slot 조건을 만족하는 건만
      * QUEUED로 승격시키고 execute command를 발행한다.
      */
     @Override
@@ -55,23 +55,16 @@ public class DispatchEvaluatorService implements EvaluateDispatchUseCase {
         Map<Long, List<ExecutionJob>> jobsByInstance = new LinkedHashMap<>();
 
         for (ExecutionJob job : pendingJobs) {
-            try {
-                var defInfo = jobDefinitionQueryPort.load(job.getJobId());
-                jobsByInstance.computeIfAbsent(defInfo.jenkinsInstanceId(), ignored -> new ArrayList<>())
-                        .add(job);
-            } catch (Exception e) {
-                log.error("[Dispatch] Job definition lookup failed: jobExcnId={}, jobId={}, error={}"
-                        , job.getJobExcnId(), job.getJobId(), e.getMessage(), e);
-                boolean retried = retryPendingJob(job);
+            var defInfoOpt = jobDefinitionQueryPort.load(job.getJobId());
+            if (defInfoOpt.isEmpty()) {
+                log.error("[Dispatch] Job definition not found, marking FAILURE: jobExcnId={}, jobId={}"
+                        , job.getJobExcnId(), job.getJobId());
+                job.transitionTo(ExecutionJobStatus.FAILURE);
                 jobPort.save(job);
-                if (retried) {
-                    log.warn("[Dispatch] Retry #{} after missing definition: jobExcnId={}"
-                            , job.getRetryCnt(), job.getJobExcnId());
-                } else {
-                    log.error("[Dispatch] Marked FAILURE after missing definition: jobExcnId={}"
-                            , job.getJobExcnId());
-                }
+                continue;
             }
+            jobsByInstance.computeIfAbsent(defInfoOpt.get().jenkinsInstanceId(), ignored -> new ArrayList<>())
+                    .add(job);
         }
 
         for (var entry : jobsByInstance.entrySet()) {
@@ -84,30 +77,20 @@ public class DispatchEvaluatorService implements EvaluateDispatchUseCase {
         }
     }
 
-    private boolean retryPendingJob(ExecutionJob job) {
-        if (job.canRetry(properties.getJobMaxRetries())) {
-            job.incrementRetry();
-            return true;
-        }
-
-        job.transitionTo(ExecutionJobStatus.FAILURE);
-        return false;
-    }
-
     private void dispatchForInstance(long instanceId, List<ExecutionJob> jobs) {
         if (!jenkinsQueryPort.isHealthy(instanceId)) {
             log.warn("[Dispatch] Jenkins unhealthy, skipping: instanceId={}", instanceId);
             return;
         }
 
-        // 슬롯 계산은 executor DB의 활성 작업 수와 operator가 관리하는 maxExecutors를 함께 본다.
+        // 슬롯 계산은 executor DB의 활성 작업 수와 Jenkins 실시간 executor 정보를 함께 본다.
         int activeCount = jobPort.countActiveJobsByJenkinsInstanceId(instanceId, ACTIVE_STATUSES);
-        int maxSlots = jenkinsQueryPort.getMaxExecutors(instanceId);
-        int remainingSlots = maxSlots - activeCount;
+        int dispatchCapacity = jenkinsQueryPort.isImmediatelyExecutable(instanceId);
+        int remainingSlots = dispatchCapacity - activeCount;
 
         if (remainingSlots <= 0) {
-            log.debug("[Dispatch] No slots: instanceId={}, active={}, max={}"
-                    , instanceId, activeCount, maxSlots);
+            log.debug("[Dispatch] No slots: instanceId={}, active={}, capacity={}"
+                    , instanceId, activeCount, dispatchCapacity);
             return;
         }
 

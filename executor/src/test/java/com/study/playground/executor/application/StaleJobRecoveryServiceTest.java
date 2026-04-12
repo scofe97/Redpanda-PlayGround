@@ -22,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
@@ -86,7 +87,7 @@ class StaleJobRecoveryServiceTest {
             ExecutionJob job = submittedJob("excn-001");
             given(jobPort.findByStatusAndMdfcnDtBefore(eq(ExecutionJobStatus.SUBMITTED), any()))
                     .willReturn(List.of(job));
-            given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
+            given(jobDefinitionQueryPort.load("job-001")).willReturn(Optional.of(DEF_INFO));
             given(jenkinsQueryPort.isHealthy(1L)).willReturn(true);
             given(jenkinsQueryPort.queryBuildStatus(1L, "my-folder/my-job/job-001", BUILD_NO))
                     .willReturn(BuildStatusResult.building());
@@ -104,7 +105,7 @@ class StaleJobRecoveryServiceTest {
             ExecutionJob job = submittedJob("excn-001");
             given(jobPort.findByStatusAndMdfcnDtBefore(eq(ExecutionJobStatus.SUBMITTED), any()))
                     .willReturn(List.of(job));
-            given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
+            given(jobDefinitionQueryPort.load("job-001")).willReturn(Optional.of(DEF_INFO));
             given(jenkinsQueryPort.isHealthy(1L)).willReturn(true);
             given(jenkinsQueryPort.queryBuildStatus(1L, "my-folder/my-job/job-001", BUILD_NO))
                     .willReturn(BuildStatusResult.completed("SUCCESS"));
@@ -123,7 +124,7 @@ class StaleJobRecoveryServiceTest {
             ExecutionJob job = submittedJob("excn-001");
             given(jobPort.findByStatusAndMdfcnDtBefore(eq(ExecutionJobStatus.SUBMITTED), any()))
                     .willReturn(List.of(job));
-            given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
+            given(jobDefinitionQueryPort.load("job-001")).willReturn(Optional.of(DEF_INFO));
             given(jenkinsQueryPort.isHealthy(1L)).willReturn(true);
             given(jenkinsQueryPort.queryBuildStatus(1L, "my-folder/my-job/job-001", BUILD_NO))
                     .willReturn(BuildStatusResult.notFound());
@@ -139,7 +140,7 @@ class StaleJobRecoveryServiceTest {
             ExecutionJob job = submittedJob("excn-001");
             given(jobPort.findByStatusAndMdfcnDtBefore(eq(ExecutionJobStatus.SUBMITTED), any()))
                     .willReturn(List.of(job));
-            given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
+            given(jobDefinitionQueryPort.load("job-001")).willReturn(Optional.of(DEF_INFO));
             given(jenkinsQueryPort.isHealthy(1L)).willReturn(false);
 
             service.recoverStaleSubmitted();
@@ -192,7 +193,7 @@ class StaleJobRecoveryServiceTest {
             ExecutionJob job = runningJob("excn-001");
             given(jobPort.findByStatusAndBgngDtBefore(eq(ExecutionJobStatus.RUNNING), any()))
                     .willReturn(List.of(job));
-            given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
+            given(jobDefinitionQueryPort.load("job-001")).willReturn(Optional.of(DEF_INFO));
             given(jenkinsQueryPort.isHealthy(1L)).willReturn(true);
             given(jenkinsQueryPort.queryBuildStatus(1L, "my-folder/my-job/job-001", BUILD_NO))
                     .willReturn(BuildStatusResult.building());
@@ -209,7 +210,7 @@ class StaleJobRecoveryServiceTest {
             ExecutionJob job = runningJob("excn-001");
             given(jobPort.findByStatusAndBgngDtBefore(eq(ExecutionJobStatus.RUNNING), any()))
                     .willReturn(List.of(job));
-            given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
+            given(jobDefinitionQueryPort.load("job-001")).willReturn(Optional.of(DEF_INFO));
             given(jenkinsQueryPort.isHealthy(1L)).willReturn(true);
             given(jenkinsQueryPort.queryBuildStatus(1L, "my-folder/my-job/job-001", BUILD_NO))
                     .willReturn(BuildStatusResult.completed("FAILURE"));
@@ -228,7 +229,7 @@ class StaleJobRecoveryServiceTest {
             ExecutionJob job = runningJob("excn-001");
             given(jobPort.findByStatusAndBgngDtBefore(eq(ExecutionJobStatus.RUNNING), any()))
                     .willReturn(List.of(job));
-            given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
+            given(jobDefinitionQueryPort.load("job-001")).willReturn(Optional.of(DEF_INFO));
             given(jenkinsQueryPort.isHealthy(1L)).willReturn(true);
             given(jenkinsQueryPort.queryBuildStatus(1L, "my-folder/my-job/job-001", BUILD_NO))
                     .willReturn(BuildStatusResult.notFound());
@@ -245,7 +246,7 @@ class StaleJobRecoveryServiceTest {
             ExecutionJob job = runningJob("excn-001");
             given(jobPort.findByStatusAndBgngDtBefore(eq(ExecutionJobStatus.RUNNING), any()))
                     .willReturn(List.of(job));
-            given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
+            given(jobDefinitionQueryPort.load("job-001")).willReturn(Optional.of(DEF_INFO));
             given(jenkinsQueryPort.isHealthy(1L)).willReturn(false);
 
             service.recoverStaleRunning();

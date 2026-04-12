@@ -76,7 +76,7 @@ class JobExecuteServiceTest {
     void execute_queuedJob_shouldTriggerBuildAndSubmit() {
         ExecutionJob job = queuedJob("excn-001");
         given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
-        given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
+        given(jobDefinitionQueryPort.load("job-001")).willReturn(Optional.of(DEF_INFO));
         given(jenkinsQueryPort.isHealthy(1L)).willReturn(true);
         given(jenkinsQueryPort.queryNextBuildNumber(1L, "10/20/job-001")).willReturn(42);
         willDoNothing().given(jenkinsTriggerPort).triggerBuild(1L, "10/20/job-001", "job-001");
@@ -122,7 +122,7 @@ class JobExecuteServiceTest {
     void execute_unhealthyJenkins_shouldRetryWithoutTrigger() {
         ExecutionJob job = queuedJob("excn-001");
         given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
-        given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
+        given(jobDefinitionQueryPort.load("job-001")).willReturn(Optional.of(DEF_INFO));
         given(jenkinsQueryPort.isHealthy(1L)).willReturn(false);
 
         service.execute("excn-001");
@@ -138,7 +138,7 @@ class JobExecuteServiceTest {
     void execute_triggerFails_shouldRetry() {
         ExecutionJob job = queuedJob("excn-001");
         given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
-        given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
+        given(jobDefinitionQueryPort.load("job-001")).willReturn(Optional.of(DEF_INFO));
         given(jenkinsQueryPort.isHealthy(1L)).willReturn(true);
         given(jenkinsQueryPort.queryNextBuildNumber(1L, "10/20/job-001")).willReturn(42);
         willThrow(new RuntimeException("Jenkins 연결 실패"))
@@ -159,7 +159,7 @@ class JobExecuteServiceTest {
         job.incrementRetry();
         job.incrementRetry();
         given(jobPort.findById("excn-001")).willReturn(Optional.of(job));
-        given(jobDefinitionQueryPort.load("job-001")).willReturn(DEF_INFO);
+        given(jobDefinitionQueryPort.load("job-001")).willReturn(Optional.of(DEF_INFO));
         given(jenkinsQueryPort.isHealthy(1L)).willReturn(true);
         given(jenkinsQueryPort.queryNextBuildNumber(1L, "10/20/job-001")).willReturn(42);
         willThrow(new RuntimeException("Jenkins 연결 실패"))

@@ -43,7 +43,9 @@ public class JobExecuteService implements ExecuteJobUseCase {
         }
 
         try {
-            var defInfo = jobDefinitionQueryPort.load(job.getJobId());
+            var defInfo = jobDefinitionQueryPort.load(job.getJobId())
+                    .orElseThrow(() -> new IllegalStateException(
+                            "Job definition not found: jobId=" + job.getJobId()));
             long jenkinsInstanceId = defInfo.jenkinsInstanceId();
             var jenkinsJobPath = defInfo.jenkinsJobPath();
 

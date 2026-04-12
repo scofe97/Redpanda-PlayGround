@@ -9,7 +9,7 @@
 <body>
   <div class="fixed-header">
     <h1>Evaluate Dispatch 시각화</h1>
-    <div class="subtitle"><code>DispatchScheduler</code>가 <code>PENDING</code> Job을 읽고, Jenkins 인스턴스별 슬롯 계산을 통해 <code>QUEUED</code> 실행 대상을 선정하는 흐름이다.</div>
+    <div class="subtitle"><code>DispatchScheduler</code>가 <code>PENDING</code> Job을 읽고, Jenkins 인스턴스별 health 및 실시간 슬롯 계산을 통해 <code>QUEUED</code> 실행 대상을 선정하는 흐름이다.</div>
   </div>
 
   <div class="scroll-content">
@@ -21,7 +21,7 @@
       <div class="panel-title">Pipeline</div>
       <div id="startOverlay" class="start-overlay">
         <button class="btn-start" onclick="startSimulation()">시뮬레이션 시작 ▶</button>
-        <div class="start-hint">정상 배치, 슬롯 부족, job definition 누락을 비교한다</div>
+        <div class="start-hint">정상 배치, 슬롯 부족, job definition 누락 즉시 실패를 비교한다</div>
       </div>
       <div id="pipeline" class="pipeline"></div>
       <div id="controlBar" class="controls" style="display:none;">
@@ -70,9 +70,28 @@ public void scheduledDispatch() {
           <pre>List&lt;ExecutionJob&gt; pendingJobs = jobPort.findDispatchableJobs(
         properties.getMaxBatchSize());
 
+var defInfoOpt = jobDefinitionQueryPort.load(job.getJobId());
+if (defInfoOpt.isEmpty()) {
+    job.transitionTo(ExecutionJobStatus.FAILURE);
+    jobPort.save(job);
+    continue;
+}
+
 int activeCount = jobPort.countActiveJobsByJenkinsInstanceId(instanceId, ACTIVE_STATUSES);
-int maxSlots = jenkinsQueryPort.getMaxExecutors(instanceId);
-int remainingSlots = maxSlots - activeCount;</pre>
+int dispatchCapacity = jenkinsQueryPort.isImmediatelyExecutable(instanceId);
+int remainingSlots = dispatchCapacity - activeCount;</pre>
+        </div>
+        <div class="code-card">
+          <div class="code-card-title">Infra Split</div>
+          <div class="code-card-subtitle">execution/infrastructure/jenkins/*</div>
+          <pre>// 외부 DB 조회
+JenkinsToolInfoReader.get(instanceId)
+
+// Jenkins API 조회
+JenkinsRemoteApiClient.queryDispatchCapacity(
+        instanceId, baseUri, auth,
+        properties.getDynamicK8sDispatchCapacity()
+);</pre>
         </div>
         <div class="code-card">
           <div class="code-card-title">Queue Transition</div>
@@ -142,13 +161,13 @@ window.VIS_DATA = {
         {
           label: 'Slots',
           title: 'Step 4. 슬롯 계산',
-          narration: '서비스는 <code>countActiveJobsByJenkinsInstanceId()</code>와 <code>getMaxExecutors()</code>로 남은 슬롯을 계산한다. 현재 구현은 Jenkins queue length보다 executor DB 활성 건 수를 더 직접적으로 본다.',
+          narration: '서비스는 <code>countActiveJobsByJenkinsInstanceId()</code>와 <code>isImmediatelyExecutable()</code>로 남은 슬롯을 계산한다. 정적 Jenkins는 실제 <code>totalExecutors</code>를, 동적 Pod Jenkins는 애플리케이션 설정값을 사용한다.',
           dbSections: [
             {
               title: 'slot view',
               fields: [
                 { key: 'activeCount', value: '1' },
-                { key: 'maxExecutors', value: '2' },
+                { key: 'dispatchCapacity', value: '2' },
                 { key: 'remainingSlots', value: '1', changed: true }
               ]
             }
@@ -205,13 +224,13 @@ window.VIS_DATA = {
         {
           label: 'Slots',
           title: 'Step 2. 남은 슬롯 0 계산',
-          narration: '<code>activeCount = maxExecutors</code>인 상황이면 <code>remainingSlots <= 0</code>가 되어 더 진행하지 않는다.',
+          narration: '<code>activeCount = dispatchCapacity</code>인 상황이면 <code>remainingSlots <= 0</code>가 되어 더 진행하지 않는다.',
           dbSections: [
             {
               title: 'slot view',
               fields: [
                 { key: 'activeCount', value: '2' },
-                { key: 'maxExecutors', value: '2' },
+                { key: 'dispatchCapacity', value: '2' },
                 { key: 'remainingSlots', value: '0', changed: true }
               ]
             }
@@ -236,48 +255,33 @@ window.VIS_DATA = {
     },
     {
       name: 'job definition 누락',
-      description: 'operator 스키마에서 job definition lookup이 실패하면 즉시 죽이지 않고 재시도 가능 여부를 먼저 본다.',
+      description: 'operator 스키마에서 job definition lookup 결과가 비어 있으면 재시도 없이 즉시 <code>FAILURE</code> 처리한다.',
       steps: [
         {
           label: 'Lookup',
-          title: 'Step 1. cross-schema 조회 실패',
-          narration: '<code>jobDefinitionQueryPort.load(jobId)</code>가 예외를 던지면 dispatch loop는 해당 Job만 분리해서 오류 처리한다.',
+          title: 'Step 1. cross-schema 조회 결과 없음',
+          narration: '<code>jobDefinitionQueryPort.load(jobId)</code>가 <code>Optional.empty()</code>를 반환하면, 이 Job은 Jenkins 인스턴스를 찾지 못한 것으로 판단한다.',
           dbSections: [
             {
               title: 'operator cross-schema',
               fields: [
                 { key: 'job_id', value: 'JOB-MISSING' },
-                { key: 'result', value: 'query failed', changed: true }
-              ]
-            }
-          ]
-        },
-        {
-          label: 'Retry',
-          title: 'Step 2. retryPendingJob 실행',
-          narration: '<code>retryPendingJob()</code>는 <code>job.canRetry(maxRetries)</code>를 본다. 재시도 가능하면 <code>retryCnt</code>만 올리고 상태는 <code>PENDING</code> 유지다.',
-          dbSections: [
-            {
-              title: 'execution_job',
-              fields: [
-                { key: 'retry_cnt', value: '1', changed: true },
-                { key: 'excn_stts', value: 'PENDING' }
+                { key: 'result', value: 'empty', changed: true }
               ]
             }
           ]
         },
         {
           label: 'Fail',
-          title: 'Step 3. 한도 초과 시 FAILURE',
-          narration: '이미 최대 재시도 횟수에 도달해 있으면 즉시 <code>FAILURE</code>로 전환한다. 이 경우 더 이상 dispatch 대상에 포함되지 않는다.',
+          title: 'Step 2. 즉시 FAILURE 전환',
+          narration: '이 경로는 예외 처리(<code>try-catch</code>)가 아니라 null/empty 체크다. 구현은 재시도하지 않고 바로 <code>FAILURE</code>로 바꾼 뒤 저장한다.',
           dbSections: [
             {
               title: 'execution_job',
               fields: [
-                { key: 'retry_cnt', value: '3' },
+                { key: 'retry_cnt', value: '0' },
                 { key: 'excn_stts', value: 'FAILURE', changed: true }
-              ],
-              note: '같은 예외라도 일시 장애인지 복구 불가인지 구분하려는 설계다.'
+              ]
             }
           ]
         }

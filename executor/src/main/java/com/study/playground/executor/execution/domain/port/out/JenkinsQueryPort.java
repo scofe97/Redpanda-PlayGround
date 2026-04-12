@@ -8,17 +8,14 @@ import com.study.playground.executor.execution.domain.model.BuildStatusResult;
  */
 public interface JenkinsQueryPort {
 
-    /** queue/executor 상태를 함께 봐서 즉시 실행 가능한지 판단한다. */
-    boolean isImmediatelyExecutable(long jenkinsInstanceId);
-
+    /** queue/executor 상태를 함께 봐서 즉시 실행 가능한 슬롯 수를 반환한다. */
+    int isImmediatelyExecutable(long jenkinsInstanceId);
+    
     /** 기존 포트 호환용 메서드로, 현재 구현에서는 health gate와 동일 의미를 가진다. */
     boolean isReachable(long jenkinsInstanceId);
 
     /** operator가 마지막으로 기록한 health 상태와 freshness를 함께 확인한다. */
     boolean isHealthy(long jenkinsInstanceId);
-
-    /** operator.support_tool.max_executors 값을 조회한다. */
-    int getMaxExecutors(long jenkinsInstanceId);
 
     /** build trigger 전에 Jenkins job의 nextBuildNumber를 읽는다. */
     int queryNextBuildNumber(long jenkinsInstanceId, String jenkinsJobPath);

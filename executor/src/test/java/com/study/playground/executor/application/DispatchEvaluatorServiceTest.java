@@ -20,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -75,8 +76,8 @@ class DispatchEvaluatorServiceTest {
         );
     }
 
-    private JobDefinitionInfo defInfo(String jobId) {
-        return new JobDefinitionInfo(jobId, "10", "20", 1L);
+    private Optional<JobDefinitionInfo> defInfo(String jobId) {
+        return Optional.of(new JobDefinitionInfo(jobId, "10", "20", 1L));
     }
 
     @Test
@@ -88,7 +89,7 @@ class DispatchEvaluatorServiceTest {
         given(jenkinsQueryPort.isHealthy(1L)).willReturn(true);
         given(jobPort.countActiveJobsByJenkinsInstanceId(1L, List.of(
                 ExecutionJobStatus.QUEUED, ExecutionJobStatus.SUBMITTED, ExecutionJobStatus.RUNNING))).willReturn(0);
-        given(jenkinsQueryPort.getMaxExecutors(1L)).willReturn(2);
+        given(jenkinsQueryPort.isImmediatelyExecutable(1L)).willReturn(2);
         given(jobPort.existsByJobIdAndStatusIn(eq("job-001"), any())).willReturn(false);
 
         service.tryDispatch();
@@ -121,7 +122,7 @@ class DispatchEvaluatorServiceTest {
         given(jenkinsQueryPort.isHealthy(1L)).willReturn(true);
         given(jobPort.countActiveJobsByJenkinsInstanceId(1L, List.of(
                 ExecutionJobStatus.QUEUED, ExecutionJobStatus.SUBMITTED, ExecutionJobStatus.RUNNING))).willReturn(0);
-        given(jenkinsQueryPort.getMaxExecutors(1L)).willReturn(1);
+        given(jenkinsQueryPort.isImmediatelyExecutable(1L)).willReturn(1);
         given(jobPort.existsByJobIdAndStatusIn(eq("job-001"), any())).willReturn(true);
 
         service.tryDispatch();
@@ -150,12 +151,12 @@ class DispatchEvaluatorServiceTest {
         ExecutionJob job2 = pendingJob("excn-002", "job-002");
         given(jobPort.findDispatchableJobs(5)).willReturn(List.of(job1, job2));
         given(jobDefinitionQueryPort.load("job-001")).willReturn(defInfo("job-001"));
-        given(jobDefinitionQueryPort.load("job-002")).willReturn(new JobDefinitionInfo("job-002", "10", "20", 2L));
+        given(jobDefinitionQueryPort.load("job-002")).willReturn(Optional.of(new JobDefinitionInfo("job-002", "10", "20", 2L)));
         given(jenkinsQueryPort.isHealthy(1L)).willThrow(new RuntimeException("down"));
         given(jenkinsQueryPort.isHealthy(2L)).willReturn(true);
         given(jobPort.countActiveJobsByJenkinsInstanceId(2L, List.of(
                 ExecutionJobStatus.QUEUED, ExecutionJobStatus.SUBMITTED, ExecutionJobStatus.RUNNING))).willReturn(0);
-        given(jenkinsQueryPort.getMaxExecutors(2L)).willReturn(1);
+        given(jenkinsQueryPort.isImmediatelyExecutable(2L)).willReturn(1);
         given(jobPort.existsByJobIdAndStatusIn(eq("job-002"), any())).willReturn(false);
 
         service.tryDispatch();
@@ -164,24 +165,24 @@ class DispatchEvaluatorServiceTest {
     }
 
     @Test
-    @DisplayName("job definition 조회 실패 시 retryOrFail 처리하고 다른 Job은 계속 처리해야 한다")
-    void tryDispatch_missingDefinition_shouldRetryAndContinue() {
+    @DisplayName("job definition을 찾지 못하면 즉시 FAILURE 처리하고 다른 Job은 계속 처리해야 한다")
+    void tryDispatch_missingDefinition_shouldFailAndContinue() {
         ExecutionJob missingJob = pendingJob("excn-001", "job-001");
         ExecutionJob healthyJob = pendingJob("excn-002", "job-002");
         given(jobPort.findDispatchableJobs(5)).willReturn(List.of(missingJob, healthyJob));
-        given(jobDefinitionQueryPort.load("job-001")).willThrow(new RuntimeException("missing"));
-        given(jobDefinitionQueryPort.load("job-002")).willReturn(new JobDefinitionInfo("job-002", "10", "20", 2L));
+        given(jobDefinitionQueryPort.load("job-001")).willReturn(Optional.empty());
+        given(jobDefinitionQueryPort.load("job-002")).willReturn(Optional.of(new JobDefinitionInfo("job-002", "10", "20", 2L)));
         given(jenkinsQueryPort.isHealthy(2L)).willReturn(true);
         given(jobPort.countActiveJobsByJenkinsInstanceId(2L, List.of(
                 ExecutionJobStatus.QUEUED, ExecutionJobStatus.SUBMITTED, ExecutionJobStatus.RUNNING))).willReturn(0);
-        given(jenkinsQueryPort.getMaxExecutors(2L)).willReturn(1);
+        given(jenkinsQueryPort.isImmediatelyExecutable(2L)).willReturn(1);
         given(jobPort.existsByJobIdAndStatusIn(eq("job-002"), any())).willReturn(false);
 
         service.tryDispatch();
 
         verify(jobPort, times(2)).save(any());
-        assertThat(missingJob.getStatus()).isEqualTo(ExecutionJobStatus.PENDING);
-        assertThat(missingJob.getRetryCnt()).isEqualTo(1);
+        assertThat(missingJob.getStatus()).isEqualTo(ExecutionJobStatus.FAILURE);
+        assertThat(missingJob.getRetryCnt()).isEqualTo(0);
         verify(publishPort, times(1)).publishExecuteCommand(any());
     }
 }
